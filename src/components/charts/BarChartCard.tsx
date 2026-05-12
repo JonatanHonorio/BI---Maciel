@@ -16,6 +16,7 @@ interface BarChartCardProps {
   bars: { key: string; color: string; label: string }[];
   height?: number;
   layout?: "horizontal" | "vertical";
+  stacked?: boolean;
 }
 
 export default function BarChartCard({
@@ -25,6 +26,7 @@ export default function BarChartCard({
   bars,
   height = 280,
   layout = "vertical",
+  stacked = false,
 }: BarChartCardProps) {
   if (layout === "horizontal") {
     return (
@@ -37,7 +39,7 @@ export default function BarChartCard({
             <YAxis type="category" dataKey={xKey} tick={{ fontSize: 11 }} width={80} />
             <Tooltip />
             {bars.map((bar) => (
-              <Bar key={bar.key} dataKey={bar.key} fill={bar.color} name={bar.label} radius={[0, 4, 4, 0]} />
+              <Bar key={bar.key} dataKey={bar.key} fill={bar.color} name={bar.label} radius={[0, 4, 4, 0]} stackId={stacked ? "stack" : undefined} />
             ))}
           </BarChart>
         </ResponsiveContainer>
@@ -64,7 +66,7 @@ export default function BarChartCard({
           <YAxis tick={{ fontSize: 11 }} />
           <Tooltip />
           {bars.map((bar) => (
-            <Bar key={bar.key} dataKey={bar.key} fill={bar.color} name={bar.label} radius={[4, 4, 0, 0]} />
+            <Bar key={bar.key} dataKey={bar.key} fill={bar.color} name={bar.label} radius={[4, 4, 0, 0]} stackId={stacked ? "stack" : undefined} />
           ))}
         </BarChart>
       </ResponsiveContainer>

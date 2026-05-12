@@ -10,6 +10,7 @@ import {
   DollarSign,
   TrendingUp,
   Target,
+  Bot,
 } from "lucide-react";
 
 const links = [
@@ -19,6 +20,7 @@ const links = [
   { href: "/imoveis", label: "Imóveis", icon: Building2 },
   { href: "/corretores", label: "Corretores", icon: Users },
   { href: "/vendas", label: "Vendas", icon: DollarSign },
+  { href: "/lais", label: "Lais Visitas", icon: Bot },
   { href: "/estrategico", label: "Estratégico", icon: TrendingUp },
   { href: "/metas", label: "Metas", icon: Target },
 ];
