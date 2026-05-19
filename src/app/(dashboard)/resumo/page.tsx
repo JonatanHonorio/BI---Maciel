@@ -14,12 +14,14 @@ import {
   Eye,
   TrendingUp,
   Target,
+  MapPin,
 } from "lucide-react";
 
 interface DashboardData {
   leads: { total: number; venda: number; locacao: number };
   propostas: number;
   conversoes: { total: number; vendas: number; locacoes: number; receita: number; receita_venda: number; receita_locacao: number };
+  receita_unidade: { unidade: string; receita: number; conversoes: number }[];
   trafego: {
     investimento: number; impressoes: number; cliques: number;
     leads: number; conversas: number; cpl: number; roas: number;
@@ -125,6 +127,22 @@ export default function ResumoPage() {
           status={getStatus(data.trafego.cpl, m?.cpl_meta || 0, true)}
         />
       </div>
+
+      {data.receita_unidade && data.receita_unidade.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          {data.receita_unidade.map((u) => (
+            <KpiCard
+              key={u.unidade}
+              label={u.unidade}
+              value={fmtMoney(u.receita)}
+              subtitle={`${u.conversoes} conversões`}
+              icon={MapPin}
+              iconColor="text-violet-500"
+              compact
+            />
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <KpiCard
