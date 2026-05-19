@@ -19,7 +19,7 @@ import {
 interface DashboardData {
   leads: { total: number; venda: number; locacao: number };
   propostas: number;
-  conversoes: { total: number; vendas: number; locacoes: number; receita: number };
+  conversoes: { total: number; vendas: number; locacoes: number; receita: number; receita_venda: number; receita_locacao: number };
   trafego: {
     investimento: number; impressoes: number; cliques: number;
     leads: number; conversas: number; cpl: number; roas: number;
@@ -95,6 +95,7 @@ export default function ResumoPage() {
         <KpiCard
           label="Receita"
           value={fmtMoney(data.conversoes.receita)}
+          subtitle={`V: ${fmtMoney(data.conversoes.receita_venda)} | L: ${fmtMoney(data.conversoes.receita_locacao)}`}
           icon={DollarSign}
           iconColor="text-emerald-500"
           meta={m?.receita_meta}

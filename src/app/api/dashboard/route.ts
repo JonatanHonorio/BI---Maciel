@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
     SELECT
       COUNT(*) as total,
       COALESCE(SUM(valor), 0) as receita,
+      COALESCE(SUM(valor) FILTER (WHERE locacao_venda = 'V'), 0) as receita_venda,
+      COALESCE(SUM(valor) FILTER (WHERE locacao_venda = 'L'), 0) as receita_locacao,
       COUNT(*) FILTER (WHERE locacao_venda = 'V') as vendas,
       COUNT(*) FILTER (WHERE locacao_venda = 'L') as locacoes
     FROM conversoes WHERE data_assinatura >= ${since} AND data_assinatura <= ${until}`;
@@ -62,6 +64,8 @@ export async function GET(req: NextRequest) {
       vendas: Number(conversoes.vendas),
       locacoes: Number(conversoes.locacoes),
       receita: receitaTotal,
+      receita_venda: Number(conversoes.receita_venda),
+      receita_locacao: Number(conversoes.receita_locacao),
     },
     trafego: {
       investimento,
