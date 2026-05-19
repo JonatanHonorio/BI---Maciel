@@ -7,11 +7,9 @@ import LineChartCard from "@/components/charts/LineChartCard";
 import PieChartCard from "@/components/charts/PieChartCard";
 import {
   Users,
-  FileText,
   Handshake,
   DollarSign,
   Megaphone,
-  Eye,
   Target,
   MapPin,
 } from "lucide-react";
@@ -66,7 +64,7 @@ export default function ResumoPage() {
         />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <KpiCard
           label="Leads"
           value={fmtNum(data.leads.total)}
@@ -75,14 +73,6 @@ export default function ResumoPage() {
           iconColor="text-blue-500"
           meta={m?.leads_meta}
           status={getStatus(data.leads.total, m?.leads_meta || 0)}
-        />
-        <KpiCard
-          label="Propostas"
-          value={fmtNum(data.propostas)}
-          icon={FileText}
-          iconColor="text-purple-500"
-          meta={m?.propostas_meta}
-          status={getStatus(data.propostas, m?.propostas_meta || 0)}
         />
         <KpiCard
           label="Conversões"
@@ -144,12 +134,6 @@ export default function ResumoPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <KpiCard
-          label="Visitas no Site"
-          value={fmtNum(data.visitas_site)}
-          icon={Eye}
-          iconColor="text-cyan-500"
-        />
         <KpiCard
           label="Conversas (WhatsApp)"
           value={fmtNum(data.trafego.conversas)}
