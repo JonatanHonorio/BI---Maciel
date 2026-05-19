@@ -65,7 +65,7 @@ export default function ResumoPage() {
         />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
         <KpiCard
           label="Leads"
           value={fmtNum(data.leads.total)}
@@ -93,14 +93,18 @@ export default function ResumoPage() {
           status={getStatus(data.conversoes.total, m?.vendas_meta || 0)}
         />
         <KpiCard
-          label="Receita"
-          value={fmtMoney(data.conversoes.receita)}
-          subtitle={`V: ${fmtMoney(data.conversoes.receita_venda)} | L: ${fmtMoney(data.conversoes.receita_locacao)}`}
+          label="Receita Venda"
+          value={fmtMoney(data.conversoes.receita_venda)}
+          subtitle={`${data.conversoes.vendas} conversões`}
           icon={DollarSign}
           iconColor="text-emerald-500"
-          meta={m?.receita_meta}
-          metaLabel={m ? `Meta: ${fmtMoney(m.receita_meta)}` : undefined}
-          status={getStatus(data.conversoes.receita, m?.receita_meta || 0)}
+        />
+        <KpiCard
+          label="Receita Locação"
+          value={fmtMoney(data.conversoes.receita_locacao)}
+          subtitle={`${data.conversoes.locacoes} conversões`}
+          icon={DollarSign}
+          iconColor="text-teal-500"
         />
         <KpiCard
           label="Investimento"
