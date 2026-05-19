@@ -12,7 +12,6 @@ import {
   DollarSign,
   Megaphone,
   Eye,
-  TrendingUp,
   Target,
   MapPin,
 } from "lucide-react";
@@ -21,7 +20,7 @@ interface DashboardData {
   leads: { total: number; venda: number; locacao: number };
   propostas: number;
   conversoes: { total: number; vendas: number; locacoes: number; receita: number; receita_venda: number; receita_locacao: number };
-  receita_unidade: { unidade: string; receita: number; conversoes: number }[];
+  receita_unidade: { unidade: string; receita: number; receita_venda: number; receita_locacao: number; conversoes: number }[];
   trafego: {
     investimento: number; impressoes: number; cliques: number;
     leads: number; conversas: number; cpl: number; roas: number;
@@ -135,7 +134,7 @@ export default function ResumoPage() {
               key={u.unidade}
               label={u.unidade}
               value={fmtMoney(u.receita)}
-              subtitle={`${u.conversoes} conversões`}
+              subtitle={`V: ${fmtMoney(u.receita_venda)} | L: ${fmtMoney(u.receita_locacao)}`}
               icon={MapPin}
               iconColor="text-violet-500"
               compact
@@ -144,19 +143,12 @@ export default function ResumoPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <KpiCard
           label="Visitas no Site"
           value={fmtNum(data.visitas_site)}
           icon={Eye}
           iconColor="text-cyan-500"
-        />
-        <KpiCard
-          label="ROAS"
-          value={`${data.trafego.roas.toFixed(2)}x`}
-          subtitle={`Receita / Investimento`}
-          icon={TrendingUp}
-          iconColor="text-indigo-500"
         />
         <KpiCard
           label="Conversas (WhatsApp)"

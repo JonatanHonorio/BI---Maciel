@@ -57,6 +57,8 @@ export async function GET(req: NextRequest) {
         ELSE 'Outro'
       END as unidade,
       COALESCE(SUM(c.valor), 0) as receita,
+      COALESCE(SUM(c.valor) FILTER (WHERE c.locacao_venda = 'V'), 0) as receita_venda,
+      COALESCE(SUM(c.valor) FILTER (WHERE c.locacao_venda = 'L'), 0) as receita_locacao,
       COUNT(DISTINCT c.id) as conversoes
     FROM conversoes c
     JOIN conversao_corretores cc ON cc.conversao_id = c.id
@@ -100,6 +102,8 @@ export async function GET(req: NextRequest) {
     receita_unidade: receitaUnidade.map((r) => ({
       unidade: r.unidade,
       receita: Number(r.receita),
+      receita_venda: Number(r.receita_venda),
+      receita_locacao: Number(r.receita_locacao),
       conversoes: Number(r.conversoes),
     })),
     metas: metas || null,
