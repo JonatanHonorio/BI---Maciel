@@ -18,9 +18,11 @@ export const config = {
      * Protege todas as rotas EXCETO:
      * - /login (página de login)
      * - /api/auth (endpoint de autenticação)
+     * - /api/corretor (consumido pelo Apps Script da planilha de leads;
+     *   autentica sozinho por Bearer BI_API_TOKEN ou cookie de sessão)
      * - /_next (assets do Next.js)
      * - /favicon.ico, /icon, etc.
      */
-    "/((?!login|api/auth|_next|favicon\\.ico|icon).*)",
+    "/((?!login|api/auth|api/corretor|_next|favicon\\.ico|icon).*)",
   ],
 };

@@ -19,6 +19,7 @@ const TABLES_TO_IMPORT = [
   "ordem_atendimento_releases", "ordem_atendimento_utm",
   "saidadeproposta", "conversao", "conversao_aten",
   "midia", "temperatura", "pre_aten", "edificio",
+  "ordem_atendimento_responsaveis",
 ];
 
 let tableColumns = {};
@@ -89,13 +90,17 @@ function mapRow(table, columns, v) {
   } else if (table === "clientes") {
     return [sn(v,c("id")), sv(v,c("nome"))||"", sv(v,c("email")), sv(v,c("celular")), sv(v,c("fone")), sv(v,c("cidade")), sv(v,c("estado")), sv(v,c("bairro")), sn(v,c("sexo"))];
   } else if (table === "imoveis") {
-    return [sn(v,c("id")), sv(v,c("codigo")), sv(v,c("titulo")), sv(v,c("tipo_mae")), sv(v,c("tipo_imovel")), sv(v,c("locacao_venda")), sv(v,c("endereco")), sv(v,c("bairro_nome")), sv(v,c("cidade")), sv(v,c("estado")), sn(v,c("dormitorios")), sn(v,c("suites")), sn(v,c("banheiros")), sn(v,c("a_util")), sn(v,c("a_total")), sn(v,c("valor")), sn(v,c("id_edi_cond")), sd(v,c("data"))];
+    return [sn(v,c("id")), sv(v,c("codigo")), sv(v,c("titulo")), sv(v,c("tipo_mae")), sv(v,c("tipo_imovel")), sv(v,c("locacao_venda")), sv(v,c("endereco")), sv(v,c("bairro_nome")), sv(v,c("cidade")), sv(v,c("estado")), sn(v,c("dormitorios")), sn(v,c("suites")), sn(v,c("banheiros")), sn(v,c("a_util")), sn(v,c("a_total")), sn(v,c("valor")), sn(v,c("id_edi_cond")), sd(v,c("data")), (sv(v,c("observacoes"))||"").substring(0,10000), (sv(v,c("dado_proprietario"))||"").substring(0,5000), (sv(v,c("v_dado_proprietario"))||"").substring(0,5000), (sv(v,c("descricao"))||"").substring(0,10000), (sv(v,c("observacoes_locacao"))||"").substring(0,10000), sn(v,c("id_usuario"))];
   } else if (table === "ordem_atendimento") {
     const status = sv(v,c("pq_fechou")) ? "fechado" : "aberto";
     const corrId = sn(v,c("id_usuario_resp")) || sn(v,c("id_usuario"));
     return [sn(v,c("id")), corrId, sn(v,c("id_cliente")), sn(v,c("id_empresa")), sv(v,c("locacao_venda")), sv(v,c("origem")), sv(v,c("origem_fonte")), sn(v,c("id_temperatura")), sv(v,c("tipo_imovel")), sv(v,c("bairros")), sv(v,c("cidades")), sn(v,c("dormitorios")), sn(v,c("valor_aluguel")), sn(v,c("valor_venda")), sd(v,c("data_inicio")), sd(v,c("data_fim")), status, sv(v,c("observacoes"))];
   } else if (table === "ordem_atendimento_releases") {
     return [sn(v,c("id")), sn(v,c("id_ordem_atendimento")), sn(v,c("id_usuario")), (sv(v,c("descricao"))||"").substring(0,5000), sn(v,c("id_temperatura")), sd(v,c("data")), sn(v,c("tempo_retorno"))];
+  } else if (table === "ordem_atendimento_responsaveis") {
+    // Responsável REAL da ordem (o que a tela do Kurole mostra em RESPONSÁVEIS).
+    // Não confundir com ordem_atendimento.id_usuario_resp, que aponta pra caixa da unidade.
+    return [sn(v,c("id")), sn(v,c("id_ordem_atendimento")), sn(v,c("id_usuario")), sd(v,c("data_now")), sn(v,c("id_usuario_now"))];
   } else if (table === "ordem_atendimento_utm") {
     return [sn(v,c("id")), sn(v,c("id_ordem_atendimento")), sv(v,c("utm_source")), sv(v,c("utm_medium")), sv(v,c("utm_campaign")), sv(v,c("utm_term")), sv(v,c("utm_content")), sd(v,c("data_now"))];
   } else if (table === "saidadeproposta") {
@@ -119,9 +124,10 @@ function mapRow(table, columns, v) {
 const QUERIES = {
   usuarios: { cols: 11, sql: (n) => `INSERT INTO corretores (id,nome,nome_comercial,email,celular,departamento_id,funcao,ativo,empresa,data_admissao,data_demissao) VALUES ${n} ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,nome_comercial=EXCLUDED.nome_comercial,ativo=EXCLUDED.ativo` },
   clientes: { cols: 9, sql: (n) => `INSERT INTO clientes (id,nome,email,celular,telefone,cidade,estado,bairro,sexo) VALUES ${n} ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,email=EXCLUDED.email,celular=EXCLUDED.celular` },
-  imoveis: { cols: 18, sql: (n) => `INSERT INTO imoveis (id,codigo,titulo,tipo_mae,tipo_imovel,locacao_venda,endereco,bairro,cidade,estado,dormitorios,suites,banheiros,area_util,area_total,valor,edificio_id,data_cadastro) VALUES ${n} ON CONFLICT (id) DO UPDATE SET valor=EXCLUDED.valor,titulo=EXCLUDED.titulo,locacao_venda=EXCLUDED.locacao_venda` },
+  imoveis: { cols: 24, sql: (n) => `INSERT INTO imoveis (id,codigo,titulo,tipo_mae,tipo_imovel,locacao_venda,endereco,bairro,cidade,estado,dormitorios,suites,banheiros,area_util,area_total,valor,edificio_id,data_cadastro,observacoes,dado_proprietario,v_dado_proprietario,descricao,observacoes_locacao,corretor_id) VALUES ${n} ON CONFLICT (id) DO UPDATE SET valor=EXCLUDED.valor,titulo=EXCLUDED.titulo,locacao_venda=EXCLUDED.locacao_venda,observacoes=EXCLUDED.observacoes,dado_proprietario=EXCLUDED.dado_proprietario,v_dado_proprietario=EXCLUDED.v_dado_proprietario,descricao=EXCLUDED.descricao,observacoes_locacao=EXCLUDED.observacoes_locacao,corretor_id=EXCLUDED.corretor_id` },
   ordem_atendimento: { cols: 18, sql: (n) => `INSERT INTO leads (id,corretor_id,cliente_id,empresa_id,locacao_venda,origem,origem_fonte,temperatura_id,tipo_imovel,bairros,cidades,dormitorios,valor_aluguel,valor_venda,data_inicio,data_fim,status,observacoes) VALUES ${n} ON CONFLICT (id) DO UPDATE SET temperatura_id=EXCLUDED.temperatura_id,status=EXCLUDED.status` },
   ordem_atendimento_releases: { cols: 7, sql: (n) => `INSERT INTO lead_atividades (id,lead_id,corretor_id,descricao,temperatura_id,data,tempo_retorno) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
+  ordem_atendimento_responsaveis: { cols: 5, sql: (n) => `INSERT INTO lead_responsaveis (id,lead_id,corretor_id,data,atribuido_por_id) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
   ordem_atendimento_utm: { cols: 8, sql: (n) => `INSERT INTO lead_utms (id,lead_id,utm_source,utm_medium,utm_campaign,utm_term,utm_content,data) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
   saidadeproposta: { cols: 9, sql: (n) => `INSERT INTO propostas (id,imovel_id,cliente_id,corretor_id,lead_id,locacao_venda,valor_pedido,valor_proposto,data) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
   conversao: { cols: 10, sql: (n) => `INSERT INTO conversoes (id,imovel_id,midia_id,locacao_venda,valor,taxa,data_inicio,data_assinatura,data_efetivacao,finalidade) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
@@ -276,7 +282,11 @@ async function processFile(filePath) {
 
   const fileStream = fs.createReadStream(filePath);
   const gunzip = zlib.createGunzip();
-  const rl = readline.createInterface({ input: fileStream.pipe(gunzip).pipe(lineSkipper), crlfDelay: Infinity });
+  // O dump vem com `SET NAMES latin1` — decodificar como latin1, senão os
+  // acentos viram U+FFFD ("Jo�o" em vez de "João"). Confirmado no dump de 22/08/2026.
+  const decoded = fileStream.pipe(gunzip).pipe(lineSkipper);
+  decoded.setEncoding("latin1");
+  const rl = readline.createInterface({ input: decoded, crlfDelay: Infinity });
 
   let insertBuffer = "";
   let insertBufferTable = "";

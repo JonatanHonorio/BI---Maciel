@@ -263,3 +263,18 @@ CREATE INDEX IF NOT EXISTS idx_visitas_imovel ON imovel_visitas(imovel_id);
 CREATE INDEX IF NOT EXISTS idx_meta_insights_data ON meta_insights_diarios(data);
 CREATE INDEX IF NOT EXISTS idx_meta_insights_campanha ON meta_insights_diarios(campanha_id);
 CREATE INDEX IF NOT EXISTS idx_pre_atend_data ON pre_atendimentos(data);
+
+-- Responsáveis da ordem de atendimento (ordem_atendimento_responsaveis do KSI)
+-- Fonte REAL do corretor responsável — leads.corretor_id (id_usuario_resp) aponta
+-- para a caixa da unidade, não para a pessoa. O registro mais antigo por lead é o
+-- primeiro responsável; o mais recente é o atual.
+-- Sem FK de propósito: as FKs do Neon foram dropadas em 16/07/2026 (ver memória).
+CREATE TABLE IF NOT EXISTS lead_responsaveis (
+  id BIGINT PRIMARY KEY,
+  lead_id INTEGER,
+  corretor_id INTEGER,
+  data TIMESTAMP,
+  atribuido_por_id INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_lead_resp_lead ON lead_responsaveis(lead_id);
+CREATE INDEX IF NOT EXISTS idx_lead_resp_corretor ON lead_responsaveis(corretor_id);
