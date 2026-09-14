@@ -1,0 +1,43 @@
+{
+  "_leia": "Duas seções, ambas AUTO-EXPIRÁVEIS: só agem enquanto o dado do Kurole continuar errado. Assim que o dump trouxer o certo, elas param de valer sozinhas e ninguém precisa lembrar de apagar.",
+
+  "_correcoes": "Por telefone (últimos 9 dígitos). Usadas só quando o cruzamento automático NÃO acha corretor/unidade.",
+  "correcoes": {
+    "981763194": {
+      "cliente": "Gabriel",
+      "corretor": "Fabiana Farias",
+      "unidade": "Satélite",
+      "ordem": 296756,
+      "fonte": "tela do Kurole, conferida pelo Jonatan em 10/09/2026",
+      "motivo": "ordem aberta 09/09 14:26, depois do corte do dump de então",
+      "situacao": "INERTE desde o dump de 11/09 — a ordem entrou e o automático resolve"
+    },
+    "988426810": {
+      "cliente": "Lusca",
+      "corretor": "Samuel Felix",
+      "unidade": "Vista Verde",
+      "ordem": 296825,
+      "fonte": "tela do Kurole, conferida pelo Jonatan em 10/09/2026",
+      "motivo": "ordem aberta 09/09 19:40, depois do corte do dump de então",
+      "situacao": "INERTE desde o dump de 11/09 — a ordem entrou e o automático resolve"
+    }
+  },
+
+  "_unidade_por_corretor": "Cadastro do corretor com unidade errada no Kurole. Chave = id do corretor. Só troca quando a unidade calculada for igual a 'de' — corrigido o cadastro, o 'de' deixa de bater e a regra morre sozinha. A VERTICAL (Vendas/Locação) é preservada: aqui só muda a unidade.",
+  "unidade_por_corretor": {
+    "154": {
+      "corretor": "Marta Silva",
+      "de": "Aquarius",
+      "para": "Dutra",
+      "departamento_errado": "18 = Venda Aquarius",
+      "fonte": "Jonatan em 11/09/2026 — vai corrigir no Kurole"
+    },
+    "840": {
+      "corretor": "PEDRO CHAFFY HALLAK RENOVATO FELIX",
+      "de": "Urbanova",
+      "para": "Satélite",
+      "departamento_errado": "47 = Locação Urbanova",
+      "fonte": "Jonatan em 11/09/2026 — vai corrigir no Kurole"
+    }
+  }
+}

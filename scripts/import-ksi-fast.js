@@ -14,12 +14,18 @@ require("dotenv").config({ path: ".env.local" });
 let client;
 const BATCH_SIZE = 100;
 
+// Janela do BI: 12 meses. O que e mais velho nao entra nas tabelas de log —
+// o painel mostra a operacao atual, e o espaco do Neon e limitado (512 MB).
+const CORTE_HISTORICO = new Date(Date.now() - 365 * 24 * 3600 * 1000)
+  .toISOString().slice(0, 10);
+
 const TABLES_TO_IMPORT = [
   "usuarios", "clientes", "imoveis", "ordem_atendimento",
   "ordem_atendimento_releases", "ordem_atendimento_utm",
   "saidadeproposta", "conversao", "conversao_aten",
   "midia", "temperatura", "pre_aten", "edificio",
-  "ordem_atendimento_responsaveis",
+  "ordem_atendimento_responsaveis", "imoveis_cadastrador",
+  "atualizacoes", "imoveis_alt_temp",
 ];
 
 let tableColumns = {};
@@ -90,13 +96,39 @@ function mapRow(table, columns, v) {
   } else if (table === "clientes") {
     return [sn(v,c("id")), sv(v,c("nome"))||"", sv(v,c("email")), sv(v,c("celular")), sv(v,c("fone")), sv(v,c("cidade")), sv(v,c("estado")), sv(v,c("bairro")), sn(v,c("sexo"))];
   } else if (table === "imoveis") {
-    return [sn(v,c("id")), sv(v,c("codigo")), sv(v,c("titulo")), sv(v,c("tipo_mae")), sv(v,c("tipo_imovel")), sv(v,c("locacao_venda")), sv(v,c("endereco")), sv(v,c("bairro_nome")), sv(v,c("cidade")), sv(v,c("estado")), sn(v,c("dormitorios")), sn(v,c("suites")), sn(v,c("banheiros")), sn(v,c("a_util")), sn(v,c("a_total")), sn(v,c("valor")), sn(v,c("id_edi_cond")), sd(v,c("data")), (sv(v,c("observacoes"))||"").substring(0,10000), (sv(v,c("dado_proprietario"))||"").substring(0,5000), (sv(v,c("v_dado_proprietario"))||"").substring(0,5000), (sv(v,c("descricao"))||"").substring(0,10000), (sv(v,c("observacoes_locacao"))||"").substring(0,10000), sn(v,c("id_usuario"))];
+    return [sn(v,c("id")), sv(v,c("codigo")), sv(v,c("titulo")), sv(v,c("tipo_mae")), sv(v,c("tipo_imovel")), sv(v,c("locacao_venda")), sv(v,c("endereco")), sv(v,c("bairro_nome")), sv(v,c("cidade")), sv(v,c("estado")), sn(v,c("dormitorios")), sn(v,c("suites")), sn(v,c("banheiros")), sn(v,c("a_util")), sn(v,c("a_total")), sn(v,c("valor")), sn(v,c("valor_aluguel")), sn(v,c("id_edi_cond")), sd(v,c("data")), sd(v,c("data_atualizacao")), (sv(v,c("observacoes"))||"").substring(0,10000), (sv(v,c("dado_proprietario"))||"").substring(0,5000), (sv(v,c("v_dado_proprietario"))||"").substring(0,5000), (sv(v,c("descricao"))||"").substring(0,10000), (sv(v,c("observacoes_locacao"))||"").substring(0,10000), sn(v,c("id_usuario"))];
   } else if (table === "ordem_atendimento") {
     const status = sv(v,c("pq_fechou")) ? "fechado" : "aberto";
     const corrId = sn(v,c("id_usuario_resp")) || sn(v,c("id_usuario"));
     return [sn(v,c("id")), corrId, sn(v,c("id_cliente")), sn(v,c("id_empresa")), sv(v,c("locacao_venda")), sv(v,c("origem")), sv(v,c("origem_fonte")), sn(v,c("id_temperatura")), sv(v,c("tipo_imovel")), sv(v,c("bairros")), sv(v,c("cidades")), sn(v,c("dormitorios")), sn(v,c("valor_aluguel")), sn(v,c("valor_venda")), sd(v,c("data_inicio")), sd(v,c("data_fim")), status, sv(v,c("observacoes"))];
   } else if (table === "ordem_atendimento_releases") {
-    return [sn(v,c("id")), sn(v,c("id_ordem_atendimento")), sn(v,c("id_usuario")), (sv(v,c("descricao"))||"").substring(0,5000), sn(v,c("id_temperatura")), sd(v,c("data")), sn(v,c("tempo_retorno"))];
+    // Janela de 12 meses: era a MAIOR tabela do banco (209 MB, 998 mil linhas,
+    // 41% do projeto Neon inteiro) e o BI mostra a operacao atual, nao arquivo.
+    const dr = sd(v,c("data"));
+    if (!dr || dr < CORTE_HISTORICO) return null;
+    return [sn(v,c("id")), sn(v,c("id_ordem_atendimento")), sn(v,c("id_usuario")), (sv(v,c("descricao"))||"").substring(0,5000), sn(v,c("id_temperatura")), dr, sn(v,c("tempo_retorno"))];
+  } else if (table === "atualizacoes") {
+    /*
+     * Log de atualizacao de imovel: quem mexeu, quando, e se trocou o captador.
+     * Fonte da campanha "atualizou, ganha a captacao".
+     *
+     * SEM a coluna `descricao` e SO os ultimos 12 meses — nao e economia
+     * opcional: com descricao (HTML, 303 mil linhas) o Neon estourou o teto de
+     * 512 MB do projeto e a tabela nao entrou. E o BI mostra a operacao de
+     * agora, nao arquivo historico.
+     */
+    const d = sd(v,c("data"));
+    if (!d || d < CORTE_HISTORICO) return null;
+    return [sn(v,c("id")), sn(v,c("id_imovel")), sn(v,c("id_usuario")), sn(v,c("id_usuario_trocou")), d];
+  } else if (table === "imoveis_alt_temp") {
+    // Formulario de atualizacao. `altera_cadastrador` indica que a atualizacao
+    // transfere a captacao — a regra da campanha esta implementada aqui dentro.
+    return [sn(v,c("id")), sn(v,c("id_imovel")), sn(v,c("altera_cadastrador")), sn(v,c("atualizado_flag")), sd(v,c("atualizado_data_now")), sn(v,c("atualizado_usuario")), sn(v,c("nao_atualizou_id_usuario")), (sv(v,c("nao_atualizou_motivo"))||"").substring(0,500), sd(v,c("data"))];
+  } else if (table === "imoveis_cadastrador") {
+    // Captacao com RATEIO: o mesmo imovel pode ter dois captadores com
+    // percentuais diferentes. E a fonte boa para "captacoes por corretor" —
+    // melhor que imoveis.corretor_id, que guarda um so.
+    return [sn(v,c("id")), sn(v,c("id_imovel")), sn(v,c("id_usuario")), sn(v,c("percentual")), sv(v,c("locacao_venda")), sd(v,c("data"))];
   } else if (table === "ordem_atendimento_responsaveis") {
     // Responsável REAL da ordem (o que a tela do Kurole mostra em RESPONSÁVEIS).
     // Não confundir com ordem_atendimento.id_usuario_resp, que aponta pra caixa da unidade.
@@ -124,9 +156,17 @@ function mapRow(table, columns, v) {
 const QUERIES = {
   usuarios: { cols: 11, sql: (n) => `INSERT INTO corretores (id,nome,nome_comercial,email,celular,departamento_id,funcao,ativo,empresa,data_admissao,data_demissao) VALUES ${n} ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,nome_comercial=EXCLUDED.nome_comercial,ativo=EXCLUDED.ativo` },
   clientes: { cols: 9, sql: (n) => `INSERT INTO clientes (id,nome,email,celular,telefone,cidade,estado,bairro,sexo) VALUES ${n} ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,email=EXCLUDED.email,celular=EXCLUDED.celular` },
-  imoveis: { cols: 24, sql: (n) => `INSERT INTO imoveis (id,codigo,titulo,tipo_mae,tipo_imovel,locacao_venda,endereco,bairro,cidade,estado,dormitorios,suites,banheiros,area_util,area_total,valor,edificio_id,data_cadastro,observacoes,dado_proprietario,v_dado_proprietario,descricao,observacoes_locacao,corretor_id) VALUES ${n} ON CONFLICT (id) DO UPDATE SET valor=EXCLUDED.valor,titulo=EXCLUDED.titulo,locacao_venda=EXCLUDED.locacao_venda,observacoes=EXCLUDED.observacoes,dado_proprietario=EXCLUDED.dado_proprietario,v_dado_proprietario=EXCLUDED.v_dado_proprietario,descricao=EXCLUDED.descricao,observacoes_locacao=EXCLUDED.observacoes_locacao,corretor_id=EXCLUDED.corretor_id` },
+  // Coluna que não estiver no DO UPDATE SET nunca é reescrita: as linhas antigas
+  // ficam congeladas com o texto que entrou na primeira importação. Foi assim que
+  // endereco/bairro/cidade continuaram corrompidos em latin1 mesmo depois do
+  // conserto de encoding de 25/08 (24.773 cidades quebradas ainda em 10/09/2026),
+  // enquanto titulo e descricao — que estavam na lista — saíram limpos.
+  imoveis: { cols: 26, sql: (n) => `INSERT INTO imoveis (id,codigo,titulo,tipo_mae,tipo_imovel,locacao_venda,endereco,bairro,cidade,estado,dormitorios,suites,banheiros,area_util,area_total,valor,valor_locacao,edificio_id,data_cadastro,data_atualizacao,observacoes,dado_proprietario,v_dado_proprietario,descricao,observacoes_locacao,corretor_id) VALUES ${n} ON CONFLICT (id) DO UPDATE SET valor=EXCLUDED.valor,valor_locacao=EXCLUDED.valor_locacao,titulo=EXCLUDED.titulo,locacao_venda=EXCLUDED.locacao_venda,observacoes=EXCLUDED.observacoes,dado_proprietario=EXCLUDED.dado_proprietario,v_dado_proprietario=EXCLUDED.v_dado_proprietario,descricao=EXCLUDED.descricao,observacoes_locacao=EXCLUDED.observacoes_locacao,corretor_id=EXCLUDED.corretor_id,data_atualizacao=EXCLUDED.data_atualizacao,endereco=EXCLUDED.endereco,bairro=EXCLUDED.bairro,cidade=EXCLUDED.cidade,estado=EXCLUDED.estado` },
   ordem_atendimento: { cols: 18, sql: (n) => `INSERT INTO leads (id,corretor_id,cliente_id,empresa_id,locacao_venda,origem,origem_fonte,temperatura_id,tipo_imovel,bairros,cidades,dormitorios,valor_aluguel,valor_venda,data_inicio,data_fim,status,observacoes) VALUES ${n} ON CONFLICT (id) DO UPDATE SET temperatura_id=EXCLUDED.temperatura_id,status=EXCLUDED.status` },
   ordem_atendimento_releases: { cols: 7, sql: (n) => `INSERT INTO lead_atividades (id,lead_id,corretor_id,descricao,temperatura_id,data,tempo_retorno) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
+  atualizacoes: { cols: 5, sql: (n) => `INSERT INTO imovel_atualizacoes (id,imovel_id,corretor_id,corretor_trocou_id,data) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
+  imoveis_alt_temp: { cols: 9, sql: (n) => `INSERT INTO imovel_atualizacao_form (id,imovel_id,altera_cadastrador,atualizado,atualizado_em,atualizado_por_id,nao_atualizou_por_id,nao_atualizou_motivo,data) VALUES ${n} ON CONFLICT (id) DO UPDATE SET atualizado=EXCLUDED.atualizado,atualizado_em=EXCLUDED.atualizado_em,atualizado_por_id=EXCLUDED.atualizado_por_id` },
+  imoveis_cadastrador: { cols: 6, sql: (n) => `INSERT INTO imovel_captadores (id,imovel_id,corretor_id,percentual,locacao_venda,data) VALUES ${n} ON CONFLICT (id) DO UPDATE SET percentual=EXCLUDED.percentual,locacao_venda=EXCLUDED.locacao_venda,data=EXCLUDED.data` },
   ordem_atendimento_responsaveis: { cols: 5, sql: (n) => `INSERT INTO lead_responsaveis (id,lead_id,corretor_id,data,atribuido_por_id) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
   ordem_atendimento_utm: { cols: 8, sql: (n) => `INSERT INTO lead_utms (id,lead_id,utm_source,utm_medium,utm_campaign,utm_term,utm_content,data) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
   saidadeproposta: { cols: 9, sql: (n) => `INSERT INTO propostas (id,imovel_id,cliente_id,corretor_id,lead_id,locacao_venda,valor_pedido,valor_proposto,data) VALUES ${n} ON CONFLICT (id) DO NOTHING` },

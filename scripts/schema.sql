@@ -278,3 +278,49 @@ CREATE TABLE IF NOT EXISTS lead_responsaveis (
 );
 CREATE INDEX IF NOT EXISTS idx_lead_resp_lead ON lead_responsaveis(lead_id);
 CREATE INDEX IF NOT EXISTS idx_lead_resp_corretor ON lead_responsaveis(corretor_id);
+
+-- Captação com rateio (KSI: imoveis_cadastrador). O mesmo imóvel pode ter dois
+-- captadores com percentuais diferentes — por isso não cabe em imoveis.corretor_id.
+CREATE TABLE IF NOT EXISTS imovel_captadores (
+  id            BIGINT PRIMARY KEY,
+  imovel_id     BIGINT,
+  corretor_id   BIGINT,
+  percentual    NUMERIC(6,2),
+  locacao_venda VARCHAR(4),
+  data          TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_imovel_capt_imovel ON imovel_captadores(imovel_id);
+CREATE INDEX IF NOT EXISTS idx_imovel_capt_corretor ON imovel_captadores(corretor_id);
+CREATE INDEX IF NOT EXISTS idx_imovel_capt_data ON imovel_captadores(data);
+
+-- Log de atualização de imóvel (KSI: atualizacoes). Base da campanha
+-- "corretor que atualiza ganha a captação": diz QUEM mexeu e QUANDO.
+CREATE TABLE IF NOT EXISTS imovel_atualizacoes (
+  id                 BIGINT PRIMARY KEY,
+  imovel_id          BIGINT,
+  corretor_id        BIGINT,
+  corretor_trocou_id BIGINT,
+  descricao          TEXT,
+  data               TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_imov_atu_imovel ON imovel_atualizacoes(imovel_id);
+CREATE INDEX IF NOT EXISTS idx_imov_atu_corretor ON imovel_atualizacoes(corretor_id);
+CREATE INDEX IF NOT EXISTS idx_imov_atu_data ON imovel_atualizacoes(data);
+
+-- Formulário de atualização (KSI: imoveis_alt_temp). `altera_cadastrador` é a
+-- própria regra da campanha implementada no sistema.
+CREATE TABLE IF NOT EXISTS imovel_atualizacao_form (
+  id                   BIGINT PRIMARY KEY,
+  imovel_id            BIGINT,
+  altera_cadastrador   SMALLINT,
+  atualizado           SMALLINT,
+  atualizado_em        TIMESTAMP,
+  atualizado_por_id    BIGINT,
+  nao_atualizou_por_id BIGINT,
+  nao_atualizou_motivo TEXT,
+  data                 TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_imov_form_imovel ON imovel_atualizacao_form(imovel_id);
+
+ALTER TABLE imoveis ADD COLUMN IF NOT EXISTS data_atualizacao TIMESTAMP;
+CREATE INDEX IF NOT EXISTS idx_imoveis_data_atualizacao ON imoveis(data_atualizacao);

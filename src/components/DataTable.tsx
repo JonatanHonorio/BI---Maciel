@@ -1,5 +1,18 @@
 "use client";
 import { useState } from "react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+/**
+ * Tabela do BI. Mesma API de antes (columns, data, searchable, pageSize) —
+ * só o acabamento mudou, e há 8 páginas usando este componente.
+ *
+ * Decisões visuais que não são enfeite:
+ *  - cabeçalho grudento (`sticky`): nas listas de 90 corretores o usuário perde
+ *    a referência das colunas ao rolar;
+ *  - linhas zebradas em vez de borda por linha: menos ruído com 6 colunas;
+ *  - `tabular-nums` nas células numéricas para os dígitos alinharem na vertical.
+ */
 
 interface Column {
   key: string;
@@ -14,6 +27,9 @@ interface DataTableProps {
   searchable?: boolean;
   pageSize?: number;
 }
+
+const alinhamento = (a?: Column["align"]) =>
+  a === "right" ? "text-right" : a === "center" ? "text-center" : "text-left";
 
 export default function DataTable({
   columns,
@@ -38,29 +54,34 @@ export default function DataTable({
   return (
     <div>
       {searchable && (
-        <div className="flex justify-end mb-2">
-          <input
-            type="text"
-            placeholder="Buscar..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(0);
-            }}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-md w-48"
-          />
+        <div className="mb-3 flex justify-end">
+          <div className="relative">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Buscar..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
+              className="border-input bg-card focus:ring-ring w-52 rounded-md border py-1.5 pr-3 pl-8 text-sm outline-none focus:ring-2"
+            />
+          </div>
         </div>
       )}
-      <div className="overflow-x-auto">
+
+      <div className="border-border overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200">
+          <thead className="bg-muted/60 sticky top-0">
+            <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider ${
-                    col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
-                  }`}
+                  className={cn(
+                    "text-muted-foreground px-3 py-2.5 text-[11px] font-semibold tracking-wide uppercase",
+                    alinhamento(col.align)
+                  )}
                 >
                   {col.label}
                 </th>
@@ -69,42 +90,65 @@ export default function DataTable({
           </thead>
           <tbody>
             {pageData.map((row, i) => (
-              <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+              <tr
+                key={i}
+                className={cn(
+                  "hover:bg-accent/60 transition-colors",
+                  i % 2 === 1 && "bg-muted/30"
+                )}
+              >
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`px-3 py-2.5 ${
-                      col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
-                    }`}
+                    className={cn(
+                      "px-3 py-2.5",
+                      alinhamento(col.align),
+                      col.align === "right" && "tabular-nums font-medium"
+                    )}
                   >
                     {col.format ? col.format(row[col.key]) : String(row[col.key] ?? "-")}
                   </td>
                 ))}
               </tr>
             ))}
+            {!pageData.length && (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="text-muted-foreground px-3 py-8 text-center text-xs"
+                >
+                  Nenhum registro no período.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
+
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
-          <span>{filtered.length} registros</span>
-          <div className="flex gap-1">
+        <div className="text-muted-foreground mt-3 flex items-center justify-between text-xs">
+          <span>
+            {filtered.length.toLocaleString("pt-BR")} registros
+          </span>
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setPage(Math.max(0, page - 1))}
               disabled={page === 0}
-              className="px-2 py-1 rounded border disabled:opacity-30"
+              aria-label="Página anterior"
+              className="border-border hover:bg-accent flex items-center gap-1 rounded-md border px-2 py-1 transition-colors disabled:pointer-events-none disabled:opacity-40"
             >
-              Anterior
+              <ChevronLeft className="size-3.5" /> Anterior
             </button>
-            <span className="px-2 py-1">
+            <span className="px-2 tabular-nums">
               {page + 1} / {totalPages}
             </span>
             <button
               onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
               disabled={page >= totalPages - 1}
-              className="px-2 py-1 rounded border disabled:opacity-30"
+              aria-label="Próxima página"
+              className="border-border hover:bg-accent flex items-center gap-1 rounded-md border px-2 py-1 transition-colors disabled:pointer-events-none disabled:opacity-40"
             >
-              Próximo
+              Próximo <ChevronRight className="size-3.5" />
             </button>
           </div>
         </div>
