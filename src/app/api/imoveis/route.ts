@@ -82,7 +82,12 @@ export async function GET(req: NextRequest) {
       WHERE corretor_id != ALL(${idsExcluirDiretoria})
       ORDER BY imovel_id, percentual DESC NULLS LAST, data DESC NULLS LAST
     )
-    SELECT i.id, i.codigo, i.titulo, i.bairro, i.cidade, i.locacao_venda, i.valor,
+    SELECT i.id,
+      -- imoveis.codigo está gravado como "0" na maioria das linhas (ver
+      -- scripts/visitas-lais-gerentes.js) — cai pra "V"/"L" + id, igual a
+      -- referência que a Lais usa, quando o código não existe de verdade.
+      COALESCE(NULLIF(i.codigo, '0'), LEFT(i.locacao_venda, 1) || i.id::text) AS codigo,
+      i.titulo, i.bairro, i.cidade, i.locacao_venda, i.valor,
       i.data_atualizacao,
       EXTRACT(DAY FROM NOW() - i.data_atualizacao)::int AS dias_sem_atualizar,
       cp.corretor_id, u.departamento_id AS dep_captador,

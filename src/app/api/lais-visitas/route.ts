@@ -22,9 +22,12 @@ export async function GET(req: NextRequest) {
     FROM lais_visitas
     WHERE data_visita >= ${since} AND data_visita <= ${until}::date + 1 AND ${escopo}`;
 
+  // referencia_imovel vinha de imoveis.codigo, que está gravado como "0" na
+  // maioria das linhas (ver scripts/visitas-lais-gerentes.js) — a ref de
+  // verdade da Lais é id_imovel ("L58235"), sempre preenchida.
   const visitas = await sql`
     SELECT id, nome, email, tipo_transacao, origem, data_visita,
-      localizacao, corretor_nome, referencia_imovel, match_method
+      localizacao, corretor_nome, COALESCE(NULLIF(referencia_imovel, '0'), id_imovel) as referencia_imovel, match_method
     FROM lais_visitas
     WHERE data_visita >= ${since} AND data_visita <= ${until}::date + 1 AND ${escopo}
     ORDER BY data_visita DESC`;

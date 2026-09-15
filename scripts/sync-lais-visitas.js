@@ -135,7 +135,9 @@ const SQL = `
       cidade: im ? im.cidade : null,
       localizacao: im && im.bairro ? `${im.bairro}${im.cidade ? ", " + im.cidade : ""}` : null,
       id_imovel: v.r || null,
-      referencia_imovel: im ? im.codigo : null,
+      // imoveis.codigo está gravado como "0" na maioria das linhas — usa a
+      // ref da própria Lais (ex: "L64000"), que é sempre preenchida.
+      referencia_imovel: (im && im.codigo && im.codigo !== "0") ? im.codigo : (v.r || null),
       corretor_nome: corretorNome,
       corretor_id: corretorId,
       match_method: matchMethod,
