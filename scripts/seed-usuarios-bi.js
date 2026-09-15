@@ -20,7 +20,7 @@ const DIRETORA_VENDAS = { role: "gerente", unidade: null, tipo: "venda", marketi
 const usuarios = [
   // Acesso total — igual ao Jonatan
   { email: "jonatanhonorio@gmail.com", nome: "Jonatan Honório", ...ADMIN },
-  { email: "pietra.maciel@imobiliariamaciel.com.br", nome: "Pietra Maciel", ...ADMIN },
+  { email: "pietracmaciel5@gmail.com", nome: "Pietra Maciel", ...ADMIN },
   { email: "tatiane@imobiliariamaciel.com.br", nome: "Tatiane", ...ADMIN },
 
   // Diretora de Vendas — todas as unidades, só vendas
