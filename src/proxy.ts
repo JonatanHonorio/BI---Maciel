@@ -1,24 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
-import { SESSION_COOKIE, type Session } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 
 const ROTAS_MARKETING = ["/trafego", "/criativos", "/api/trafego", "/api/criativos"];
-
-function verificarSessao(req: NextRequest): Session | null {
-  const token = req.cookies.get(SESSION_COOKIE)?.value;
-  if (!token || !process.env.JWT_SECRET) return null;
-  try {
-    return jwt.verify(token, process.env.JWT_SECRET) as unknown as Session;
-  } catch {
-    return null;
-  }
-}
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const ehApi = pathname.startsWith("/api");
 
-  const session = verificarSessao(req);
+  // getSession já aplica o "ver como" quando ativo — um admin simulando um
+  // gerente é barrado do Marketing exatamente como o gerente de verdade seria.
+  const session = getSession(req);
 
   if (!session) {
     if (ehApi) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -38,7 +29,7 @@ export const config = {
     /*
      * Protege todas as rotas EXCETO:
      * - /login, /reset-password (páginas públicas)
-     * - /api/auth/* (login, logout, esqueci/redefinir senha)
+     * - /api/auth/* (login, logout, esqueci/redefinir senha, ver-como)
      * - /api/corretor (consumido pelo Apps Script da planilha de leads;
      *   autentica sozinho por Bearer BI_API_TOKEN ou cookie de sessão)
      * - /_next (assets do Next.js)

@@ -1,6 +1,7 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Megaphone,
@@ -14,9 +15,12 @@ import {
   Trophy,
   Gauge,
   LogOut,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Session } from "@/lib/auth";
+
+type Gerente = { id: number; nome: string; unidade: string | null; tipo: "venda" | "locacao" | null };
 
 /**
  * Barra lateral do BI.
@@ -73,7 +77,17 @@ const grupos: Grupo[] = [
 
 export default function Sidebar({ session }: { session: Session }) {
   const pathname = usePathname();
-  const router = useRouter();
+  const [gerentes, setGerentes] = useState<Gerente[]>([]);
+
+  // Lista só carrega pro admin fora do "ver como" — não faz sentido trocar
+  // de gerente enquanto já está simulando um (sai primeiro, pelo banner).
+  useEffect(() => {
+    if (session.role !== "admin" || session.verComo) return;
+    fetch("/api/auth/ver-como")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setGerentes)
+      .catch(() => {});
+  }, [session.role, session.verComo]);
 
   const gruposVisiveis = grupos
     .filter((g) => !g.somenteMarketing || session.marketing)
@@ -85,8 +99,21 @@ export default function Sidebar({ session }: { session: Session }) {
 
   async function sair() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
+    // Recarga completa, não router.push: as páginas do dashboard são "use
+    // client" e buscam dado sozinhas via useEffect — um router.refresh() só
+    // atualiza os Server Components (o layout), deixando o conteúdo com o
+    // fetch antigo em tela se a rota de destino for a mesma em que já está.
+    window.location.href = "/login";
+  }
+
+  async function verComo(userId: string) {
+    if (!userId) return;
+    await fetch("/api/auth/ver-como", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: Number(userId) }),
+    });
+    window.location.href = "/resumo";
   }
 
   return (
@@ -143,6 +170,29 @@ export default function Sidebar({ session }: { session: Session }) {
           {session.unidade ? `${session.unidade} · ` : ""}
           {session.tipo === "venda" ? "Vendas" : session.tipo === "locacao" ? "Locação" : session.role === "admin" ? "Acesso total" : ""}
         </p>
+        {session.role === "admin" && !session.verComo && gerentes.length > 0 && (
+          <div className="mt-2.5">
+            <label className="mb-1 flex items-center gap-1.5 text-[10px] text-slate-500">
+              <Eye className="size-3" />
+              Ver como gerente
+            </label>
+            <select
+              defaultValue=""
+              onChange={(e) => verComo(e.target.value)}
+              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-slate-500"
+            >
+              <option value="" disabled>
+                Escolher...
+              </option>
+              {gerentes.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.nome} — {g.unidade ?? "Todas"} · {g.tipo === "venda" ? "Vendas" : "Locação"}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <button
           onClick={sair}
           className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-100"
