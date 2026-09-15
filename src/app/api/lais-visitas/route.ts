@@ -24,13 +24,20 @@ export async function GET(req: NextRequest) {
 
   // referencia_imovel vinha de imoveis.codigo, que está gravado como "0" na
   // maioria das linhas (ver scripts/visitas-lais-gerentes.js) — a ref de
-  // verdade da Lais é id_imovel ("L58235"), sempre preenchida.
+  // verdade da Lais é id_imovel ("L58235"), sempre preenchida. A parte
+  // numérica do id_imovel É o imoveis.id (letra = locação/venda) — usa isso
+  // pra trazer o valor, já que lais_visitas não guarda valor nenhum.
   const visitas = await sql`
-    SELECT id, nome, email, tipo_transacao, origem, data_visita,
-      localizacao, corretor_nome, COALESCE(NULLIF(referencia_imovel, '0'), id_imovel) as referencia_imovel, match_method
-    FROM lais_visitas
-    WHERE data_visita >= ${since} AND data_visita <= ${until}::date + 1 AND ${escopo}
-    ORDER BY data_visita DESC`;
+    SELECT lv.id, lv.nome, lv.email, lv.tipo_transacao, lv.origem, lv.data_visita,
+      lv.localizacao, lv.corretor_nome,
+      COALESCE(NULLIF(lv.referencia_imovel, '0'), lv.id_imovel) as referencia_imovel,
+      lv.match_method,
+      CASE WHEN lv.tipo_transacao = 'Venda' THEN im.valor ELSE im.valor_locacao END as valor
+    FROM lais_visitas lv
+    LEFT JOIN imoveis im ON im.id = NULLIF(regexp_replace(COALESCE(lv.id_imovel, ''), '\\D', '', 'g'), '')::int
+    WHERE lv.data_visita >= ${since} AND lv.data_visita <= ${until}::date + 1
+      AND (${corretorIds}::int[] IS NULL OR lv.corretor_id = ANY(${corretorIds}::int[]))
+    ORDER BY lv.data_visita DESC`;
 
   const porCorretor = await sql`
     SELECT COALESCE(corretor_nome, 'Não identificado') as corretor,

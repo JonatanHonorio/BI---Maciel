@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useDateRange, useFetch } from "@/lib/hooks";
-import { fmtNum, fmtDate } from "@/lib/format";
+import { fmtNum, fmtDate, fmtMoney } from "@/lib/format";
 import DateFilter from "@/components/DateFilter";
 import KpiCard from "@/components/KpiCard";
 import BarChartCard from "@/components/charts/BarChartCard";
@@ -26,6 +26,7 @@ interface Visita {
   corretor_nome: string;
   referencia_imovel: string;
   match_method: string;
+  valor: number | null;
 }
 
 interface LaisData {
@@ -284,6 +285,9 @@ export default function LaisPage() {
                 <th className="text-left px-2 text-xs font-semibold text-gray-500 uppercase">
                   Localizacao
                 </th>
+                <th className="text-right px-2 text-xs font-semibold text-gray-500 uppercase">
+                  Valor
+                </th>
                 <th className="text-left px-2 text-xs font-semibold text-gray-500 uppercase">
                   Origem
                 </th>
@@ -336,6 +340,9 @@ export default function LaisPage() {
                     >
                       {v.localizacao || "-"}
                     </span>
+                  </td>
+                  <td className="text-right px-2 text-gray-700 whitespace-nowrap">
+                    {v.valor ? fmtMoney(v.valor) : <span className="text-gray-300">-</span>}
                   </td>
                   <td className="px-2">
                     <span className="text-xs text-gray-500">{v.origem}</span>
