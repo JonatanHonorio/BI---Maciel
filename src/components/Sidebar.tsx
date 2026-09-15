@@ -30,24 +30,27 @@ import type { Session } from "@/lib/auth";
  * o gerente procurava "Corretores" percorrendo o alfabeto visual inteiro.
  */
 
-type Link_ = { href: string; label: string; icon: typeof Users; somenteAdmin?: boolean };
+type Link_ = { href: string; label: string; icon: typeof Users; somenteAdmin?: boolean; oculto?: boolean };
 type Grupo = { titulo: string; links: Link_[]; somenteMarketing?: boolean };
 
+// `oculto` some do menu pra todo mundo (inclusive admin) sem apagar a
+// página/rota — pedido do Jonatan em 15/09/2026 pra tirar de vista
+// temporariamente. Tirar a flag reativa, sem mexer em mais nada.
 const grupos: Grupo[] = [
   {
     titulo: "Visão geral",
     links: [
       { href: "/resumo", label: "Resumo", icon: LayoutDashboard },
-      { href: "/estrategico", label: "Estratégico", icon: TrendingUp },
-      { href: "/metas", label: "Metas", icon: Target, somenteAdmin: true },
+      { href: "/estrategico", label: "Estratégico", icon: TrendingUp, oculto: true },
+      { href: "/metas", label: "Metas", icon: Target, somenteAdmin: true, oculto: true },
     ],
   },
   {
     titulo: "Equipe",
     links: [
       { href: "/produtividade", label: "Produtividade", icon: Gauge },
-      { href: "/corretores", label: "Corretores", icon: Users },
-      { href: "/funil", label: "Funil Comercial", icon: Filter },
+      { href: "/corretores", label: "Corretores", icon: Users, oculto: true },
+      { href: "/funil", label: "Funil Comercial", icon: Filter, oculto: true },
     ],
   },
   {
@@ -74,7 +77,10 @@ export default function Sidebar({ session }: { session: Session }) {
 
   const gruposVisiveis = grupos
     .filter((g) => !g.somenteMarketing || session.marketing)
-    .map((g) => ({ ...g, links: g.links.filter((l) => !l.somenteAdmin || session.role === "admin") }))
+    .map((g) => ({
+      ...g,
+      links: g.links.filter((l) => !l.oculto && (!l.somenteAdmin || session.role === "admin")),
+    }))
     .filter((g) => g.links.length > 0);
 
   async function sair() {
