@@ -18,7 +18,7 @@ interface Dados {
   dados_ate: string | null;
   resumo: {
     leads: number; captacoes: number; captacoes_cabecas: number;
-    atualizacoes: number; campanha: number; remanejados: number;
+    atualizacoes: number; atualizacoes_cabecas: number; campanha: number; remanejados: number;
     corretores_com_lead: number;
   };
   leads: Ranking[];
@@ -61,7 +61,10 @@ export default function ProdutividadePage() {
           subtitle={data.resumo.captacoes_cabecas > data.resumo.captacoes
             ? `imóveis novos · ${data.resumo.captacoes_cabecas} c/ captação em dupla`
             : "imóveis novos no período"} icon={Home} />
-        <KpiCard label="Imóveis atualizados" value={fmtNum(data.resumo.atualizacoes)} icon={RefreshCw} />
+        <KpiCard label="Imóveis atualizados" value={fmtNum(data.resumo.atualizacoes)}
+          subtitle={data.resumo.atualizacoes_cabecas > data.resumo.atualizacoes
+            ? `imóveis distintos · ${data.resumo.atualizacoes_cabecas} participações`
+            : "imóveis distintos no período"} icon={RefreshCw} />
         <KpiCard label="Captação por atualização" value={fmtNum(data.resumo.campanha)}
           subtitle="o próprio corretor atualizou" icon={ArrowLeftRight} />
       </div>

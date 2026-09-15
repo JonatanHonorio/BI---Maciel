@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   const ate = `${until} 23:59:59`;
   const corretorIds = await corretoresDaUnidade(sql, session.unidade, session.tipo);
 
-  const [leads, captacoes, atualizacoes, movimentos, cobertura, imoveisNovos] = await Promise.all([
+  const [leads, captacoes, atualizacoes, movimentos, cobertura, imoveisNovos, imoveisAtualizados] = await Promise.all([
     sql`
       SELECT r.corretor_id AS id, COALESCE(
                NULLIF(TRIM(u.nome_comercial),''), NULLIF(TRIM(u.nome),''),
@@ -125,6 +125,16 @@ export async function GET(req: NextRequest) {
       WHERE c.data >= ${since} AND c.data <= ${ate} AND c.corretor_id > 0
         AND i.data_cadastro >= ${since} AND i.data_cadastro <= ${ate}
         AND (${corretorIds}::int[] IS NULL OR c.corretor_id = ANY(${corretorIds}::int[]))` as unknown as Promise<{ n: string }[]>,
+
+    // Imóveis distintos atualizados — mesma ressalva da captação: a soma por
+    // corretor conta de novo quando mais de um corretor mexeu no mesmo
+    // imóvel no período, e isso já confundiu a diretoria (perguntaram se
+    // 3.364 batia com a realidade — eram 3.074 imóveis, 3.364 "participações").
+    sql`
+      SELECT count(DISTINCT a.imovel_id) AS n
+      FROM imovel_atualizacoes a
+      WHERE a.data >= ${since} AND a.data <= ${ate} AND a.corretor_id > 0
+        AND (${corretorIds}::int[] IS NULL OR a.corretor_id = ANY(${corretorIds}::int[]))` as unknown as Promise<{ n: string }[]>,
   ]);
 
   const enfeitar = (linhas: LinhaBanco[]) =>
@@ -166,7 +176,11 @@ export async function GET(req: NextRequest) {
       // em dupla conta 1 para cada um — bom no ranking, errado como total.
       captacoes: Number(imoveisNovos[0]?.n ?? 0),
       captacoes_cabecas: soma(listaCapt),
-      atualizacoes: soma(listaAtu),
+      // Imóveis distintos. A soma da coluna por corretor (atualizacoes_cabecas)
+      // é maior porque conta de novo quando mais de um corretor mexeu no
+      // mesmo imóvel — bom no ranking, errado como número de destaque.
+      atualizacoes: Number(imoveisAtualizados[0]?.n ?? 0),
+      atualizacoes_cabecas: soma(listaAtu),
       campanha: soma(campanha),
       remanejados: soma(remanejamentos),
       corretores_com_lead: listaLeads.length,
