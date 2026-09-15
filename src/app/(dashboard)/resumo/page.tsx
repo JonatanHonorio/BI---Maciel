@@ -22,7 +22,7 @@ interface DashboardData {
   trafego: {
     investimento: number; impressoes: number; cliques: number;
     leads: number; conversas: number; cpl: number; roas: number;
-  };
+  } | null;
   visitas_site: number;
   metas: {
     leads_meta: number; propostas_meta: number; vendas_meta: number;
@@ -97,24 +97,28 @@ export default function ResumoPage() {
           icon={DollarSign}
           iconColor="text-teal-500"
         />
-        <KpiCard
-          label="Investimento"
-          value={fmtMoney(data.trafego.investimento)}
-          icon={Megaphone}
-          iconColor="text-orange-500"
-          meta={m?.budget_meta}
-          metaLabel={m ? `Budget: ${fmtMoney(m.budget_meta)}` : undefined}
-        />
-        <KpiCard
-          label="CPL"
-          value={fmtMoney(data.trafego.cpl)}
-          subtitle={`${fmtNum(data.trafego.leads)} leads de tráfego`}
-          icon={Target}
-          iconColor="text-red-500"
-          meta={m?.cpl_meta}
-          metaLabel={m ? `Meta: ${fmtMoney(m.cpl_meta)}` : undefined}
-          status={getStatus(data.trafego.cpl, m?.cpl_meta || 0, true)}
-        />
+        {data.trafego && (
+          <>
+            <KpiCard
+              label="Investimento"
+              value={fmtMoney(data.trafego.investimento)}
+              icon={Megaphone}
+              iconColor="text-orange-500"
+              meta={m?.budget_meta}
+              metaLabel={m ? `Budget: ${fmtMoney(m.budget_meta)}` : undefined}
+            />
+            <KpiCard
+              label="CPL"
+              value={fmtMoney(data.trafego.cpl)}
+              subtitle={`${fmtNum(data.trafego.leads)} leads de tráfego`}
+              icon={Target}
+              iconColor="text-red-500"
+              meta={m?.cpl_meta}
+              metaLabel={m ? `Meta: ${fmtMoney(m.cpl_meta)}` : undefined}
+              status={getStatus(data.trafego.cpl, m?.cpl_meta || 0, true)}
+            />
+          </>
+        )}
       </div>
 
       {data.receita_unidade && data.receita_unidade.length > 0 && (
@@ -133,15 +137,17 @@ export default function ResumoPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <KpiCard
-          label="Conversas (WhatsApp)"
-          value={fmtNum(data.trafego.conversas)}
-          subtitle="Meta Ads → conversas iniciadas"
-          icon={Users}
-          iconColor="text-green-600"
-        />
-      </div>
+      {data.trafego && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <KpiCard
+            label="Conversas (WhatsApp)"
+            value={fmtNum(data.trafego.conversas)}
+            subtitle="Meta Ads → conversas iniciadas"
+            icon={Users}
+            iconColor="text-green-600"
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {leadsData?.por_dia && (

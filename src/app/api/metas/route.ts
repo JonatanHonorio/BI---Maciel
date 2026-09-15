@@ -1,13 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { getSession } from "@/lib/auth";
 
-export async function GET() {
+// Metas são da empresa inteira, sem quebra por unidade — não é "número dele",
+// então só admin (Jonatan, Pietra, Tatiane) enxerga.
+function exigirAdmin(req: NextRequest) {
+  const session = getSession(req);
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (session.role !== "admin") return NextResponse.json({ error: "sem acesso" }, { status: 403 });
+  return null;
+}
+
+export async function GET(req: NextRequest) {
+  const bloqueado = exigirAdmin(req);
+  if (bloqueado) return bloqueado;
+
   const sql = getDb();
   const metas = await sql`SELECT * FROM metas ORDER BY mes DESC LIMIT 12`;
   return NextResponse.json(metas);
 }
 
 export async function POST(req: NextRequest) {
+  const bloqueado = exigirAdmin(req);
+  if (bloqueado) return bloqueado;
+
   const sql = getDb();
   const body = await req.json();
 

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { parseDateRange } from "@/lib/date-utils";
-import mapaDepartamentos from "@/lib/departamentos.json";
+import { getSession } from "@/lib/auth";
+import { corretoresDaUnidade, unidadeDoDepartamento } from "@/lib/unidade";
 
 /**
  * Produtividade por corretor: leads recebidos, captações, atualizações de
@@ -24,17 +25,6 @@ import mapaDepartamentos from "@/lib/departamentos.json";
  *   produção — e um painel que mostra zero faz o gerente concluir o que não é.
  */
 
-const departamentos = (mapaDepartamentos as { departamentos: Record<string, string> }).departamentos;
-
-/** "Locação Vista Verde" → "Vista Verde"; o que não casa volta como está. */
-function unidadeDoDepartamento(depId: number | null): string {
-  if (depId === null || depId === undefined) return "—";
-  const nome = departamentos[String(depId)];
-  if (!nome) return "—";
-  const m = nome.match(/^(?:Gerente\s+)?(?:Loca[cç][aã]o|Vendas?)\s+(.+)$/i);
-  return m ? m[1].trim() : nome;
-}
-
 /*
  * Nome do corretor com os mesmos fallbacks do resto do BI: há cadastro com nome
  * vazio (jerson.lima, id 157, que é corretor de verdade da Locação Dutra), e
@@ -46,10 +36,14 @@ type LinhaBanco = {
 };
 
 export async function GET(req: NextRequest) {
+  const session = getSession(req);
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
   const sql = getDb();
   const { since, until } = parseDateRange(req.nextUrl.searchParams);
   // `until` é inclusivo na UI; no SQL usamos o dia seguinte como limite aberto.
   const ate = `${until} 23:59:59`;
+  const corretorIds = await corretoresDaUnidade(sql, session.unidade, session.tipo);
 
   const [leads, captacoes, atualizacoes, movimentos, cobertura, imoveisNovos] = await Promise.all([
     sql`
@@ -60,6 +54,7 @@ export async function GET(req: NextRequest) {
              u.departamento_id AS dep, count(DISTINCT r.lead_id) AS n
       FROM lead_responsaveis r JOIN corretores u ON u.id = r.corretor_id
       WHERE r.data >= ${since} AND r.data <= ${ate} AND r.corretor_id > 0
+        AND (${corretorIds}::int[] IS NULL OR r.corretor_id = ANY(${corretorIds}::int[]))
       GROUP BY r.corretor_id, u.nome_comercial, u.nome, u.email, u.id, u.departamento_id
       ORDER BY n DESC` as unknown as Promise<LinhaBanco[]>,
 
@@ -74,6 +69,7 @@ export async function GET(req: NextRequest) {
       JOIN imoveis i ON i.id = c.imovel_id
       WHERE c.data >= ${since} AND c.data <= ${ate} AND c.corretor_id > 0
         AND i.data_cadastro >= ${since} AND i.data_cadastro <= ${ate}
+        AND (${corretorIds}::int[] IS NULL OR c.corretor_id = ANY(${corretorIds}::int[]))
       GROUP BY c.corretor_id, u.nome_comercial, u.nome, u.email, u.id, u.departamento_id
       ORDER BY n DESC` as unknown as Promise<LinhaBanco[]>,
 
@@ -90,6 +86,7 @@ export async function GET(req: NextRequest) {
       JOIN corretores u ON u.id = a.corretor_id
       LEFT JOIN imovel_captadores cap ON cap.imovel_id = a.imovel_id AND cap.corretor_id = a.corretor_id
       WHERE a.data >= ${since} AND a.data <= ${ate} AND a.corretor_id > 0
+        AND (${corretorIds}::int[] IS NULL OR a.corretor_id = ANY(${corretorIds}::int[]))
       GROUP BY a.corretor_id, u.nome_comercial, u.nome, u.email, u.id, u.departamento_id
       ORDER BY n DESC` as unknown as Promise<LinhaBanco[]>,
 
@@ -116,6 +113,7 @@ export async function GET(req: NextRequest) {
        AND a.data >= c.data - interval '7 days' AND a.data <= c.data + interval '7 days'
       WHERE c.data >= ${since} AND c.data <= ${ate} AND c.corretor_id > 0
         AND i.data_cadastro < ${since}
+        AND (${corretorIds}::int[] IS NULL OR c.corretor_id = ANY(${corretorIds}::int[]))
       GROUP BY u.nome_comercial, u.nome, u.email, u.id, u.departamento_id, c.data::date
       ORDER BY n DESC` as unknown as Promise<(LinhaBanco & { dia: string })[]>,
 
@@ -125,7 +123,8 @@ export async function GET(req: NextRequest) {
       SELECT count(DISTINCT c.imovel_id) AS n
       FROM imovel_captadores c JOIN imoveis i ON i.id = c.imovel_id
       WHERE c.data >= ${since} AND c.data <= ${ate} AND c.corretor_id > 0
-        AND i.data_cadastro >= ${since} AND i.data_cadastro <= ${ate}` as unknown as Promise<{ n: string }[]>,
+        AND i.data_cadastro >= ${since} AND i.data_cadastro <= ${ate}
+        AND (${corretorIds}::int[] IS NULL OR c.corretor_id = ANY(${corretorIds}::int[]))` as unknown as Promise<{ n: string }[]>,
   ]);
 
   const enfeitar = (linhas: LinhaBanco[]) =>

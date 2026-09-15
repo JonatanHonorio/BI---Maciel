@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { parseDateRange } from "@/lib/date-utils";
+import { getSession } from "@/lib/auth";
+import { corretoresDaUnidade } from "@/lib/unidade";
 
 export async function GET(req: NextRequest) {
+  const session = getSession(req);
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
   const sql = getDb();
   const { since, until } = parseDateRange(req.nextUrl.searchParams);
+  const corretorIds = await corretoresDaUnidade(sql, session.unidade, session.tipo);
 
   const ranking = await sql`
     SELECT
@@ -36,6 +42,7 @@ export async function GET(req: NextRequest) {
       GROUP BY ca.corretor_id
     ) cv ON cv.corretor_id = c.id
     WHERE c.ativo = 1 AND (COALESCE(l.leads, 0) > 0 OR COALESCE(cv.conversoes, 0) > 0)
+      AND (${corretorIds}::int[] IS NULL OR c.id = ANY(${corretorIds}::int[]))
     ORDER BY conversoes DESC, leads DESC`;
 
   const tempoResposta = await sql`
@@ -44,6 +51,7 @@ export async function GET(req: NextRequest) {
     FROM lead_atividades la
     JOIN corretores c ON c.id = la.corretor_id
     WHERE la.data >= ${since} AND la.data <= ${until}::date + 1
+      AND (${corretorIds}::int[] IS NULL OR c.id = ANY(${corretorIds}::int[]))
     GROUP BY c.nome
     HAVING AVG(la.tempo_retorno) FILTER (WHERE la.tempo_retorno > 0) IS NOT NULL
     ORDER BY tempo_medio_min ASC LIMIT 20`;

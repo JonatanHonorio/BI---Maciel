@@ -324,3 +324,28 @@ CREATE INDEX IF NOT EXISTS idx_imov_form_imovel ON imovel_atualizacao_form(imove
 
 ALTER TABLE imoveis ADD COLUMN IF NOT EXISTS data_atualizacao TIMESTAMP;
 CREATE INDEX IF NOT EXISTS idx_imoveis_data_atualizacao ON imoveis(data_atualizacao);
+
+-- Status do imóvel no Kurole (KSI: situacao_codigo_venda/situacao_codigo_locacao).
+-- 1 = Disponível; outros códigos (25, 50, ...) = reservado/vendido/alugado/etc.
+-- É o campo que o Jonatan usa pra filtrar "imóveis desatualizados" — sem ele o
+-- relatório mistura estoque vendido/alugado com o que ainda está disponível.
+ALTER TABLE imoveis ADD COLUMN IF NOT EXISTS situacao_codigo_venda SMALLINT;
+ALTER TABLE imoveis ADD COLUMN IF NOT EXISTS situacao_codigo_locacao SMALLINT;
+
+-- Login individual do BI (15/09/2026) — substitui a senha unica compartilhada.
+-- unidade/tipo NULL = sem restricao nessa dimensao (admin: os dois NULL;
+-- Daniela/diretora de vendas: unidade NULL, tipo 'venda').
+CREATE TABLE IF NOT EXISTS usuarios_bi (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(120) UNIQUE NOT NULL,
+  nome VARCHAR(120) NOT NULL,
+  senha_hash VARCHAR(200),
+  role VARCHAR(20) NOT NULL DEFAULT 'gerente',
+  unidade VARCHAR(60),
+  tipo VARCHAR(10),
+  marketing BOOLEAN NOT NULL DEFAULT false,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  reset_token_hash VARCHAR(200),
+  reset_token_expires TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);

@@ -10,7 +10,7 @@ interface DashboardData {
   leads: { total: number; venda: number; locacao: number };
   propostas: number;
   conversoes: { total: number; vendas: number; locacoes: number; receita: number };
-  trafego: { investimento: number; leads: number; conversas: number; cpl: number; roas: number };
+  trafego: { investimento: number; leads: number; conversas: number; cpl: number; roas: number } | null;
   visitas_site: number;
   metas: {
     leads_meta: number; propostas_meta: number; vendas_meta: number;
@@ -43,9 +43,9 @@ export default function EstrategicoPage() {
   const totalLeads = data.leads.total;
   const totalConversoes = data.conversoes.total;
   const receita = data.conversoes.receita;
-  const investimento = data.trafego.investimento;
+  const investimento = data.trafego?.investimento ?? 0;
   const taxaConversao = totalLeads > 0 ? (totalConversoes / totalLeads) * 100 : 0;
-  const roi = investimento > 0 ? ((receita - investimento) / investimento) * 100 : 0;
+  const roi = data.trafego && investimento > 0 ? ((receita - investimento) / investimento) * 100 : null;
   const ticketMedio = totalConversoes > 0 ? receita / totalConversoes : 0;
   const cpv = totalConversoes > 0 ? investimento / totalConversoes : 0;
 
@@ -62,26 +62,32 @@ export default function EstrategicoPage() {
           <KpiCard label="Receita Total" value={fmtMoney(receita)} icon={DollarSign} iconColor="text-emerald-500" />
           <KpiCard label="Total Conversões" value={fmtNum(totalConversoes)} subtitle={`V: ${data.conversoes.vendas} | L: ${data.conversoes.locacoes}`} icon={Handshake} iconColor="text-green-500" />
           <KpiCard label="Ticket Médio" value={fmtMoney(ticketMedio)} icon={Building2} iconColor="text-blue-500" />
-          <KpiCard
-            label="ROI"
-            value={`${roi.toFixed(1)}%`}
-            subtitle={roi >= 0 ? "Acima do break-even" : "Abaixo do break-even"}
-            icon={TrendingUp}
-            iconColor={roi >= 0 ? "text-green-500" : "text-red-500"}
-          />
+          {roi !== null && (
+            <KpiCard
+              label="ROI"
+              value={`${roi.toFixed(1)}%`}
+              subtitle={roi >= 0 ? "Acima do break-even" : "Abaixo do break-even"}
+              icon={TrendingUp}
+              iconColor={roi >= 0 ? "text-green-500" : "text-red-500"}
+            />
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="ROAS" value={`${data.trafego.roas.toFixed(2)}x`} icon={TrendingUp} iconColor="text-indigo-500" />
-        <KpiCard label="CPV (Custo/Venda)" value={fmtMoney(cpv)} icon={Megaphone} iconColor="text-orange-500" />
-        <KpiCard label="Investimento" value={fmtMoney(investimento)} icon={DollarSign} iconColor="text-red-500" />
+        {data.trafego && (
+          <>
+            <KpiCard label="ROAS" value={`${data.trafego.roas.toFixed(2)}x`} icon={TrendingUp} iconColor="text-indigo-500" />
+            <KpiCard label="CPV (Custo/Venda)" value={fmtMoney(cpv)} icon={Megaphone} iconColor="text-orange-500" />
+            <KpiCard label="Investimento" value={fmtMoney(investimento)} icon={DollarSign} iconColor="text-red-500" />
+          </>
+        )}
         <KpiCard label="Taxa Conversão" value={fmtPct(taxaConversao)} icon={Percent} iconColor="text-purple-500" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <KpiCard label="Leads Totais" value={fmtNum(totalLeads)} subtitle={`V: ${data.leads.venda} | L: ${data.leads.locacao}`} icon={Users} iconColor="text-blue-500" />
-        <KpiCard label="CPL" value={fmtMoney(data.trafego.cpl)} icon={Target} iconColor="text-cyan-500" />
+        {data.trafego && <KpiCard label="CPL" value={fmtMoney(data.trafego.cpl)} icon={Target} iconColor="text-cyan-500" />}
         <KpiCard label="Visitas Site" value={fmtNum(data.visitas_site)} subtitle="Páginas de imóveis" icon={Building2} iconColor="text-gray-500" />
       </div>
 

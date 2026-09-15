@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Megaphone,
@@ -13,8 +13,10 @@ import {
   Bot,
   Trophy,
   Gauge,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Session } from "@/lib/auth";
 
 /**
  * Barra lateral do BI.
@@ -28,13 +30,16 @@ import { cn } from "@/lib/utils";
  * o gerente procurava "Corretores" percorrendo o alfabeto visual inteiro.
  */
 
-const grupos: { titulo: string; links: { href: string; label: string; icon: typeof Users }[] }[] = [
+type Link_ = { href: string; label: string; icon: typeof Users; somenteAdmin?: boolean };
+type Grupo = { titulo: string; links: Link_[]; somenteMarketing?: boolean };
+
+const grupos: Grupo[] = [
   {
     titulo: "Visão geral",
     links: [
       { href: "/resumo", label: "Resumo", icon: LayoutDashboard },
       { href: "/estrategico", label: "Estratégico", icon: TrendingUp },
-      { href: "/metas", label: "Metas", icon: Target },
+      { href: "/metas", label: "Metas", icon: Target, somenteAdmin: true },
     ],
   },
   {
@@ -55,6 +60,7 @@ const grupos: { titulo: string; links: { href: string; label: string; icon: type
   },
   {
     titulo: "Marketing",
+    somenteMarketing: true,
     links: [
       { href: "/trafego", label: "Tráfego", icon: Megaphone },
       { href: "/criativos", label: "Criativos", icon: Trophy },
@@ -62,8 +68,20 @@ const grupos: { titulo: string; links: { href: string; label: string; icon: type
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ session }: { session: Session }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const gruposVisiveis = grupos
+    .filter((g) => !g.somenteMarketing || session.marketing)
+    .map((g) => ({ ...g, links: g.links.filter((l) => !l.somenteAdmin || session.role === "admin") }))
+    .filter((g) => g.links.length > 0);
+
+  async function sair() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <aside className="fixed top-0 left-0 z-30 flex h-screen w-56 flex-col bg-slate-900 text-slate-300">
@@ -75,7 +93,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4">
-        {grupos.map((grupo) => (
+        {gruposVisiveis.map((grupo) => (
           <div key={grupo.titulo}>
             <p className="px-2 pb-1.5 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
               {grupo.titulo}
@@ -112,9 +130,20 @@ export default function Sidebar() {
       </nav>
 
       <div className="border-t border-slate-800 px-5 py-3">
-        <p className="text-[10px] leading-relaxed text-slate-500">
-          Maciel Negócios Imobiliários
+        <p className="truncate text-[12px] font-medium text-slate-200" title={session.nome}>
+          {session.nome}
         </p>
+        <p className="truncate text-[10px] text-slate-500" title={session.email}>
+          {session.unidade ? `${session.unidade} · ` : ""}
+          {session.tipo === "venda" ? "Vendas" : session.tipo === "locacao" ? "Locação" : session.role === "admin" ? "Acesso total" : ""}
+        </p>
+        <button
+          onClick={sair}
+          className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-100"
+        >
+          <LogOut className="size-3.5" />
+          Sair
+        </button>
       </div>
     </aside>
   );

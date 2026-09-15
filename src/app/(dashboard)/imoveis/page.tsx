@@ -7,7 +7,7 @@ import LineChartCard from "@/components/charts/LineChartCard";
 import BarChartCard from "@/components/charts/BarChartCard";
 import PieChartCard from "@/components/charts/PieChartCard";
 import DataTable from "@/components/DataTable";
-import { Building2, Home, Eye, DollarSign } from "lucide-react";
+import { Building2, Home, Eye, DollarSign, AlertTriangle } from "lucide-react";
 
 interface ImoveisData {
   mais_visitados: {
@@ -19,6 +19,15 @@ interface ImoveisData {
   por_bairro: { bairro: string; total: number; valor_medio_venda: number; valor_medio_locacao: number }[];
   estoque: { total: number; venda: number; locacao: number; valor_medio: number };
   visitas_por_dia: { dia: string; total: number }[];
+  desatualizados: {
+    total: number;
+    por_unidade: { unidade: string; total: number }[];
+    lista: {
+      id: number; codigo: string; titulo: string; bairro: string; cidade: string;
+      locacao_venda: string; valor: number; dias_sem_atualizar: number;
+      captador: string | null; unidade: string;
+    }[];
+  };
 }
 
 export default function ImoveisPage() {
@@ -70,6 +79,34 @@ export default function ImoveisPage() {
             { key: "visitas", label: "Visitas", align: "right", format: (v) => fmtNum(v as number) },
           ]}
           data={data.mais_visitados}
+        />
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
+          <AlertTriangle size={16} className="text-amber-500" /> Desatualizados há mais de 90 dias
+        </h3>
+        <p className="text-xs text-gray-500 mb-3">
+          {data.desatualizados.total} imóveis sem atualização de cadastro há 90+ dias
+          {data.desatualizados.por_unidade.length > 1 && (
+            <> — {data.desatualizados.por_unidade.map((u) => `${u.unidade}: ${u.total}`).join(" · ")}</>
+          )}
+          {data.desatualizados.total > data.desatualizados.lista.length && (
+            <> (lista abaixo mostra os {data.desatualizados.lista.length} parados há mais tempo)</>
+          )}
+        </p>
+        <DataTable
+          searchable
+          columns={[
+            { key: "codigo", label: "Código" },
+            { key: "bairro", label: "Bairro" },
+            { key: "unidade", label: "Unidade" },
+            { key: "captador", label: "Captador", format: (v) => (v as string) || "—" },
+            { key: "locacao_venda", label: "Op.", align: "center" },
+            { key: "valor", label: "Valor", align: "right", format: (v) => fmtMoney(v as number) },
+            { key: "dias_sem_atualizar", label: "Dias parado", align: "right", format: (v) => fmtNum(v as number) },
+          ]}
+          data={data.desatualizados.lista}
         />
       </div>
 
