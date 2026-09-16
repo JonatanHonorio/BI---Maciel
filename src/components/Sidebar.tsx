@@ -79,15 +79,20 @@ export default function Sidebar({ session }: { session: Session }) {
   const pathname = usePathname();
   const [gerentes, setGerentes] = useState<Gerente[]>([]);
 
-  // Lista só carrega pro admin fora do "ver como" — não faz sentido trocar
-  // de gerente enquanto já está simulando um (sai primeiro, pelo banner).
+  // Admin (todo mundo) ou "diretora" — gerente sem unidade fixa, hoje só a
+  // Daniela — podem "ver como". A API decide sozinha o que cada um pode
+  // escolher (admin: os 13; diretora: só as 6 do próprio tipo).
+  const podeVerComo = session.role === "admin" || (session.role === "gerente" && session.unidade === null);
+
+  // Lista só carrega fora do "ver como" — não faz sentido trocar de gerente
+  // enquanto já está simulando um (sai primeiro, pelo banner).
   useEffect(() => {
-    if (session.role !== "admin" || session.verComo) return;
+    if (!podeVerComo || session.verComo) return;
     fetch("/api/auth/ver-como")
       .then((r) => (r.ok ? r.json() : []))
       .then(setGerentes)
       .catch(() => {});
-  }, [session.role, session.verComo]);
+  }, [podeVerComo, session.verComo]);
 
   const gruposVisiveis = grupos
     .filter((g) => !g.somenteMarketing || session.marketing)
@@ -170,7 +175,7 @@ export default function Sidebar({ session }: { session: Session }) {
           {session.unidade ? `${session.unidade} · ` : ""}
           {session.tipo === "venda" ? "Vendas" : session.tipo === "locacao" ? "Locação" : session.role === "admin" ? "Acesso total" : ""}
         </p>
-        {session.role === "admin" && !session.verComo && gerentes.length > 0 && (
+        {podeVerComo && !session.verComo && gerentes.length > 0 && (
           <div className="mt-2.5">
             <label className="mb-1 flex items-center gap-1.5 text-[10px] text-slate-500">
               <Eye className="size-3" />

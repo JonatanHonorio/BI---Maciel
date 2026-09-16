@@ -60,9 +60,11 @@ function verify<T>(token: string | undefined): T | null {
 function montarSessao(realToken: string | undefined, viewAsToken: string | undefined): Session | null {
   const real = verify<Session>(realToken);
   if (!real) return null;
-  // Só admin pode "ver como" — cookie de quem não é admin (ou de sessão
-  // rebaixada por uma "ver como" anterior) é ignorado.
-  if (real.role !== "admin") return { ...real, verComo: null };
+  // Só admin ou "diretora" (gerente sem unidade fixa — hoje só a Daniela)
+  // pode "ver como". Cookie de um gerente comum, ou de uma sessão já
+  // rebaixada por outra "ver como", é ignorado.
+  const podeVerComo = real.role === "admin" || (real.role === "gerente" && real.unidade === null);
+  if (!podeVerComo) return { ...real, verComo: null };
 
   const viewAs = verify<ViewAsPayload>(viewAsToken);
   if (!viewAs) return { ...real, verComo: null };
