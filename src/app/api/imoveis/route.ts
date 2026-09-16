@@ -2,12 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { parseDateRange } from "@/lib/date-utils";
 import { getSession } from "@/lib/auth";
-import { corretoresDaUnidade, unidadeDoCorretor } from "@/lib/unidade";
-
-// Logins que a diretoria pediu para NÃO contar como captação de unidade —
-// mesma lista de scripts/unidade_captacao.py (DIRETORIA_IDS), fixada por id
-// de propósito (casar por nome pegaria homônimos).
-const IDS_DIRETORIA = [775, 279, 182, 272];
+import { corretoresDaUnidade, unidadeDoCorretor, IDS_DIRETORIA } from "@/lib/unidade";
 
 export async function GET(req: NextRequest) {
   const session = getSession(req);
@@ -136,6 +131,7 @@ export async function GET(req: NextRequest) {
     valor: Number(r.valor),
     dias_sem_atualizar: Number(r.dias_sem_atualizar),
     captador: r.captador,
+    corretor_id: r.corretor_id,
     unidade: unidadeDoCorretor(r.corretor_id, r.dep_captador),
   }));
 

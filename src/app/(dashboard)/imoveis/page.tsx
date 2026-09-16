@@ -1,4 +1,5 @@
 "use client";
+import { useMemo, useState } from "react";
 import { useDateRange, useFetch } from "@/lib/hooks";
 import { fmtMoney, fmtNum } from "@/lib/format";
 import DateFilter from "@/components/DateFilter";
@@ -7,7 +8,7 @@ import LineChartCard from "@/components/charts/LineChartCard";
 import BarChartCard from "@/components/charts/BarChartCard";
 import PieChartCard from "@/components/charts/PieChartCard";
 import DataTable from "@/components/DataTable";
-import { Building2, Home, Eye, DollarSign, AlertTriangle } from "lucide-react";
+import { Building2, Home, Eye, DollarSign, AlertTriangle, Download } from "lucide-react";
 
 interface ImoveisData {
   mais_visitados: {
@@ -25,7 +26,7 @@ interface ImoveisData {
     lista: {
       id: number; codigo: string; titulo: string; bairro: string; cidade: string;
       locacao_venda: string; valor: number; dias_sem_atualizar: number;
-      captador: string | null; unidade: string;
+      captador: string | null; corretor_id: number | null; unidade: string;
     }[];
   };
 }
@@ -33,6 +34,22 @@ interface ImoveisData {
 export default function ImoveisPage() {
   const { since, until, setSince, setUntil, setPreset } = useDateRange();
   const { data } = useFetch<ImoveisData>(`/api/imoveis?since=${since}&until=${until}`);
+  const [corretorFiltro, setCorretorFiltro] = useState("");
+
+  const captadores = useMemo(() => {
+    if (!data) return [];
+    const porId = new Map<number, string>();
+    for (const d of data.desatualizados.lista) {
+      if (d.corretor_id && d.captador) porId.set(d.corretor_id, d.captador);
+    }
+    return [...porId.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [data]);
+
+  const desatualizadosFiltrados = useMemo(() => {
+    if (!data) return [];
+    if (!corretorFiltro) return data.desatualizados.lista;
+    return data.desatualizados.lista.filter((d) => String(d.corretor_id) === corretorFiltro);
+  }, [data, corretorFiltro]);
 
   if (!data) {
     return (
@@ -95,6 +112,27 @@ export default function ImoveisPage() {
             <> (lista abaixo mostra os {data.desatualizados.lista.length} parados há mais tempo)</>
           )}
         </p>
+
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <select
+            value={corretorFiltro}
+            onChange={(e) => setCorretorFiltro(e.target.value)}
+            className="border-input bg-card rounded-md border py-1.5 px-2.5 text-sm outline-none"
+          >
+            <option value="">Todos os corretores</option>
+            {captadores.map(([id, nome]) => (
+              <option key={id} value={id}>{nome}</option>
+            ))}
+          </select>
+
+          <a
+            href={`/api/imoveis/desatualizados-exportar${corretorFiltro ? `?corretor_id=${corretorFiltro}` : ""}`}
+            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
+          >
+            <Download size={14} /> Exportar Excel
+          </a>
+        </div>
+
         <DataTable
           searchable
           columns={[
@@ -106,7 +144,7 @@ export default function ImoveisPage() {
             { key: "valor", label: "Valor", align: "right", format: (v) => fmtMoney(v as number) },
             { key: "dias_sem_atualizar", label: "Dias parado", align: "right", format: (v) => fmtNum(v as number) },
           ]}
-          data={data.desatualizados.lista}
+          data={desatualizadosFiltrados}
         />
       </div>
 

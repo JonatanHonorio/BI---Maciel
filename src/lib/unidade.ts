@@ -8,6 +8,11 @@ const departamentos = (departamentosJson as { departamentos: Record<string, stri
 
 export type Tipo = "venda" | "locacao";
 
+// Logins que a diretoria pediu para NÃO contar como captação de unidade —
+// mesma lista de scripts/unidade_captacao.py (DIRETORIA_IDS), fixada por id
+// de propósito (casar por nome pegaria homônimos).
+export const IDS_DIRETORIA = [775, 279, 182, 272];
+
 export interface Separado {
   unidade: string;
   tipo: Tipo;
