@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { parseDateRange } from "@/lib/date-utils";
 import { getSession } from "@/lib/auth";
-import { corretoresDaUnidade, unidadeDoDepartamento } from "@/lib/unidade";
+import { corretoresDaUnidade, unidadeDoCorretor } from "@/lib/unidade";
 
 /**
  * Produtividade por corretor: leads recebidos, captações, atualizações de
@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
      * do caso de 01/09 tinham atualização, feita por alguém do Administrativo.
      */
     sql`
-      SELECT COALESCE(
+      SELECT u.id AS id, COALESCE(
                NULLIF(TRIM(u.nome_comercial),''), NULLIF(TRIM(u.nome),''),
                NULLIF(initcap(replace(split_part(COALESCE(u.email,''),'@',1),'.',' ')),''),
                'corretor ' || u.id) AS nome, u.departamento_id AS dep,
@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
 
   const enfeitar = (linhas: LinhaBanco[]) =>
     linhas.map((x) => ({
-      id: x.id, nome: x.nome, unidade: unidadeDoDepartamento(x.dep),
+      id: x.id, nome: x.nome, unidade: unidadeDoCorretor(x.id, x.dep),
       total: Number(x.n),
       proprios: x.proprios === undefined ? undefined : Number(x.proprios),
       outros: x.proprios === undefined ? undefined : Number(x.n) - Number(x.proprios),
@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
   };
 
   const mov = movimentos.map((x) => ({
-    nome: x.nome, unidade: unidadeDoDepartamento(x.dep),
+    nome: x.nome, unidade: unidadeDoCorretor(x.id, x.dep),
     dia: paraISO(x.dia),
     total: Number(x.n), proprios: Number(x.proprios ?? 0),
   }));

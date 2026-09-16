@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { parseDateRange } from "@/lib/date-utils";
 import { getSession } from "@/lib/auth";
-import { corretoresDaUnidade, unidadeDoDepartamento } from "@/lib/unidade";
+import { corretoresDaUnidade, unidadeDoCorretor } from "@/lib/unidade";
 
 // Logins que a diretoria pediu para NÃO contar como captação de unidade —
 // mesma lista de scripts/unidade_captacao.py (DIRETORIA_IDS), fixada por id
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
       WHERE corretor_id != ALL(${idsExcluirDiretoria})
       ORDER BY imovel_id, percentual DESC NULLS LAST, data DESC NULLS LAST
     )
-    SELECT u.departamento_id AS dep_captador
+    SELECT cp.corretor_id, u.departamento_id AS dep_captador
     FROM imoveis i
     LEFT JOIN captador_principal cp ON cp.imovel_id = i.id
     LEFT JOIN corretores u ON u.id = cp.corretor_id
@@ -136,12 +136,12 @@ export async function GET(req: NextRequest) {
     valor: Number(r.valor),
     dias_sem_atualizar: Number(r.dias_sem_atualizar),
     captador: r.captador,
-    unidade: unidadeDoDepartamento(r.dep_captador),
+    unidade: unidadeDoCorretor(r.corretor_id, r.dep_captador),
   }));
 
   const porUnidadeDesatualizados = new Map<string, number>();
   for (const d of departamentosDesatualizados) {
-    const u = unidadeDoDepartamento(d.dep_captador);
+    const u = unidadeDoCorretor(d.corretor_id, d.dep_captador);
     porUnidadeDesatualizados.set(u, (porUnidadeDesatualizados.get(u) || 0) + 1);
   }
 

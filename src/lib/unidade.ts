@@ -32,6 +32,23 @@ export function unidadeDoDepartamento(depId: number | string | null | undefined)
   return sep ? sep.unidade : nome;
 }
 
+/**
+ * Unidade de exibição por corretor, aplicando a mesma correção manual de
+ * cadastro errado (scripts/correcoes_manuais.json) que corretoresDaUnidade()
+ * usa pra escopar dados — sem isso o texto na tela (ex: "Urbanova") pode
+ * divergir do filtro real aplicado (ex: já escopado como "Satélite").
+ */
+export function unidadeDoCorretor(
+  corretorId: number | null | undefined,
+  depId: number | string | null | undefined
+): string {
+  const base = unidadeDoDepartamento(depId);
+  if (corretorId === null || corretorId === undefined) return base;
+  const correcao = correcoesManuais().unidade_por_corretor[String(corretorId)];
+  if (correcao && base === correcao.de) return correcao.para;
+  return base;
+}
+
 interface CorrecoesManuais {
   unidade_por_corretor: Record<string, { de: string; para: string }>;
   corretores_excluidos?: Record<string, { corretor: string }>;
