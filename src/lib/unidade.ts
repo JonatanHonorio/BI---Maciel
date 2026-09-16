@@ -34,6 +34,7 @@ export function unidadeDoDepartamento(depId: number | string | null | undefined)
 
 interface CorrecoesManuais {
   unidade_por_corretor: Record<string, { de: string; para: string }>;
+  corretores_excluidos?: Record<string, { corretor: string }>;
 }
 
 let correcoesCache: CorrecoesManuais | null = null;
@@ -62,7 +63,12 @@ export async function corretoresDaUnidade(
   unidade: string | null,
   tipo: Tipo | null
 ): Promise<number[] | null> {
-  if (unidade === null && tipo === null) return null;
+  const excluidos = correcoesManuais().corretores_excluidos ?? {};
+  const temExcluidos = Object.keys(excluidos).length > 0;
+
+  // Sem filtro de unidade/tipo (admin) e sem ninguém pra excluir: atalho barato,
+  // sem nem consultar o banco — mantém o caminho comum do admin rápido.
+  if (unidade === null && tipo === null && !temExcluidos) return null;
 
   const correcoes = correcoesManuais().unidade_por_corretor;
   const rows = (await sql`
@@ -71,6 +77,14 @@ export async function corretoresDaUnidade(
 
   const ids: number[] = [];
   for (const r of rows) {
+    if (excluidos[String(r.id)]) continue;
+
+    // Sem restrição de unidade/tipo (admin): entra todo mundo ativo, exceto excluídos.
+    if (unidade === null && tipo === null) {
+      ids.push(r.id);
+      continue;
+    }
+
     const nome = r.departamento_id !== null ? departamentos[String(r.departamento_id)] : undefined;
     let sep = separarDepartamento(nome);
     if (!sep) continue;

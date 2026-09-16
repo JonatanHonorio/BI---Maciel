@@ -38,6 +38,23 @@
       "para": "Satélite",
       "departamento_errado": "47 = Locação Urbanova",
       "fonte": "Jonatan em 11/09/2026 — vai corrigir no Kurole"
+    },
+    "755": {
+      "corretor": "Wellington Bezkorowayny de Oliveira",
+      "de": "Satélite",
+      "para": "Esplanada",
+      "departamento_errado": "44 = Locação Satélite",
+      "fonte": "Jonatan em 16/09/2026 — é gerente do Esplanada, não deve aparecer como corretor no Satélite em locação"
+    }
+  },
+
+  "_corretores_excluidos": "NÃO auto-expirável do mesmo jeito que as seções acima (não é unidade errada, é 'esta pessoa não deve contar como corretor em lugar nenhum'). Chave = id do corretor. corretoresDaUnidade() remove esses ids de QUALQUER resultado, inclusive para admin (unidade/tipo nulos).",
+  "corretores_excluidos": {
+    "137": {
+      "corretor": "Elenice Silva",
+      "departamento": "18 = Venda Aquarius",
+      "motivo": "cadastro de unidade está correto (Venda Aquarius), mas ela não é corretora de vendas ativa — não deve aparecer em nenhum ranking/relatório de corretor",
+      "fonte": "Jonatan em 16/09/2026"
     }
   }
 }
