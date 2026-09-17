@@ -349,3 +349,59 @@ CREATE TABLE IF NOT EXISTS usuarios_bi (
   reset_token_expires TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Sistema de fechamento mensal (17/09/2026) — substitui a planilha Excel que
+-- cada gerente preenchia à mão. Ver plano completo em
+-- C:\Users\Jonatan Honório\.claude\plans\glimmering-toasting-harbor.md.
+--
+-- Envelope do mês por unidade+tipo — controla o status enviado/travado.
+CREATE TABLE IF NOT EXISTS fechamento_periodos (
+  id SERIAL PRIMARY KEY,
+  competencia DATE NOT NULL,
+  unidade VARCHAR(60) NOT NULL,
+  tipo VARCHAR(10) NOT NULL,
+  status VARCHAR(10) NOT NULL DEFAULT 'aberto',
+  enviado_por INTEGER REFERENCES usuarios_bi(id),
+  enviado_em TIMESTAMP,
+  criado_em TIMESTAMP DEFAULT NOW(),
+  UNIQUE (competencia, unidade, tipo)
+);
+
+-- Um negócio = uma linha real (QTDE = COUNT(*), sem a ambiguidade da "linha
+-- fantasma de R$0" do Excel antigo — rateio vira linhas filhas abaixo).
+-- Vendas: comissão é o dado digitado (6% fixo), valor = comissao/0.06 calculado.
+-- Locação: só existe "valor" (prestação de serviço), comissao fica NULL.
+CREATE TABLE IF NOT EXISTS fechamento_negocios (
+  id SERIAL PRIMARY KEY,
+  periodo_id INTEGER NOT NULL REFERENCES fechamento_periodos(id),
+  data_contrato DATE,
+  ref VARCHAR(30),
+  contrato VARCHAR(30),
+  endereco TEXT,
+  origem VARCHAR(60),
+  valor DECIMAL(15,2),
+  comissao DECIMAL(15,2),
+  pagamento VARCHAR(30),
+  observacao TEXT,
+  comissao_paga BOOLEAN NOT NULL DEFAULT false,
+  comissao_paga_em TIMESTAMP,
+  comissao_paga_por INTEGER REFERENCES usuarios_bi(id),
+  criado_em TIMESTAMP DEFAULT NOW(),
+  criado_por INTEGER REFERENCES usuarios_bi(id),
+  atualizado_em TIMESTAMP,
+  atualizado_por INTEGER REFERENCES usuarios_bi(id)
+);
+CREATE INDEX IF NOT EXISTS idx_fneg_periodo ON fechamento_negocios(periodo_id);
+
+-- Rateio N-a-N por papel (Levantamento/Fechamento) — mesmo padrão relacional
+-- que conversao_corretores já usa. corretor_id inclui "Secretaria Comercial"
+-- (id 272), normalmente excluída em outras telas via IDS_DIRETORIA.
+CREATE TABLE IF NOT EXISTS fechamento_negocio_corretores (
+  id SERIAL PRIMARY KEY,
+  negocio_id INTEGER NOT NULL REFERENCES fechamento_negocios(id) ON DELETE CASCADE,
+  papel VARCHAR(12) NOT NULL,
+  corretor_id INTEGER NOT NULL REFERENCES corretores(id),
+  percentual DECIMAL(6,4)
+);
+CREATE INDEX IF NOT EXISTS idx_fnegcorr_negocio ON fechamento_negocio_corretores(negocio_id);
+CREATE INDEX IF NOT EXISTS idx_fnegcorr_corretor ON fechamento_negocio_corretores(corretor_id);

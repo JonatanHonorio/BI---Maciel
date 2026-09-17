@@ -16,6 +16,8 @@ import {
   Gauge,
   LogOut,
   Eye,
+  FileText,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Session } from "@/lib/auth";
@@ -63,6 +65,8 @@ const grupos: Grupo[] = [
       { href: "/vendas", label: "Vendas", icon: DollarSign },
       { href: "/imoveis", label: "Imóveis", icon: Building2 },
       { href: "/lais", label: "Lais Visitas", icon: Bot },
+      { href: "/fechamento", label: "Fechamento", icon: FileText },
+      { href: "/fechamento/comissoes", label: "Comissões", icon: Wallet, somenteAdmin: true },
     ],
   },
   {

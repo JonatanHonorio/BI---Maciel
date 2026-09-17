@@ -54,7 +54,7 @@ export function unidadeDoCorretor(
   return base;
 }
 
-interface CorrecoesManuais {
+export interface CorrecoesManuais {
   unidade_por_corretor: Record<string, { de: string; para: string }>;
   corretores_excluidos?: Record<string, { corretor: string }>;
 }
@@ -62,7 +62,7 @@ interface CorrecoesManuais {
 let correcoesCache: CorrecoesManuais | null = null;
 
 /** scripts/correcoes_manuais.json — mesma correção usada pelos relatórios da Lais. */
-function correcoesManuais(): CorrecoesManuais {
+export function correcoesManuais(): CorrecoesManuais {
   if (correcoesCache) return correcoesCache;
   try {
     const p = path.join(process.cwd(), "scripts", "correcoes_manuais.json");

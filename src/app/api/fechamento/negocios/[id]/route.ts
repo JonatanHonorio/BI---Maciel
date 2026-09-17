@@ -1,0 +1,84 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+import { PAPEIS_RATEIO } from "@/lib/fechamento";
+
+interface RateioInput {
+  corretor_id: number;
+  papel: "levantamento" | "fechamento";
+  percentual: number | null;
+}
+
+/** Só edita/remove se o período estiver 'aberto' (ou o usuário for admin). */
+async function periodoEditavel(sql: ReturnType<typeof getDb>, negocioId: number, isAdmin: boolean) {
+  const [row] = await sql`
+    SELECT p.status FROM fechamento_negocios n
+    JOIN fechamento_periodos p ON p.id = n.periodo_id
+    WHERE n.id = ${negocioId}
+  `;
+  if (!row) return { ok: false, status: 404 as const };
+  if (row.status !== "aberto" && !isAdmin) return { ok: false, status: 409 as const };
+  return { ok: true as const };
+}
+
+export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const session = getSession(req);
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const { id } = await ctx.params;
+  const negocioId = Number(id);
+  const check = await periodoEditavel(getDb(), negocioId, session.role === "admin");
+  if (!check.ok) {
+    return NextResponse.json(
+      { error: check.status === 404 ? "negócio não encontrado" : "período já foi enviado — peça pro admin reabrir" },
+      { status: check.status }
+    );
+  }
+
+  const body = await req.json();
+  const rateio = (body.rateio ?? []) as RateioInput[];
+  for (const r of rateio) {
+    if (!r.corretor_id || !PAPEIS_RATEIO.includes(r.papel)) {
+      return NextResponse.json({ error: "rateio inválido" }, { status: 400 });
+    }
+  }
+
+  const sql = getDb();
+  await sql`
+    UPDATE fechamento_negocios SET
+      data_contrato = ${body.data_contrato}, ref = ${body.ref}, contrato = ${body.contrato},
+      endereco = ${body.endereco}, origem = ${body.origem}, valor = ${body.valor},
+      comissao = ${body.comissao}, pagamento = ${body.pagamento}, observacao = ${body.observacao},
+      atualizado_em = NOW(), atualizado_por = ${session.id}
+    WHERE id = ${negocioId}
+  `;
+
+  await sql`DELETE FROM fechamento_negocio_corretores WHERE negocio_id = ${negocioId}`;
+  for (const r of rateio) {
+    await sql`
+      INSERT INTO fechamento_negocio_corretores (negocio_id, papel, corretor_id, percentual)
+      VALUES (${negocioId}, ${r.papel}, ${r.corretor_id}, ${r.percentual})
+    `;
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const session = getSession(req);
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const { id } = await ctx.params;
+  const negocioId = Number(id);
+  const sql = getDb();
+  const check = await periodoEditavel(sql, negocioId, session.role === "admin");
+  if (!check.ok) {
+    return NextResponse.json(
+      { error: check.status === 404 ? "negócio não encontrado" : "período já foi enviado — peça pro admin reabrir" },
+      { status: check.status }
+    );
+  }
+
+  await sql`DELETE FROM fechamento_negocios WHERE id = ${negocioId}`;
+  return NextResponse.json({ ok: true });
+}
