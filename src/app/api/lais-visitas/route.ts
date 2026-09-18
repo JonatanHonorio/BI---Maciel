@@ -27,6 +27,10 @@ export async function GET(req: NextRequest) {
   // verdade da Lais é id_imovel ("L58235"), sempre preenchida. A parte
   // numérica do id_imovel É o imoveis.id (letra = locação/venda) — usa isso
   // pra trazer o valor, já que lais_visitas não guarda valor nenhum.
+  //
+  // Só esta tabela (não os KPIs/gráficos) estende 1 dia além do `until` —
+  // senão uma visita já agendada pra amanhã (D+1) some do detalhamento até
+  // o filtro de data ser virado manualmente ou o dia virar de verdade.
   const visitas = await sql`
     SELECT lv.id, lv.nome, lv.email, lv.tipo_transacao, lv.origem, lv.data_visita,
       lv.localizacao, lv.corretor_nome,
@@ -35,7 +39,7 @@ export async function GET(req: NextRequest) {
       CASE WHEN lv.tipo_transacao = 'Venda' THEN im.valor ELSE im.valor_locacao END as valor
     FROM lais_visitas lv
     LEFT JOIN imoveis im ON im.id = NULLIF(regexp_replace(COALESCE(lv.id_imovel, ''), '\\D', '', 'g'), '')::int
-    WHERE lv.data_visita >= ${since} AND lv.data_visita <= ${until}::date + 1
+    WHERE lv.data_visita >= ${since} AND lv.data_visita <= ${until}::date + 2
       AND (${corretorIds}::int[] IS NULL OR lv.corretor_id = ANY(${corretorIds}::int[]))
     ORDER BY lv.data_visita DESC`;
 

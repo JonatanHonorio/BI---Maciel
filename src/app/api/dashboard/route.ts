@@ -2,7 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { parseDateRange } from "@/lib/date-utils";
 import { getSession } from "@/lib/auth";
-import { corretoresDaUnidade } from "@/lib/unidade";
+import { corretoresDaUnidade, correcoesManuais } from "@/lib/unidade";
+
+const EMPRESA_UNIDADE: Record<number, string> = {
+  1: "Satélite",
+  2: "Esplanada",
+  3: "Pq. Industrial",
+  4: "Vista Verde",
+  5: "Dutra",
+  6: "Aquarius",
+  9: "Urbanova",
+};
 
 export async function GET(req: NextRequest) {
   const session = getSession(req);
@@ -92,29 +102,51 @@ export async function GET(req: NextRequest) {
     metas = m || null;
   }
 
-  const receitaUnidade = await sql`
-    SELECT
-      CASE cor.empresa
-        WHEN 1 THEN 'Satélite'
-        WHEN 2 THEN 'Esplanada'
-        WHEN 3 THEN 'Pq. Industrial'
-        WHEN 4 THEN 'Vista Verde'
-        WHEN 5 THEN 'Dutra'
-        WHEN 6 THEN 'Aquarius'
-        WHEN 9 THEN 'Urbanova'
-        ELSE 'Outro'
-      END as unidade,
-      COALESCE(SUM(c.valor), 0) as receita,
-      COALESCE(SUM(c.valor) FILTER (WHERE c.locacao_venda = 'V'), 0) as receita_venda,
-      COALESCE(SUM(c.valor) FILTER (WHERE c.locacao_venda = 'L'), 0) as receita_locacao,
-      COUNT(DISTINCT c.id) as conversoes
+  // DISTINCT: protege contra linha de rateio duplicada em conversao_corretores
+  // (mesmo corretor lançado 2x no mesmo negócio) — sem isso o valor da
+  // conversão entra 2x na soma.
+  const receitaUnidadeRows = await sql`
+    SELECT DISTINCT c.id as conversao_id, c.valor, c.locacao_venda,
+      cor.id as corretor_id, cor.empresa
     FROM conversoes c
     JOIN conversao_corretores cc ON cc.conversao_id = c.id
     JOIN corretores cor ON cor.id = cc.corretor_id
     WHERE c.data_assinatura >= ${since} AND c.data_assinatura <= ${until}
-      AND (${corretorIds}::int[] IS NULL OR cc.corretor_id = ANY(${corretorIds}::int[]))
-    GROUP BY cor.empresa
-    ORDER BY receita DESC`;
+      AND (${corretorIds}::int[] IS NULL OR cc.corretor_id = ANY(${corretorIds}::int[]))`;
+
+  // Agrupa por unidade "corrigida": parte da empresa cadastrada no Kurole,
+  // mas aplica correcoes_manuais.json (mesma correção usada em
+  // corretoresDaUnidade/unidadeDoCorretor) — sem isso um corretor que já foi
+  // realocado pra outra unidade (ex: cadastro errado no Kurole) aparece com
+  // a receita num card de unidade errada.
+  const correcoes = correcoesManuais().unidade_por_corretor;
+  const porUnidade = new Map<
+    string,
+    { receita: number; receita_venda: number; receita_locacao: number; conversoes: number }
+  >();
+  const conversoesVistas = new Set<string>();
+  for (const r of receitaUnidadeRows) {
+    let unidade = EMPRESA_UNIDADE[r.empresa as number] ?? "Outro";
+    const correcao = correcoes[String(r.corretor_id)];
+    if (correcao && unidade === correcao.de) unidade = correcao.para;
+
+    // Uma conversão só conta 1x pra cada unidade, mesmo com 2+ corretores
+    // dela no rateio (ex: levantamento + fechamento do mesmo escritório).
+    const chave = `${r.conversao_id}|${unidade}`;
+    if (conversoesVistas.has(chave)) continue;
+    conversoesVistas.add(chave);
+
+    const acc = porUnidade.get(unidade) ?? { receita: 0, receita_venda: 0, receita_locacao: 0, conversoes: 0 };
+    const valor = Number(r.valor);
+    acc.receita += valor;
+    if (r.locacao_venda === "V") acc.receita_venda += valor;
+    else acc.receita_locacao += valor;
+    acc.conversoes += 1;
+    porUnidade.set(unidade, acc);
+  }
+  const receitaUnidade = [...porUnidade.entries()]
+    .map(([unidade, v]) => ({ unidade, ...v }))
+    .sort((a, b) => b.receita - a.receita);
 
   return NextResponse.json({
     periodo: { since, until },
