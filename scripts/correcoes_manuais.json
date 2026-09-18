@@ -23,14 +23,16 @@
     }
   },
 
-  "_unidade_por_corretor": "Cadastro do corretor com unidade errada no Kurole. Chave = id do corretor. Só troca quando a unidade calculada for igual a 'de' — corrigido o cadastro, o 'de' deixa de bater e a regra morre sozinha. A VERTICAL (Vendas/Locação) é preservada: aqui só muda a unidade.",
+  "_unidade_por_corretor": "Cadastro do corretor com unidade errada no Kurole. Chave = id do corretor. Só troca quando a unidade calculada for igual a 'de' — corrigido o cadastro, o 'de' deixa de bater e a regra morre sozinha. Por padrão a VERTICAL (Vendas/Locação) é preservada — só muda a unidade — a menos que o registro também tenha 'de_tipo'/'para_tipo', que corrige a vertical do mesmo jeito auto-expirável (só troca enquanto o tipo calculado ainda for 'de_tipo').",
   "unidade_por_corretor": {
     "154": {
       "corretor": "Marta Silva",
       "de": "Aquarius",
       "para": "Dutra",
+      "de_tipo": "venda",
+      "para_tipo": "locacao",
       "departamento_errado": "18 = Venda Aquarius",
-      "fonte": "Jonatan em 11/09/2026 — vai corrigir no Kurole"
+      "fonte": "Jonatan em 11/09/2026 (unidade) e 18/09/2026 (vertical) — ela é locação da Dutra, cadastro do Kurole está errado nas duas dimensões; estava aparecendo no rateio de vendas do Daniel em vez do de locação da Jessica. Vai corrigir no Kurole."
     },
     "840": {
       "corretor": "PEDRO CHAFFY HALLAK RENOVATO FELIX",

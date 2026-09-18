@@ -55,7 +55,10 @@ export function unidadeDoCorretor(
 }
 
 export interface CorrecoesManuais {
-  unidade_por_corretor: Record<string, { de: string; para: string }>;
+  unidade_por_corretor: Record<
+    string,
+    { de: string; para: string; de_tipo?: Tipo; para_tipo?: Tipo }
+  >;
   corretores_excluidos?: Record<string, { corretor: string }>;
 }
 
@@ -112,8 +115,11 @@ export async function corretoresDaUnidade(
     if (!sep) continue;
 
     const correcao = correcoes[String(r.id)];
-    if (correcao && sep.unidade === correcao.de) {
-      sep = { ...sep, unidade: correcao.para };
+    if (correcao) {
+      if (sep.unidade === correcao.de) sep = { ...sep, unidade: correcao.para };
+      if (correcao.para_tipo && sep.tipo === correcao.de_tipo) {
+        sep = { ...sep, tipo: correcao.para_tipo };
+      }
     }
 
     if (unidade !== null && sep.unidade !== unidade) continue;

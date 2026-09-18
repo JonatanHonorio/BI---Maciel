@@ -1,24 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { getSession } from "@/lib/auth";
-import { PAPEIS_RATEIO } from "@/lib/fechamento";
+import { getSession, type Session } from "@/lib/auth";
+import { PAPEIS_RATEIO, type Papel } from "@/lib/fechamento";
 
 interface RateioInput {
   corretor_id: number;
-  papel: "levantamento" | "fechamento";
+  papel: Papel;
   percentual: number | null;
 }
 
-/** Só edita/remove se o período estiver 'aberto' (ou o usuário for admin). */
-async function periodoEditavel(sql: ReturnType<typeof getDb>, negocioId: number, isAdmin: boolean) {
+/**
+ * Só edita/remove se o período estiver 'aberto' (ou o usuário for admin) E
+ * o período for da própria unidade/tipo do gerente — sem isso, um gerente
+ * poderia mandar um periodo_id de outra unidade/tipo direto na requisição.
+ */
+async function periodoEditavel(sql: ReturnType<typeof getDb>, negocioId: number, session: Session) {
   const [row] = await sql`
-    SELECT p.status FROM fechamento_negocios n
+    SELECT p.status, p.unidade, p.tipo FROM fechamento_negocios n
     JOIN fechamento_periodos p ON p.id = n.periodo_id
     WHERE n.id = ${negocioId}
   `;
   if (!row) return { ok: false, status: 404 as const };
-  if (row.status !== "aberto" && !isAdmin) return { ok: false, status: 409 as const };
+  const dono = session.role === "admin" || (session.unidade === row.unidade && session.tipo === row.tipo);
+  if (!dono) return { ok: false, status: 403 as const };
+  if (row.status !== "aberto" && session.role !== "admin") return { ok: false, status: 409 as const };
   return { ok: true as const };
+}
+
+function erroPeriodoEditavel(status: 404 | 403 | 409) {
+  if (status === 404) return "negócio não encontrado";
+  if (status === 403) return "sem acesso a este período";
+  return "período já foi enviado — peça pro admin reabrir";
 }
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -27,12 +39,9 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   const { id } = await ctx.params;
   const negocioId = Number(id);
-  const check = await periodoEditavel(getDb(), negocioId, session.role === "admin");
+  const check = await periodoEditavel(getDb(), negocioId, session);
   if (!check.ok) {
-    return NextResponse.json(
-      { error: check.status === 404 ? "negócio não encontrado" : "período já foi enviado — peça pro admin reabrir" },
-      { status: check.status }
-    );
+    return NextResponse.json({ error: erroPeriodoEditavel(check.status) }, { status: check.status });
   }
 
   const body = await req.json();
@@ -71,12 +80,9 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const { id } = await ctx.params;
   const negocioId = Number(id);
   const sql = getDb();
-  const check = await periodoEditavel(sql, negocioId, session.role === "admin");
+  const check = await periodoEditavel(sql, negocioId, session);
   if (!check.ok) {
-    return NextResponse.json(
-      { error: check.status === 404 ? "negócio não encontrado" : "período já foi enviado — peça pro admin reabrir" },
-      { status: check.status }
-    );
+    return NextResponse.json({ error: erroPeriodoEditavel(check.status) }, { status: check.status });
   }
 
   await sql`DELETE FROM fechamento_negocios WHERE id = ${negocioId}`;

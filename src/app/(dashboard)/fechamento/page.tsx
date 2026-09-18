@@ -3,9 +3,9 @@ import { useEffect, useState, useCallback } from "react";
 import { Plus, Send, Download, Lock, Unlock } from "lucide-react";
 import DataTable from "@/components/DataTable";
 import FechamentoForm from "@/components/FechamentoForm";
-import { fmtMoney, fmtDate } from "@/lib/format";
+import { fmtMoney } from "@/lib/format";
 
-type Rateio = { corretor_id: number; nome: string; papel: "levantamento" | "fechamento"; percentual: number | null };
+type Rateio = { corretor_id: number; nome: string; papel: "levantamento" | "fechamento" | "captacao"; percentual: number | null };
 type Negocio = {
   id: number; data_contrato: string | null; ref: string | null; contrato: string | null;
   endereco: string | null; origem: string | null; valor: number | null; comissao: number | null;
@@ -22,58 +22,102 @@ type Resposta = {
 const nomesPapel = (rateio: Rateio[], papel: string) =>
   rateio.filter((r) => r.papel === papel).map((r) => r.nome).join(", ") || "—";
 
+// DATE vem como "YYYY-MM-DD..." — new Date() trataria como UTC e mostraria 1 dia antes no fuso do Brasil.
+const fmtDataISO = (s: string) => {
+  const [y, m, d] = s.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+};
+
+// Duplicada (não importa de @/lib/fechamento): esse arquivo puxa unidade.ts,
+// que usa fs/path — incompatível com client component.
+function competenciaAtualISO() {
+  const hoje = new Date();
+  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
 export default function FechamentoPage() {
   const [dados, setDados] = useState<Resposta | null>(null);
   const [corretores, setCorretores] = useState<{ id: number; nome: string }[]>([]);
   const [mostrarForm, setMostrarForm] = useState(false);
   const [unidadeAdmin, setUnidadeAdmin] = useState("");
   const [tipoAdmin, setTipoAdmin] = useState<"venda" | "locacao" | "">("");
+  const [competencia, setCompetencia] = useState(competenciaAtualISO());
   const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
   const [confirmarEnvio, setConfirmarEnvio] = useState(false);
   const [confirmarExclusao, setConfirmarExclusao] = useState<number | null>(null);
 
+  // Sem o try/catch, uma resposta de erro (ex: timeout do banco, que devolve
+  // corpo vazio) estourava no r.json() e a tela ficava com os dados do mês
+  // anterior na tela, sem avisar nada.
   const carregar = useCallback(async () => {
     setCarregando(true);
+    setErro("");
     const isAdminEscolhendo = dados?.session.role === "admin";
-    const qs = isAdminEscolhendo && unidadeAdmin && tipoAdmin ? `?unidade=${encodeURIComponent(unidadeAdmin)}&tipo=${tipoAdmin}` : "";
-    const r = await fetch(`/api/fechamento${qs}`);
-    const j = (await r.json()) as Resposta;
-    setDados(j);
-    setCarregando(false);
-  }, [dados?.session.role, unidadeAdmin, tipoAdmin]);
+    const params = new URLSearchParams({ competencia });
+    if (isAdminEscolhendo && unidadeAdmin && tipoAdmin) {
+      params.set("unidade", unidadeAdmin);
+      params.set("tipo", tipoAdmin);
+    }
+    try {
+      const r = await fetch(`/api/fechamento?${params}`);
+      if (!r.ok) throw new Error();
+      setDados((await r.json()) as Resposta);
+    } catch {
+      setErro("Não foi possível carregar o fechamento. Tente de novo.");
+    } finally {
+      setCarregando(false);
+    }
+  }, [dados?.session.role, unidadeAdmin, tipoAdmin, competencia]);
 
-  useEffect(() => { carregar(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { carregar(); }, [competencia]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (unidadeAdmin && tipoAdmin) carregar(); }, [unidadeAdmin, tipoAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!dados?.periodo) return;
     const params = dados.session.role === "admin" ? `?unidade=${encodeURIComponent(dados.periodo.unidade)}&tipo=${dados.periodo.tipo}` : "";
-    fetch(`/api/fechamento/corretores${params}`).then((r) => r.json()).then(setCorretores);
+    fetch(`/api/fechamento/corretores${params}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setCorretores)
+      .catch(() => setCorretores([]));
   }, [dados?.periodo, dados?.session.role]);
+
+  /** Mostra o erro da API (403 de outra unidade, 409 de período travado) em vez de falhar calado. */
+  async function chamar(url: string, init: RequestInit, aoDarCerto: () => void) {
+    setErro("");
+    try {
+      const r = await fetch(url, init);
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.error);
+      }
+      aoDarCerto();
+      carregar();
+    } catch (e) {
+      setErro(e instanceof Error && e.message ? e.message : "Não foi possível concluir. Tente de novo.");
+    }
+  }
 
   async function enviar() {
     if (!dados?.periodo) return;
-    await fetch("/api/fechamento/enviar", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ periodo_id: dados.periodo.id }),
-    });
-    setConfirmarEnvio(false);
-    carregar();
+    await chamar(
+      "/api/fechamento/enviar",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ periodo_id: dados.periodo.id }) },
+      () => setConfirmarEnvio(false)
+    );
   }
 
   async function reabrir() {
     if (!dados?.periodo) return;
-    await fetch("/api/fechamento/reabrir", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ periodo_id: dados.periodo.id }),
-    });
-    carregar();
+    await chamar(
+      "/api/fechamento/reabrir",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ periodo_id: dados.periodo.id }) },
+      () => {}
+    );
   }
 
   async function excluir(negocioId: number) {
-    await fetch(`/api/fechamento/negocios/${negocioId}`, { method: "DELETE" });
-    setConfirmarExclusao(null);
-    carregar();
+    await chamar(`/api/fechamento/negocios/${negocioId}`, { method: "DELETE" }, () => setConfirmarExclusao(null));
   }
 
   if (carregando && !dados) {
@@ -83,7 +127,15 @@ export default function FechamentoPage() {
       </div>
     );
   }
-  if (!dados) return null;
+  // Falhou já na primeira carga: sem isso a tela ficava em branco, sem explicação.
+  if (!dados) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700">
+        {erro || "Não foi possível carregar o fechamento."}{" "}
+        <button onClick={carregar} className="font-medium underline hover:no-underline">Tentar de novo</button>
+      </div>
+    );
+  }
 
   const isAdmin = dados.session.role === "admin";
   const periodo = dados.periodo;
@@ -108,20 +160,35 @@ export default function FechamentoPage() {
           )}
         </div>
 
-        {isAdmin && (
-          <div className="flex gap-2">
-            <select value={unidadeAdmin} onChange={(e) => setUnidadeAdmin(e.target.value)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
-              <option value="">Unidade...</option>
-              {dados.unidades.map((u) => <option key={u} value={u}>{u}</option>)}
-            </select>
-            <select value={tipoAdmin} onChange={(e) => setTipoAdmin(e.target.value as "venda" | "locacao" | "")} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
-              <option value="">Tipo...</option>
-              <option value="venda">Vendas</option>
-              <option value="locacao">Locação</option>
-            </select>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <input
+            type="month"
+            value={competencia.slice(0, 7)}
+            onChange={(e) => setCompetencia(`${e.target.value}-01`)}
+            className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm"
+          />
+          {isAdmin && (
+            <>
+              <select value={unidadeAdmin} onChange={(e) => setUnidadeAdmin(e.target.value)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
+                <option value="">Unidade...</option>
+                {dados.unidades.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+              <select value={tipoAdmin} onChange={(e) => setTipoAdmin(e.target.value as "venda" | "locacao" | "")} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
+                <option value="">Tipo...</option>
+                <option value="venda">Vendas</option>
+                <option value="locacao">Locação</option>
+              </select>
+            </>
+          )}
+        </div>
       </div>
+
+      {erro && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+          {erro}
+          <button onClick={carregar} className="font-medium underline hover:no-underline">Tentar de novo</button>
+        </div>
+      )}
 
       {!periodo && isAdmin && (
         <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">
@@ -189,11 +256,12 @@ export default function FechamentoPage() {
             <DataTable
               searchable
               columns={[
-                { key: "data_contrato", label: "Data", format: (v) => (v ? fmtDate(v as string) : "—") },
+                { key: "data_contrato", label: "Data", format: (v) => (v ? fmtDataISO(v as string) : "—") },
                 { key: "ref", label: "Ref" },
                 { key: "endereco", label: "Endereço" },
                 { key: "levantamento", label: "Levantamento" },
                 { key: "fechamento", label: "Fechamento" },
+                { key: "captacao", label: "Captação" },
                 { key: "valor", label: "Valor", align: "right", format: (v) => (v ? fmtMoney(v as number) : "—") },
                 ...(periodo.tipo === "venda"
                   ? [{ key: "comissao", label: "Comissão", align: "right" as const, format: (v: unknown) => (v ? fmtMoney(v as number) : "—") }]
@@ -204,6 +272,7 @@ export default function FechamentoPage() {
                 ...n,
                 levantamento: nomesPapel(n.rateio, "levantamento"),
                 fechamento: nomesPapel(n.rateio, "fechamento"),
+                captacao: nomesPapel(n.rateio, "captacao"),
               }))}
             />
             {!travado && dados.negocios.length > 0 && (
