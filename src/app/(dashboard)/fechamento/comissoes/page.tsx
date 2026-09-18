@@ -3,7 +3,7 @@ import { Fragment, useEffect, useState, useCallback } from "react";
 import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 
-type Papel = "levantamento" | "fechamento" | "captacao";
+type Papel = "levantamento" | "fechamento";
 type StatusPagamento = "pendente" | "parcial" | "pago";
 
 type Pagamento = { id: number; valor: number; data_pagamento: string; observacao: string | null };
@@ -21,7 +21,7 @@ type Negocio = {
 const nomesPapel = (rateio: Rateio[], papel: Papel) =>
   rateio.filter((r) => r.papel === papel).map((r) => r.nome).join(", ") || "—";
 
-const labelPapel: Record<Papel, string> = { levantamento: "Levantamento", fechamento: "Fechamento", captacao: "Captação" };
+const labelPapel: Record<Papel, string> = { levantamento: "Levantamento", fechamento: "Fechamento" };
 
 const badgeStatus: Record<StatusPagamento, { label: string; cls: string }> = {
   pendente: { label: "Pendente", cls: "bg-amber-50 text-amber-700" },
@@ -164,16 +164,15 @@ export default function ComissoesPage() {
               <th className="px-3 py-2.5">Endereço</th>
               <th className="px-3 py-2.5">Levantamento</th>
               <th className="px-3 py-2.5">Fechamento</th>
-              <th className="px-3 py-2.5">Captação</th>
               <th className="px-3 py-2.5 text-right">Status</th>
               <th className="px-3 py-2.5 text-right">Ficou pra Imobiliária</th>
             </tr>
           </thead>
           <tbody>
             {carregando ? (
-              <tr><td colSpan={10} className="px-3 py-8 text-center text-xs text-gray-400">Carregando...</td></tr>
+              <tr><td colSpan={9} className="px-3 py-8 text-center text-xs text-gray-400">Carregando...</td></tr>
             ) : filtrados.length === 0 ? (
-              <tr><td colSpan={10} className="px-3 py-8 text-center text-xs text-gray-400">Nenhum negócio neste mês.</td></tr>
+              <tr><td colSpan={9} className="px-3 py-8 text-center text-xs text-gray-400">Nenhum negócio neste mês.</td></tr>
             ) : (
               filtrados.map((n, i) => {
                 const aberto = expandido === n.id;
@@ -191,7 +190,6 @@ export default function ComissoesPage() {
                       <td className="px-3 py-2">{n.endereco || "—"}</td>
                       <td className="px-3 py-2">{nomesPapel(n.rateio, "levantamento")}</td>
                       <td className="px-3 py-2">{nomesPapel(n.rateio, "fechamento")}</td>
-                      <td className="px-3 py-2">{nomesPapel(n.rateio, "captacao")}</td>
                       <td className="px-3 py-2 text-right">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.cls}`}>{badge.label}</span>
                         <div className="mt-0.5 text-[11px] text-gray-400">{fmtMoney(n.valor_pago_total)} / {fmtMoney(n.valor_devido_total)}</div>
@@ -201,7 +199,7 @@ export default function ComissoesPage() {
                     {aberto && (
                       <tr className="bg-gray-50/70">
                         <td></td>
-                        <td colSpan={9} className="space-y-3 px-3 py-3">
+                        <td colSpan={8} className="space-y-3 px-3 py-3">
                           {n.rateio.length === 0 ? (
                             <p className="text-xs text-gray-400">Nenhum destinatário de rateio neste negócio.</p>
                           ) : (

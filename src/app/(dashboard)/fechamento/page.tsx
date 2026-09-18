@@ -5,7 +5,7 @@ import DataTable from "@/components/DataTable";
 import FechamentoForm from "@/components/FechamentoForm";
 import { fmtMoney } from "@/lib/format";
 
-type Rateio = { corretor_id: number; nome: string; papel: "levantamento" | "fechamento" | "captacao"; percentual: number | null };
+type Rateio = { corretor_id: number; nome: string; papel: "levantamento" | "fechamento"; percentual: number | null };
 type Negocio = {
   id: number; data_contrato: string | null; ref: string | null; contrato: string | null;
   endereco: string | null; origem: string | null; valor: number | null; comissao: number | null;
@@ -271,7 +271,6 @@ export default function FechamentoPage() {
                 { key: "endereco", label: "Endereço" },
                 { key: "levantamento", label: "Levantamento" },
                 { key: "fechamento", label: "Fechamento" },
-                { key: "captacao", label: "Captação" },
                 { key: "valor", label: "Valor", align: "right", format: (v) => (v ? fmtMoney(v as number) : "—") },
                 ...(periodo.tipo === "venda"
                   ? [{ key: "comissao", label: "Comissão", align: "right" as const, format: (v: unknown) => (v ? fmtMoney(v as number) : "—") }]
@@ -282,7 +281,6 @@ export default function FechamentoPage() {
                 ...n,
                 levantamento: nomesPapel(n.rateio, "levantamento"),
                 fechamento: nomesPapel(n.rateio, "fechamento"),
-                captacao: nomesPapel(n.rateio, "captacao"),
               }))}
             />
             {!travado && dados.negocios.length > 0 && (

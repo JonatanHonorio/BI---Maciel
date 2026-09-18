@@ -107,7 +107,6 @@ export default function FechamentoForm({
   const [observacao, setObservacao] = useState("");
   const [levantamento, setLevantamento] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "" }]);
   const [fechamento, setFechamento] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "" }]);
-  const [captacao, setCaptacao] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "" }]);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
 
@@ -126,10 +125,9 @@ export default function FechamentoForm({
     const rateio = [
       ...levantamento.filter((l) => l.corretor_id).map((l) => ({ ...l, papel: "levantamento" as const })),
       ...fechamento.filter((l) => l.corretor_id).map((l) => ({ ...l, papel: "fechamento" as const })),
-      ...captacao.filter((l) => l.corretor_id).map((l) => ({ ...l, papel: "captacao" as const })),
     ];
     if (rateio.length === 0) {
-      setErro("Informe pelo menos um corretor (Levantamento, Fechamento ou Captação).");
+      setErro("Informe pelo menos um corretor (Levantamento ou Fechamento).");
       return;
     }
 
@@ -231,10 +229,9 @@ export default function FechamentoForm({
         )}
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <BlocoRateio titulo="Levantamento" lista={levantamento} set={setLevantamento} corretores={corretores} atualizarLinha={atualizarLinha} />
         <BlocoRateio titulo="Fechamento" lista={fechamento} set={setFechamento} corretores={corretores} atualizarLinha={atualizarLinha} />
-        <BlocoRateio titulo="Captação" lista={captacao} set={setCaptacao} corretores={corretores} atualizarLinha={atualizarLinha} />
       </div>
 
       <div className="mt-3">

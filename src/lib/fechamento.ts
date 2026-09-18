@@ -17,7 +17,9 @@ export const PAGAMENTOS_FECHAMENTO = [
   "Financiamento", "A Vista", "Fgts", "Consórcio", "Parcelado",
 ] as const;
 
-export const PAPEIS_RATEIO = ["levantamento", "fechamento", "captacao"] as const;
+// "Captação" chegou a existir como terceiro papel (18/09/2026) e saiu no mesmo
+// dia: o Jonatan avisou que captação e levantamento são a mesma coisa.
+export const PAPEIS_RATEIO = ["levantamento", "fechamento"] as const;
 export type Papel = (typeof PAPEIS_RATEIO)[number];
 
 /** Primeiro dia do mês corrente, formato YYYY-MM-DD (pra coluna DATE). */

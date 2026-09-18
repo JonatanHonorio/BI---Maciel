@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
   const ws = wb.addWorksheet(`${periodo.tipo === "venda" ? "Vendas" : "Locação"} - ${periodo.unidade}`);
   ws.addRow([
     "QTDE", "Data Contrato", "Unidade", "Ref", "Contrato", "Endereço",
-    "Levantamento", "Fechamento", "Captação", periodo.tipo === "venda" ? "Valor da Venda" : "Valor",
+    "Levantamento", "Fechamento", periodo.tipo === "venda" ? "Valor da Venda" : "Valor",
     "Comissão", "Origem", "Pagamento", "Status Pagamento",
   ]);
   ws.getRow(1).font = { bold: true };
@@ -79,16 +79,16 @@ export async function GET(req: NextRequest) {
     const { status } = calcularStatusPagamento(pool, n.rateio);
     ws.addRow([
       i + 1, n.data_contrato, periodo.unidade, n.ref, n.contrato, n.endereco,
-      nomesPapel(n.rateio, "levantamento"), nomesPapel(n.rateio, "fechamento"), nomesPapel(n.rateio, "captacao"),
+      nomesPapel(n.rateio, "levantamento"), nomesPapel(n.rateio, "fechamento"),
       n.valor ? Number(n.valor) : null, n.comissao ? Number(n.comissao) : null,
       n.origem, n.pagamento, labelStatus[status],
     ]);
   });
 
+  ws.getColumn(9).numFmt = "R$ #,##0.00";
   ws.getColumn(10).numFmt = "R$ #,##0.00";
-  ws.getColumn(11).numFmt = "R$ #,##0.00";
   ws.columns.forEach((c, i) => {
-    c.width = [6, 13, 14, 10, 10, 26, 24, 24, 24, 16, 14, 14, 14, 14][i];
+    c.width = [6, 13, 14, 10, 10, 26, 24, 24, 16, 14, 14, 14, 14][i];
   });
 
   const buffer = await wb.xlsx.writeBuffer();
