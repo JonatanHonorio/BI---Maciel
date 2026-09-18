@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { calcularStatusPagamento, type Papel } from "@/lib/fechamento";
+import { podeAcessarPeriodo } from "@/lib/permissoes";
 
 interface Rateio {
   corretor_id: number; nome: string; papel: Papel; percentual: number | null;
@@ -27,8 +28,9 @@ export async function GET(req: NextRequest) {
   const [periodo] = await sql`SELECT * FROM fechamento_periodos WHERE id = ${periodoId}`;
   if (!periodo) return NextResponse.json({ error: "período não encontrado" }, { status: 404 });
 
-  const isDono = session.role === "admin" || (session.unidade === periodo.unidade && session.tipo === periodo.tipo);
-  if (!isDono) return NextResponse.json({ error: "sem acesso a este período" }, { status: 403 });
+  if (!podeAcessarPeriodo(session, periodo)) {
+    return NextResponse.json({ error: "sem acesso a este período" }, { status: 403 });
+  }
 
   const negocios = (await sql`
     SELECT n.id, n.data_contrato, n.ref, n.contrato, n.endereco, n.origem,

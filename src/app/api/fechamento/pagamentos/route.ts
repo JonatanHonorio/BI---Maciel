@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { podeLancarComissao, podeAcessarPeriodo } from "@/lib/permissoes";
 
 interface PagamentoInput {
   negocio_corretor_id: number;
@@ -11,12 +12,12 @@ interface PagamentoInput {
 
 /**
  * Registra um pagamento (parcial ou total) pra um destinatário do rateio —
- * admin only (é a gerente administrativa quem lança). Um negócio pode ter
- * vários pagamentos ao longo do tempo pro mesmo destinatário.
+ * admin ou gerente administrativa, e só dentro das unidades dela. Um negócio
+ * pode ter vários pagamentos ao longo do tempo pro mesmo destinatário.
  */
 export async function POST(req: NextRequest) {
   const session = getSession(req);
-  if (!session || session.role !== "admin") {
+  if (!session || !podeLancarComissao(session)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -26,8 +27,18 @@ export async function POST(req: NextRequest) {
   }
 
   const sql = getDb();
-  const [destinatario] = await sql`SELECT id FROM fechamento_negocio_corretores WHERE id = ${body.negocio_corretor_id}`;
-  if (!destinatario) return NextResponse.json({ error: "destinatário do rateio não encontrado" }, { status: 404 });
+  // Sobe até o período pra saber de qual unidade é este pagamento.
+  const [destino] = await sql`
+    SELECT p.unidade, p.tipo
+    FROM fechamento_negocio_corretores rc
+    JOIN fechamento_negocios n ON n.id = rc.negocio_id
+    JOIN fechamento_periodos p ON p.id = n.periodo_id
+    WHERE rc.id = ${body.negocio_corretor_id}
+  `;
+  if (!destino) return NextResponse.json({ error: "destinatário do rateio não encontrado" }, { status: 404 });
+  if (!podeAcessarPeriodo(session, destino)) {
+    return NextResponse.json({ error: "sem acesso a este período" }, { status: 403 });
+  }
 
   const [pagamento] = await sql`
     INSERT INTO fechamento_pagamentos (negocio_corretor_id, valor, data_pagamento, observacao, criado_por)

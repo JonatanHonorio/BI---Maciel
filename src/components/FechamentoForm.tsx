@@ -6,6 +6,9 @@ import { fmtMoney } from "@/lib/format";
 type Corretor = { id: number; nome: string };
 type LinhaRateio = { corretor_id: number | ""; percentual: string };
 
+const inputCls = "border-input bg-card w-full rounded-md border px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring";
+const labelCls = "mb-1 block text-xs font-medium text-muted-foreground";
+
 const ORIGENS = [
   "Cliente de Carteira", "Plantão de Vendas", "Canal Pro", "Indicação", "Site",
   "Placa", "OLX", "ZAP", "VivaReal", "ImovelWeb", "Fachada da Imobiliária",
@@ -13,6 +16,66 @@ const ORIGENS = [
 ];
 const PAGAMENTOS = ["Financiamento", "A Vista", "Fgts", "Consórcio", "Parcelado"];
 const TAXA_COMISSAO_VENDA = 0.06;
+
+/**
+ * Fora do componente de propósito: declarado dentro, o React trata como um
+ * tipo novo a cada render e remonta os campos a cada tecla — o cursor saía do
+ * campo de corretor e o que tinha sido digitado se perdia.
+ *
+ * Campo com busca em vez de select porque a lista tem ~78 corretores de todas
+ * as unidades; num select nativo só dá pra pular pela primeira letra.
+ */
+function BlocoRateio({
+  titulo, lista, set, corretores, atualizarLinha,
+}: {
+  titulo: string;
+  lista: LinhaRateio[];
+  set: (l: LinhaRateio[]) => void;
+  corretores: Corretor[];
+  atualizarLinha: (
+    lista: LinhaRateio[], set: (l: LinhaRateio[]) => void, i: number, campo: keyof LinhaRateio, valor: string
+  ) => void;
+}) {
+  return (
+    <div>
+      <label className={labelCls}>{titulo}</label>
+      <div className="space-y-1.5">
+        {lista.map((linha, i) => (
+          <div key={i} className="flex gap-1.5">
+            <input
+              list="corretores-rateio"
+              placeholder="Corretor..."
+              defaultValue={corretores.find((c) => c.id === linha.corretor_id)?.nome ?? ""}
+              onChange={(e) => {
+                const achado = corretores.find((c) => c.nome === e.target.value);
+                atualizarLinha(lista, set, i, "corretor_id", achado ? String(achado.id) : "");
+              }}
+              className={inputCls}
+            />
+            <input
+              type="number" placeholder="%" min={0} max={100} step={1}
+              value={linha.percentual}
+              onChange={(e) => atualizarLinha(lista, set, i, "percentual", e.target.value)}
+              className={inputCls + " w-20"}
+            />
+            {lista.length > 1 && (
+              <button type="button" onClick={() => set(lista.filter((_, x) => x !== i))} className="text-muted-foreground hover:text-destructive px-1">
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => set([...lista, { corretor_id: "", percentual: "" }])}
+        className="mt-1.5 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+      >
+        <Plus size={12} /> adicionar corretor
+      </button>
+    </div>
+  );
+}
 
 /**
  * Formulário de "novo negócio" do fechamento — mesmos campos da planilha de
@@ -106,53 +169,11 @@ export default function FechamentoForm({
     }
   }
 
-  const inputCls = "border-input bg-card w-full rounded-md border px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring";
-  const labelCls = "mb-1 block text-xs font-medium text-muted-foreground";
-
-  function BlocoRateio({ titulo, lista, set }: { titulo: string; lista: LinhaRateio[]; set: (l: LinhaRateio[]) => void }) {
-    return (
-      <div>
-        <label className={labelCls}>{titulo}</label>
-        <div className="space-y-1.5">
-          {lista.map((linha, i) => (
-            <div key={i} className="flex gap-1.5">
-              <select
-                value={linha.corretor_id}
-                onChange={(e) => atualizarLinha(lista, set, i, "corretor_id", e.target.value)}
-                className={inputCls}
-              >
-                <option value="">Corretor...</option>
-                {corretores.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nome}</option>
-                ))}
-              </select>
-              <input
-                type="number" placeholder="%" min={0} max={100} step={1}
-                value={linha.percentual}
-                onChange={(e) => atualizarLinha(lista, set, i, "percentual", e.target.value)}
-                className={inputCls + " w-20"}
-              />
-              {lista.length > 1 && (
-                <button type="button" onClick={() => set(lista.filter((_, x) => x !== i))} className="text-muted-foreground hover:text-destructive px-1">
-                  <Trash2 size={14} />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => set([...lista, { corretor_id: "", percentual: "" }])}
-          className="mt-1.5 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
-        >
-          <Plus size={12} /> adicionar corretor
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
+      <datalist id="corretores-rateio">
+        {corretores.map((c) => <option key={c.id} value={c.nome} />)}
+      </datalist>
       <div className="mb-3 flex items-center justify-between">
         <h4 className="text-sm font-semibold text-gray-700">Novo negócio</h4>
         <button onClick={onCancelar} className="text-muted-foreground hover:text-foreground">
@@ -211,9 +232,9 @@ export default function FechamentoForm({
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-        <BlocoRateio titulo="Levantamento" lista={levantamento} set={setLevantamento} />
-        <BlocoRateio titulo="Fechamento" lista={fechamento} set={setFechamento} />
-        <BlocoRateio titulo="Captação" lista={captacao} set={setCaptacao} />
+        <BlocoRateio titulo="Levantamento" lista={levantamento} set={setLevantamento} corretores={corretores} atualizarLinha={atualizarLinha} />
+        <BlocoRateio titulo="Fechamento" lista={fechamento} set={setFechamento} corretores={corretores} atualizarLinha={atualizarLinha} />
+        <BlocoRateio titulo="Captação" lista={captacao} set={setCaptacao} corretores={corretores} atualizarLinha={atualizarLinha} />
       </div>
 
       <div className="mt-3">

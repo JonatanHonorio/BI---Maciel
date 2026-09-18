@@ -77,7 +77,7 @@ export default function ComissoesPage() {
   useEffect(() => { carregar(); }, [carregar]);
 
   if (semAcesso) {
-    return <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">Acesso restrito a administradores.</div>;
+    return <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">Acesso restrito ao administrativo.</div>;
   }
 
   // Sem o aviso de erro aqui o lançamento falha calado: a gerente clica,

@@ -20,7 +20,8 @@ import {
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Session } from "@/lib/auth";
+import type { Session, Role } from "@/lib/auth";
+import { rotaPermitida, descricaoAcesso } from "@/lib/permissoes";
 
 type Gerente = { id: number; nome: string; unidade: string | null; tipo: "venda" | "locacao" | null };
 
@@ -36,7 +37,7 @@ type Gerente = { id: number; nome: string; unidade: string | null; tipo: "venda"
  * o gerente procurava "Corretores" percorrendo o alfabeto visual inteiro.
  */
 
-type Link_ = { href: string; label: string; icon: typeof Users; somenteAdmin?: boolean; oculto?: boolean };
+type Link_ = { href: string; label: string; icon: typeof Users; papeis?: Role[]; oculto?: boolean };
 type Grupo = { titulo: string; links: Link_[]; somenteMarketing?: boolean };
 
 // `oculto` some do menu pra todo mundo (inclusive admin) sem apagar a
@@ -48,7 +49,7 @@ const grupos: Grupo[] = [
     links: [
       { href: "/resumo", label: "Resumo", icon: LayoutDashboard },
       { href: "/estrategico", label: "Estratégico", icon: TrendingUp, oculto: true },
-      { href: "/metas", label: "Metas", icon: Target, somenteAdmin: true, oculto: true },
+      { href: "/metas", label: "Metas", icon: Target, papeis: ["admin"], oculto: true },
     ],
   },
   {
@@ -66,7 +67,7 @@ const grupos: Grupo[] = [
       { href: "/imoveis", label: "Imóveis", icon: Building2 },
       { href: "/lais", label: "Lais Visitas", icon: Bot },
       { href: "/fechamento", label: "Fechamento", icon: FileText },
-      { href: "/fechamento/comissoes", label: "Comissões", icon: Wallet, somenteAdmin: true },
+      { href: "/fechamento/comissoes", label: "Comissões", icon: Wallet, papeis: ["admin", "gerente_adm"] },
     ],
   },
   {
@@ -102,7 +103,9 @@ export default function Sidebar({ session }: { session: Session }) {
     .filter((g) => !g.somenteMarketing || session.marketing)
     .map((g) => ({
       ...g,
-      links: g.links.filter((l) => !l.oculto && (!l.somenteAdmin || session.role === "admin")),
+      links: g.links.filter(
+        (l) => !l.oculto && (!l.papeis || l.papeis.includes(session.role)) && rotaPermitida(session, l.href)
+      ),
     }))
     .filter((g) => g.links.length > 0);
 
@@ -176,8 +179,12 @@ export default function Sidebar({ session }: { session: Session }) {
           {session.nome}
         </p>
         <p className="truncate text-[10px] text-slate-500" title={session.email}>
-          {session.unidade ? `${session.unidade} · ` : ""}
-          {session.tipo === "venda" ? "Vendas" : session.tipo === "locacao" ? "Locação" : session.role === "admin" ? "Acesso total" : ""}
+          {session.unidades?.length
+            ? `${session.unidades.join(" · ")} · `
+            : session.unidade
+              ? `${session.unidade} · `
+              : ""}
+          {descricaoAcesso(session)}
         </p>
         {podeVerComo && !session.verComo && gerentes.length > 0 && (
           <div className="mt-2.5">

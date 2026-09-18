@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { getDb } from "@/lib/db";
 import { signSession, SESSION_COOKIE, Session } from "@/lib/auth";
+import { rotaInicial } from "@/lib/permissoes";
 
 export async function POST(req: NextRequest) {
   const { email, senha } = await req.json();
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
 
   const sql = getDb();
   const [usuario] = await sql`
-    SELECT id, email, nome, senha_hash, role, unidade, tipo, marketing
+    SELECT id, email, nome, senha_hash, role, unidade, unidades, tipo, marketing
     FROM usuarios_bi
     WHERE email = ${String(email).toLowerCase().trim()} AND ativo = true
   `;
@@ -38,11 +39,15 @@ export async function POST(req: NextRequest) {
     nome: usuario.nome,
     role: usuario.role,
     unidade: usuario.unidade,
+    // Array.isArray de propósito: se o driver devolvesse o TEXT[] como string
+    // (`{A,B}`), vira null e a pessoa fica só com a unidade principal — erra
+    // pra menos, nunca liberando unidade a mais.
+    unidades: Array.isArray(usuario.unidades) && usuario.unidades.length ? usuario.unidades : null,
     tipo: usuario.tipo,
     marketing: usuario.marketing,
   };
 
-  const response = NextResponse.json({ ok: true });
+  const response = NextResponse.json({ ok: true, destino: rotaInicial(session) });
   response.cookies.set(SESSION_COOKIE, signSession(session), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

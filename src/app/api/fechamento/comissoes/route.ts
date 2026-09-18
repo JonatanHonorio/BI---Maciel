@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { competenciaAtual, calcularStatusPagamento, type Papel } from "@/lib/fechamento";
+import { podeLancarComissao, unidadesFechamento, tiposFechamento } from "@/lib/permissoes";
 
 interface PagamentoRow {
   id: number;
@@ -19,12 +20,25 @@ interface RateioRow {
   pagamentos: PagamentoRow[];
 }
 
-/** Todos os negócios de todas as unidades/tipos num mês — admin only, base da tela de comissão paga. */
+/**
+ * Negócios do mês pra tela de comissão: o admin vê todas as unidades; a
+ * gerente administrativa, só as dela. Sem o filtro de unidade abaixo, as sete
+ * adms veriam a comissão da empresa inteira.
+ */
 export async function GET(req: NextRequest) {
   const session = getSession(req);
-  if (!session || session.role !== "admin") {
+  if (!session || !podeLancarComissao(session)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+
+  const unidades = unidadesFechamento(session);
+  const tipos = tiposFechamento(session);
+  if (unidades?.length === 0) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const todasUnidades = unidades === null;
+  const todosTipos = tipos === null;
+  const listaUnidades = unidades ?? [];
+  const listaTipos = tipos ?? [];
 
   const competencia = req.nextUrl.searchParams.get("competencia") || competenciaAtual();
   const sql = getDb();
@@ -52,6 +66,8 @@ export async function GET(req: NextRequest) {
       FROM fechamento_pagamentos fp WHERE fp.negocio_corretor_id = rc.id
     ) pg ON true
     WHERE p.competencia = ${competencia}
+      AND (${todasUnidades} OR p.unidade = ANY(${listaUnidades}::text[]))
+      AND (${todosTipos} OR p.tipo = ANY(${listaTipos}::text[]))
     GROUP BY n.id, p.unidade, p.tipo, p.competencia
     ORDER BY p.unidade, p.tipo, n.id
   `) as {

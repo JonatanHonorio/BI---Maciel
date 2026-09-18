@@ -1,0 +1,99 @@
+{
+  "_comentario": "Quem pode receber rateio de comissão no fechamento (18/09/2026). Lista definida pelo Jonatan a partir das 12 roletas de Leads Online do Kurole (os corretores que efetivamente recebem lead) mais 6 nomes avulsos. NÃO é a lista de todos os corretores ativos — são 202 ativos no Kurole e a maioria não fecha negócio. A mesma lista vale pra todas as unidades: elas são parceiras, vendem captação uma da outra, corretores dividem venda entre si e corretor de locação faz venda de vez em quando. É também o que destrava Diretoria e Lançamento, que não têm departamento próprio no Kurole.",
+  "_como_atualizar": "Entrou ou saiu corretor? Acrescente/remova o id aqui. O nome ao lado é só referência humana — quem manda na tela é o nome atual do cadastro do Kurole (corretores.nome_comercial). Quem estiver sem nome no cadastro aparece com o nome montado a partir do e-mail.",
+  "_pendente": "Ana Mosti: pedida pelo Jonatan em 18/09/2026, mas não existe no cadastro do Kurole (a única Mosti é a Micaele, id 920). Acrescentar o id aqui quando ela for cadastrada.",
+
+  "corretores": [
+    { "id": 272, "nome": "Secretaria Comercial", "obs": "participa de rateio real; confirmada com o Jonatan em 17/09/2026" },
+
+    { "id": 236, "nome": "Marcondes Machado" },
+    { "id": 1014, "nome": "Thales dos Santos" },
+    { "id": 253, "nome": "Monica Santaniello" },
+    { "id": 771, "nome": "Milton de Aguiar Rodrigues" },
+    { "id": 244, "nome": "Anderson Olimpio" },
+    { "id": 1041, "nome": "Samuel Ocampos Rodrigues" },
+    { "id": 235, "nome": "Fabiana Farias" },
+    { "id": 257, "nome": "Germano Guimarães" },
+    { "id": 202, "nome": "Rogério Félix" },
+    { "id": 140, "nome": "Regina Lemes" },
+    { "id": 612, "nome": "Alan Douglas Soares" },
+
+    { "id": 169, "nome": "Ricardo Silva" },
+    { "id": 170, "nome": "Suely Andrade" },
+    { "id": 165, "nome": "Karine Bashiyo" },
+    { "id": 950, "nome": "Maiton Takahashi Frantzen" },
+    { "id": 511, "nome": "Vladimilson Leandro" },
+    { "id": 171, "nome": "Zaqueu Souza" },
+    { "id": 166, "nome": "Ana Neres Jesus" },
+    { "id": 174, "nome": "Dimas Barbosa" },
+    { "id": 820, "nome": "Paulo Henrique Oliveira Silva" },
+    { "id": 177, "nome": "Diogo Lapena" },
+    { "id": 733, "nome": "Eliane de Oliveira Ribeiro" },
+    { "id": 739, "nome": "Antonio Carlos de Souza" },
+
+    { "id": 124, "nome": "Lourdes Faria" },
+    { "id": 976, "nome": "Solange Silva" },
+    { "id": 880, "nome": "Anderson Apdo Gomes" },
+    { "id": 122, "nome": "Jesuina Berthier" },
+    { "id": 448, "nome": "Rafael Domingues" },
+    { "id": 198, "nome": "Edmilson Ferreira" },
+    { "id": 95, "nome": "Ilza Chagas" },
+    { "id": 521, "nome": "Idair Moraes" },
+    { "id": 966, "nome": "Suzana Soares Marinho Pinelli" },
+    { "id": 761, "nome": "Luiz Gustavo Pinelli Silva" },
+
+    { "id": 1015, "nome": "Jamerson Lima dos Santos" },
+    { "id": 755, "nome": "Wellington Bezkorowayny de Oliveira" },
+    { "id": 187, "nome": "Janduir Rodrigues" },
+
+    { "id": 834, "nome": "Thiago Firmino da Silva" },
+    { "id": 109, "nome": "Fernando Carvalho" },
+    { "id": 106, "nome": "Lara Cruz" },
+    { "id": 1062, "nome": "Gabriel Canechia Tavares Pimentel" },
+    { "id": 565, "nome": "David Borges" },
+    { "id": 258, "nome": "Sandro Estefano" },
+    { "id": 205, "nome": "Wilson Anjos" },
+    { "id": 97, "nome": "Lilian Prieto" },
+
+    { "id": 157, "nome": "Jerson Lima", "obs": "sem nome no cadastro do Kurole — a tela monta o nome pelo e-mail" },
+    { "id": 151, "nome": "Catarina Aurélio" },
+    { "id": 659, "nome": "Luiz Capeletti" },
+    { "id": 154, "nome": "Marta Silva" },
+
+    { "id": 916, "nome": "Silvio Renato Custodio" },
+    { "id": 142, "nome": "Rodolfo Trigueiro" },
+    { "id": 889, "nome": "Adenilson Aparecido da Costa" },
+    { "id": 145, "nome": "Cristiane Maia" },
+    { "id": 1048, "nome": "Paulo Cesar Costa" },
+    { "id": 435, "nome": "Eliomar Trindade" },
+    { "id": 646, "nome": "Carlos Carvalho" },
+    { "id": 355, "nome": "Wagner Oliveira" },
+
+    { "id": 207, "nome": "Jose Rafael Girotto" },
+    { "id": 1057, "nome": "Glauber Honorio Reis de Lima Silva" },
+    { "id": 840, "nome": "Pedro Chaffy Hallak Renovato Felix" },
+    { "id": 209, "nome": "Mauro Souza" },
+
+    { "id": 98, "nome": "Cecilia Paula" },
+    { "id": 537, "nome": "Waldemir Cunha" },
+
+    { "id": 935, "nome": "João Francisco de Almeida Barrios" },
+    { "id": 192, "nome": "Marcia Ribeiro" },
+    { "id": 196, "nome": "Carlos Nascimento" },
+    { "id": 199, "nome": "Jonathas Aguiar" },
+    { "id": 190, "nome": "Luiz Lopes" },
+
+    { "id": 164, "nome": "Paulo Madeira" },
+    { "id": 927, "nome": "Samuel Felix de Paula" },
+    { "id": 1004, "nome": "Priscila de Souza Felix Fernandes" },
+
+    { "id": 949, "nome": "Alisson Rodrigues da Silva" },
+    { "id": 410, "nome": "Fabio Lucio" },
+
+    { "id": 182, "nome": "Daniella Renovato" },
+    { "id": 136, "nome": "Maurita Maciel" },
+    { "id": 137, "nome": "Elenice Silva" },
+    { "id": 920, "nome": "Micaele Mosti" },
+    { "id": 775, "nome": "Jonatan Honório Reis de Lima" }
+  ]
+}

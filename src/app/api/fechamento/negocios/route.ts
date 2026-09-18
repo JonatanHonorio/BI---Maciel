@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { PAPEIS_RATEIO, type Papel } from "@/lib/fechamento";
+import { podeAcessarPeriodo } from "@/lib/permissoes";
 
 interface RateioInput {
   corretor_id: number;
@@ -48,8 +49,9 @@ export async function POST(req: NextRequest) {
   const [periodo] = await sql`SELECT id, status, unidade, tipo FROM fechamento_periodos WHERE id = ${body.periodo_id}`;
   if (!periodo) return NextResponse.json({ error: "período não encontrado" }, { status: 404 });
 
-  const dono = session.role === "admin" || (session.unidade === periodo.unidade && session.tipo === periodo.tipo);
-  if (!dono) return NextResponse.json({ error: "sem acesso a este período" }, { status: 403 });
+  if (!podeAcessarPeriodo(session, periodo)) {
+    return NextResponse.json({ error: "sem acesso a este período" }, { status: 403 });
+  }
 
   if (periodo.status !== "aberto" && session.role !== "admin") {
     return NextResponse.json({ error: "período já foi enviado — peça pro admin reabrir" }, { status: 409 });

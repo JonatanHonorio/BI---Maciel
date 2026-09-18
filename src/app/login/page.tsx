@@ -25,7 +25,9 @@ export default function LoginPage() {
     });
 
     if (res.ok) {
-      router.push("/resumo");
+      // A gerente administrativa não enxerga o /resumo — o destino vem da API.
+      const { destino } = await res.json().catch(() => ({ destino: "/resumo" }));
+      router.push(destino || "/resumo");
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));

@@ -2,32 +2,57 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { competenciaAtual, UNIDADES_FECHAMENTO } from "@/lib/fechamento";
+import { unidadesFechamento, tiposFechamento, podeAcessarPeriodo, podeReabrir, podeLancarComissao } from "@/lib/permissoes";
 import type { Tipo } from "@/lib/unidade";
 
 /**
- * Período do mês corrente (ou o pedido) da própria unidade+tipo do gerente.
- * Admin (unidade/tipo nulos na sessão) precisa passar ?unidade=&tipo= —
- * é o único jeito de escolher qual unidade lançar/ver (inclusive Diretoria
- * e Lançamento, que não têm gerente próprio).
+ * Período do mês pedido. Quem tem UMA opção só é resolvido aqui no servidor
+ * (o gerente é preso na unidade+vertical dele; a gerente administrativa, na
+ * unidade dela); quem tem mais de uma escolhe por query param, e a escolha é
+ * validada contra o que ela pode. Admin escolhe qualquer uma.
  */
 export async function GET(req: NextRequest) {
   const session = getSession(req);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const isAdmin = session.role === "admin";
-  const unidade = isAdmin ? req.nextUrl.searchParams.get("unidade") : session.unidade;
-  const tipo = (isAdmin ? req.nextUrl.searchParams.get("tipo") : session.tipo) as Tipo | null;
+  const unidadesOk = unidadesFechamento(session); // null = todas
+  const tiposOk = tiposFechamento(session); // null = as duas
+
+  const unidade = unidadesOk?.length === 1 ? unidadesOk[0] : req.nextUrl.searchParams.get("unidade");
+  const tipo = (tiposOk?.length === 1 ? tiposOk[0] : req.nextUrl.searchParams.get("tipo")) as Tipo | null;
   const competencia = req.nextUrl.searchParams.get("competencia") || competenciaAtual();
 
-  const sessaoInfo = { role: session.role, unidade: session.unidade, tipo: session.tipo, nome: session.nome };
+  if (!/^\d{4}-\d{2}-01$/.test(competencia)) {
+    return NextResponse.json({ error: "competência inválida" }, { status: 400 });
+  }
 
-  // Admin sem unidade/tipo escolhidos ainda: devolve só as opções pro seletor,
-  // sem tentar abrir um período (não sabe qual).
+  const sessaoInfo = { role: session.role, unidade: session.unidade, tipo: session.tipo, nome: session.nome };
+  const permissoes = {
+    unidades: unidadesOk ?? [...UNIDADES_FECHAMENTO],
+    escolheUnidade: unidadesOk === null || unidadesOk.length > 1,
+    escolheTipo: tiposOk === null || tiposOk.length > 1,
+    podeReabrir: podeReabrir(session),
+    podeComissoes: podeLancarComissao(session),
+  };
+
+  // Ainda falta escolher: devolve as opções, sem abrir período (não sabe qual).
   if (!unidade || !tipo) {
-    if (isAdmin) {
-      return NextResponse.json({ session: sessaoInfo, unidades: UNIDADES_FECHAMENTO, periodo: null, negocios: [] });
+    if (permissoes.escolheUnidade || permissoes.escolheTipo) {
+      return NextResponse.json({
+        session: sessaoInfo, permissoes, unidades: permissoes.unidades, periodo: null, negocios: [],
+      });
     }
     return NextResponse.json({ error: "unidade e tipo são obrigatórios" }, { status: 400 });
+  }
+
+  // Validar ANTES do upsert abaixo: ele cria período pra qualquer trio que
+  // chegue aqui, então unidade inventada viraria lixo permanente na tabela e
+  // unidade de outra pessoa viraria acesso indevido.
+  if (!(UNIDADES_FECHAMENTO as readonly string[]).includes(unidade) || (tipo !== "venda" && tipo !== "locacao")) {
+    return NextResponse.json({ error: "unidade ou tipo inválido" }, { status: 400 });
+  }
+  if (!podeAcessarPeriodo(session, { unidade, tipo })) {
+    return NextResponse.json({ error: "sem acesso a esta unidade" }, { status: 403 });
   }
 
   const sql = getDb();
@@ -59,5 +84,5 @@ export async function GET(req: NextRequest) {
     ORDER BY n.id
   `;
 
-  return NextResponse.json({ session: sessaoInfo, unidades: UNIDADES_FECHAMENTO, periodo, negocios });
+  return NextResponse.json({ session: sessaoInfo, permissoes, unidades: permissoes.unidades, periodo, negocios });
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession, type Session } from "@/lib/auth";
 import { PAPEIS_RATEIO, type Papel } from "@/lib/fechamento";
+import { podeAcessarPeriodo } from "@/lib/permissoes";
 
 interface RateioInput {
   corretor_id: number;
@@ -21,8 +22,7 @@ async function periodoEditavel(sql: ReturnType<typeof getDb>, negocioId: number,
     WHERE n.id = ${negocioId}
   `;
   if (!row) return { ok: false, status: 404 as const };
-  const dono = session.role === "admin" || (session.unidade === row.unidade && session.tipo === row.tipo);
-  if (!dono) return { ok: false, status: 403 as const };
+  if (!podeAcessarPeriodo(session, row)) return { ok: false, status: 403 as const };
   if (row.status !== "aberto" && session.role !== "admin") return { ok: false, status: 409 as const };
   return { ok: true as const };
 }

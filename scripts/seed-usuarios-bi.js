@@ -16,6 +16,11 @@ const ADMIN = { role: "admin", unidade: null, tipo: null, marketing: true };
 const GERENTE_VENDA = { role: "gerente", tipo: "venda", marketing: false };
 const GERENTE_LOCACAO = { role: "gerente", tipo: "locacao", marketing: false };
 const DIRETORA_VENDAS = { role: "gerente", unidade: null, tipo: "venda", marketing: false };
+// Gerente administrativa: só /fechamento e /fechamento/comissoes, nas DUAS
+// verticais da própria unidade (por isso tipo null). `unidade` é a principal e
+// `unidades` é a lista completa — preenchidas as duas até nas de unidade única,
+// pra ter uma forma só de ler o dado.
+const ADM = { role: "gerente_adm", tipo: null, marketing: false };
 
 const usuarios = [
   // Acesso total — igual ao Jonatan
@@ -41,17 +46,29 @@ const usuarios = [
   { email: "jessica.piemontez@imobiliariamaciel.com.br", nome: "Jessica Piemontez", unidade: "Dutra", ...GERENTE_LOCACAO },
   { email: "wellington.oliveira@imobiliariamaciel.com.br", nome: "Wellington Oliveira", unidade: "Esplanada", ...GERENTE_LOCACAO },
   { email: "fabio.gomes@imobiliariamaciel.com.br", nome: "Fabio Gomes", unidade: "Aquarius", ...GERENTE_LOCACAO },
+
+  // Gerentes administrativas (18/09/2026). Os e-mails carregam os nomes
+  // antigos das unidades: Andrômeda = Satélite, São João = Esplanada.
+  { email: "admandromeda@imobiliariamaciel.com.br", nome: "Erika", unidade: "Satélite", unidades: ["Satélite"], ...ADM },
+  { email: "adm1.andromeda@imobiliariamaciel.com.br", nome: "Lucelia", unidade: "Satélite", unidades: ["Satélite"], ...ADM },
+  { email: "adm2.saojoao@imobiliariamaciel.com.br", nome: "Mayra", unidade: "Esplanada", unidades: ["Esplanada"], ...ADM },
+  { email: "adm.aquarius@imobiliariamaciel.com.br", nome: "Juliana", unidade: "Aquarius", unidades: ["Aquarius"], ...ADM },
+  { email: "admvistaverde@imobiliariamaciel.com.br", nome: "Andreza", unidade: "Vista Verde", unidades: ["Vista Verde"], ...ADM },
+  { email: "adm.dutra@imobiliariamaciel.com.br", nome: "Evelyn", unidade: "Dutra", unidades: ["Dutra"], ...ADM },
+  // A Rachel lança também Diretoria e Lançamento, que não têm gerente próprio.
+  { email: "adm.urbanova@imobiliariamaciel.com.br", nome: "Rachel", unidade: "Urbanova", unidades: ["Urbanova", "Diretoria", "Lançamento"], ...ADM },
 ];
 
 (async () => {
   for (const u of usuarios) {
     await pool.query(
-      `INSERT INTO usuarios_bi (email, nome, role, unidade, tipo, marketing, ativo)
-       VALUES ($1, $2, $3, $4, $5, $6, true)
+      `INSERT INTO usuarios_bi (email, nome, role, unidade, unidades, tipo, marketing, ativo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true)
        ON CONFLICT (email) DO UPDATE SET
          nome = EXCLUDED.nome, role = EXCLUDED.role, unidade = EXCLUDED.unidade,
-         tipo = EXCLUDED.tipo, marketing = EXCLUDED.marketing, ativo = true`,
-      [u.email, u.nome, u.role, u.unidade ?? null, u.tipo ?? null, u.marketing]
+         unidades = EXCLUDED.unidades, tipo = EXCLUDED.tipo,
+         marketing = EXCLUDED.marketing, ativo = true`,
+      [u.email, u.nome, u.role, u.unidade ?? null, u.unidades ?? null, u.tipo ?? null, u.marketing]
     );
     console.log(`ok: ${u.email} (${u.role}${u.unidade ? ", " + u.unidade : ""}${u.tipo ? ", " + u.tipo : ""})`);
   }

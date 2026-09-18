@@ -3,12 +3,28 @@ import type { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import type { Tipo } from "./unidade";
 
+/**
+ * `gerente_adm` = gerente administrativa: só fechamento e comissões, nas duas
+ * verticais da própria unidade. Precisa ser uma string diferente de "gerente"
+ * — o predicado de "ver como" é `role === "gerente" && unidade === null`, e
+ * com a role de gerente elas ganhariam "ver como" de diretora sem querer.
+ */
+export type Role = "admin" | "gerente" | "gerente_adm";
+
 export interface Session {
   id: number;
   email: string;
   nome: string;
-  role: "admin" | "gerente";
+  role: Role;
   unidade: string | null;
+  /**
+   * Unidades extras de quem cobre mais de uma (a adm da Urbanova cobre também
+   * Diretoria e Lançamento). Opcional porque cookie assinado antes deste
+   * deploy não tem o campo — nesse caso vale só `unidade`, que erra pra menos,
+   * nunca pra mais. Mexeu nas unidades de alguém no banco? A pessoa precisa
+   * sair e entrar de novo: o JWT não é reconsultado a cada request.
+   */
+  unidades?: string[] | null;
   tipo: Tipo | null;
   marketing: boolean;
   /**

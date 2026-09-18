@@ -1,17 +1,6 @@
+import fs from "fs";
+import path from "path";
 import type { SQL } from "./db";
-import { separarDepartamento, correcoesManuais, type Tipo } from "./unidade";
-import departamentosJson from "./departamentos.json";
-
-const departamentos = (departamentosJson as { departamentos: Record<string, string> })
-  .departamentos;
-
-// "Secretaria Comercial" (id 272) participa de rateios reais de fechamento
-// (Levantamento/Fechamento), mas seu departamento ("Secretaria Comercial",
-// id 62) não casa com o padrão "Locação X"/"Vendas X" — por isso ela some
-// dos selects normais de corretoresDaUnidade(). Aqui ela entra sempre,
-// independente da unidade+tipo escolhidos — confirmado com o Jonatan em
-// 17/09/2026.
-const CORRETOR_SECRETARIA_COMERCIAL = 272;
 
 export const UNIDADES_FECHAMENTO = [
   "Satélite", "Vista Verde", "Urbanova", "Aquarius", "Esplanada", "Dutra",
@@ -37,46 +26,65 @@ export function competenciaAtual(): string {
   return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
-/**
- * Corretores elegíveis pro select de rateio de um fechamento — como
- * corretoresDaUnidade(), mas sempre inclui "Secretaria Comercial" (ver
- * CORRETOR_SECRETARIA_COMERCIAL acima) e não é afetada por
- * corretores_excluidos (aquilo é pra rankings de produtividade, não pra quem
- * pode receber rateio de comissão — são perguntas diferentes).
- */
-export async function corretoresParaRateio(
-  sql: SQL,
-  unidade: string,
-  tipo: Tipo
-): Promise<{ id: number; nome: string }[]> {
-  const rows = (await sql`
-    SELECT id, departamento_id,
-      COALESCE(NULLIF(TRIM(nome_comercial), ''), NULLIF(TRIM(nome), '')) AS nome
-    FROM corretores WHERE ativo = 1
-  `) as { id: number; departamento_id: number | null; nome: string | null }[];
+interface CorretorFechamento {
+  id: number;
+  nome: string;
+}
 
-  const correcoes = correcoesManuais().unidade_por_corretor;
-  const out: { id: number; nome: string }[] = [];
-  for (const r of rows) {
-    if (!r.nome) continue;
-    if (r.id === CORRETOR_SECRETARIA_COMERCIAL) {
-      out.push({ id: r.id, nome: r.nome });
-      continue;
-    }
-    const nomeDep = r.departamento_id !== null ? departamentos[String(r.departamento_id)] : undefined;
-    let sep = separarDepartamento(nomeDep);
-    if (!sep) continue;
-    const correcao = correcoes[String(r.id)];
-    if (correcao) {
-      if (sep.unidade === correcao.de) sep = { ...sep, unidade: correcao.para };
-      if (correcao.para_tipo && sep.tipo === correcao.de_tipo) {
-        sep = { ...sep, tipo: correcao.para_tipo };
-      }
-    }
-    if (sep.unidade !== unidade || sep.tipo !== tipo) continue;
-    out.push({ id: r.id, nome: r.nome });
+let listaCache: CorretorFechamento[] | null = null;
+
+/** scripts/corretores_fechamento.json — ver o _comentario de lá. */
+function listaCorretoresFechamento(): CorretorFechamento[] {
+  if (listaCache) return listaCache;
+  try {
+    const p = path.join(process.cwd(), "scripts", "corretores_fechamento.json");
+    listaCache = JSON.parse(fs.readFileSync(p, "utf-8")).corretores;
+  } catch {
+    listaCache = [];
   }
-  return out.sort((a, b) => a.nome.localeCompare(b.nome));
+  return listaCache!;
+}
+
+/** "jerson.lima@..." -> "Jerson Lima" (pra quem está sem nome no Kurole). */
+function nomePeloEmail(email: string | null): string {
+  return (email || "")
+    .split("@")[0]
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/**
+ * Quem pode receber rateio de comissão. A MESMA lista pra todas as unidades —
+ * confirmado com o Jonatan em 18/09/2026: as unidades são parceiras, vendem
+ * captação uma da outra, corretores dividem venda entre si e corretor de
+ * locação faz venda de vez em quando. Também é o que destrava Diretoria e
+ * Lançamento, que não têm departamento próprio no Kurole e por isso traziam
+ * só a Secretaria Comercial.
+ *
+ * Não é "todo corretor ativo" (são 202, a maioria não fecha negócio): a lista
+ * sai das roletas de Leads Online, em scripts/corretores_fechamento.json.
+ */
+export async function corretoresParaRateio(sql: SQL): Promise<CorretorFechamento[]> {
+  const lista = listaCorretoresFechamento();
+  if (!lista.length) return [];
+
+  const ids = lista.map((c) => c.id);
+  const rows = (await sql`
+    SELECT id, email,
+      COALESCE(NULLIF(TRIM(nome_comercial), ''), NULLIF(TRIM(nome), '')) AS nome
+    FROM corretores WHERE id = ANY(${ids}::int[])
+  `) as { id: number; email: string | null; nome: string | null }[];
+
+  const doBanco = new Map(rows.map((r) => [r.id, r]));
+  return lista
+    .map((c) => {
+      const r = doBanco.get(c.id);
+      // Nome do cadastro manda; vazio cai pro e-mail; sem e-mail, o do JSON.
+      return { id: c.id, nome: r?.nome || nomePeloEmail(r?.email ?? null) || c.nome };
+    })
+    .sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
 export interface RateioPagamento {

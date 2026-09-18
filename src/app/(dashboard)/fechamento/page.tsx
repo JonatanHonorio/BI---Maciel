@@ -12,8 +12,16 @@ type Negocio = {
   pagamento: string | null; observacao: string | null; comissao_paga: boolean; rateio: Rateio[];
 };
 type Periodo = { id: number; competencia: string; unidade: string; tipo: "venda" | "locacao"; status: "aberto" | "enviado" };
+type Permissoes = {
+  unidades: string[];
+  escolheUnidade: boolean;
+  escolheTipo: boolean;
+  podeReabrir: boolean;
+  podeComissoes: boolean;
+};
 type Resposta = {
-  session: { role: "admin" | "gerente"; unidade: string | null; tipo: "venda" | "locacao" | null; nome: string };
+  session: { role: "admin" | "gerente" | "gerente_adm"; unidade: string | null; tipo: "venda" | "locacao" | null; nome: string };
+  permissoes: Permissoes;
   unidades: readonly string[];
   periodo: Periodo | null;
   negocios: Negocio[];
@@ -39,8 +47,8 @@ export default function FechamentoPage() {
   const [dados, setDados] = useState<Resposta | null>(null);
   const [corretores, setCorretores] = useState<{ id: number; nome: string }[]>([]);
   const [mostrarForm, setMostrarForm] = useState(false);
-  const [unidadeAdmin, setUnidadeAdmin] = useState("");
-  const [tipoAdmin, setTipoAdmin] = useState<"venda" | "locacao" | "">("");
+  const [unidadeSel, setUnidadeSel] = useState("");
+  const [tipoSel, setTipoSel] = useState<"venda" | "locacao" | "">("");
   const [competencia, setCompetencia] = useState(competenciaAtualISO());
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -50,15 +58,15 @@ export default function FechamentoPage() {
   // Sem o try/catch, uma resposta de erro (ex: timeout do banco, que devolve
   // corpo vazio) estourava no r.json() e a tela ficava com os dados do mês
   // anterior na tela, sem avisar nada.
+  // Só manda o que a pessoa pode escolher: quem tem uma opção só (o gerente,
+  // e a adm de unidade única) é resolvido pelo servidor.
   const carregar = useCallback(async () => {
     setCarregando(true);
     setErro("");
-    const isAdminEscolhendo = dados?.session.role === "admin";
+    const permissoes = dados?.permissoes;
     const params = new URLSearchParams({ competencia });
-    if (isAdminEscolhendo && unidadeAdmin && tipoAdmin) {
-      params.set("unidade", unidadeAdmin);
-      params.set("tipo", tipoAdmin);
-    }
+    if (permissoes?.escolheUnidade && unidadeSel) params.set("unidade", unidadeSel);
+    if (permissoes?.escolheTipo && tipoSel) params.set("tipo", tipoSel);
     try {
       const r = await fetch(`/api/fechamento?${params}`);
       if (!r.ok) throw new Error();
@@ -68,19 +76,19 @@ export default function FechamentoPage() {
     } finally {
       setCarregando(false);
     }
-  }, [dados?.session.role, unidadeAdmin, tipoAdmin, competencia]);
+  }, [dados?.permissoes, unidadeSel, tipoSel, competencia]);
 
-  useEffect(() => { carregar(); }, [competencia]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (unidadeAdmin && tipoAdmin) carregar(); }, [unidadeAdmin, tipoAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Um efeito só: a adm de unidade única não tem seletor de unidade, então
+  // esperar por unidadeSel deixaria a tela sem recarregar ao trocar a vertical.
+  useEffect(() => { carregar(); }, [competencia, unidadeSel, tipoSel]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Lista de corretores é a mesma pra todo mundo — busca uma vez.
   useEffect(() => {
-    if (!dados?.periodo) return;
-    const params = dados.session.role === "admin" ? `?unidade=${encodeURIComponent(dados.periodo.unidade)}&tipo=${dados.periodo.tipo}` : "";
-    fetch(`/api/fechamento/corretores${params}`)
+    fetch("/api/fechamento/corretores")
       .then((r) => (r.ok ? r.json() : []))
       .then(setCorretores)
       .catch(() => setCorretores([]));
-  }, [dados?.periodo, dados?.session.role]);
+  }, []);
 
   /** Mostra o erro da API (403 de outra unidade, 409 de período travado) em vez de falhar calado. */
   async function chamar(url: string, init: RequestInit, aoDarCerto: () => void) {
@@ -137,7 +145,7 @@ export default function FechamentoPage() {
     );
   }
 
-  const isAdmin = dados.session.role === "admin";
+  const permissoes = dados.permissoes;
   const periodo = dados.periodo;
   const travado = periodo?.status === "enviado";
   const totalValor = dados.negocios.reduce((s, n) => s + (n.valor ? Number(n.valor) : 0), 0);
@@ -167,18 +175,18 @@ export default function FechamentoPage() {
             onChange={(e) => setCompetencia(`${e.target.value}-01`)}
             className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm"
           />
-          {isAdmin && (
-            <>
-              <select value={unidadeAdmin} onChange={(e) => setUnidadeAdmin(e.target.value)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
-                <option value="">Unidade...</option>
-                {dados.unidades.map((u) => <option key={u} value={u}>{u}</option>)}
-              </select>
-              <select value={tipoAdmin} onChange={(e) => setTipoAdmin(e.target.value as "venda" | "locacao" | "")} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
-                <option value="">Tipo...</option>
-                <option value="venda">Vendas</option>
-                <option value="locacao">Locação</option>
-              </select>
-            </>
+          {permissoes.escolheUnidade && (
+            <select value={unidadeSel} onChange={(e) => setUnidadeSel(e.target.value)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
+              <option value="">Unidade...</option>
+              {dados.unidades.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+          )}
+          {permissoes.escolheTipo && (
+            <select value={tipoSel} onChange={(e) => setTipoSel(e.target.value as "venda" | "locacao" | "")} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
+              <option value="">Tipo...</option>
+              <option value="venda">Vendas</option>
+              <option value="locacao">Locação</option>
+            </select>
           )}
         </div>
       </div>
@@ -190,9 +198,11 @@ export default function FechamentoPage() {
         </div>
       )}
 
-      {!periodo && isAdmin && (
+      {!periodo && (permissoes.escolheUnidade || permissoes.escolheTipo) && (
         <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">
-          Escolha unidade e tipo acima pra abrir o fechamento do mês.
+          {permissoes.escolheUnidade
+            ? "Escolha unidade e tipo acima pra abrir o fechamento do mês."
+            : "Escolha o tipo (Vendas ou Locação) acima pra abrir o fechamento do mês."}
         </div>
       )}
 
@@ -230,7 +240,7 @@ export default function FechamentoPage() {
                     <Send size={14} /> Enviar fechamento
                   </button>
                 )
-              ) : isAdmin ? (
+              ) : permissoes.podeReabrir ? (
                 <button onClick={reabrir} className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50">
                   <Unlock size={14} /> Reabrir
                 </button>

@@ -342,6 +342,11 @@ CREATE TABLE IF NOT EXISTS usuarios_bi (
   senha_hash VARCHAR(200),
   role VARCHAR(20) NOT NULL DEFAULT 'gerente',
   unidade VARCHAR(60),
+  -- Unidades de quem cobre mais de uma (gerente administrativa da Urbanova
+  -- cobre Urbanova + Diretoria + Lançamento). NULL = usa só `unidade`.
+  -- `unidade` continua preenchida (a principal) porque as rotas fora do
+  -- fechamento ainda escopam por ela.
+  unidades TEXT[],
   tipo VARCHAR(10),
   marketing BOOLEAN NOT NULL DEFAULT false,
   ativo BOOLEAN NOT NULL DEFAULT true,
