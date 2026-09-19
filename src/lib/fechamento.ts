@@ -40,7 +40,9 @@ function listaCorretoresFechamento(): CorretorFechamento[] {
   if (listaCache) return listaCache;
   try {
     const p = path.join(process.cwd(), "scripts", "corretores_fechamento.json");
-    listaCache = JSON.parse(fs.readFileSync(p, "utf-8")).corretores;
+    // O arquivo tem linhas de comentário ({_grupo: "..."}) no meio da lista.
+    listaCache = (JSON.parse(fs.readFileSync(p, "utf-8")).corretores as CorretorFechamento[])
+      .filter((c) => typeof c?.id === "number");
   } catch {
     listaCache = [];
   }

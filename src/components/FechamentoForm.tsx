@@ -4,7 +4,11 @@ import { Plus, Trash2, X } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 
 type Corretor = { id: number; nome: string };
-type LinhaRateio = { corretor_id: number | ""; percentual: string };
+// `texto` é o que está escrito no campo; `corretor_id` só é preenchido quando
+// o texto casa com um corretor da lista. São separados porque enquanto a
+// pessoa digita ("Dani...") ainda não existe corretor escolhido — com um
+// campo só, o que ela digitou sumiria a cada tecla.
+type LinhaRateio = { corretor_id: number | ""; percentual: string; texto: string };
 
 const inputCls = "border-input bg-card w-full rounded-md border px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring";
 const labelCls = "mb-1 block text-xs font-medium text-muted-foreground";
@@ -33,7 +37,7 @@ function BlocoRateio({
   set: (l: LinhaRateio[]) => void;
   corretores: Corretor[];
   atualizarLinha: (
-    lista: LinhaRateio[], set: (l: LinhaRateio[]) => void, i: number, campo: keyof LinhaRateio, valor: string
+    lista: LinhaRateio[], set: (l: LinhaRateio[]) => void, i: number, campos: Partial<LinhaRateio>
   ) => void;
 }) {
   return (
@@ -45,17 +49,19 @@ function BlocoRateio({
             <input
               list="corretores-rateio"
               placeholder="Corretor..."
-              defaultValue={corretores.find((c) => c.id === linha.corretor_id)?.nome ?? ""}
+              value={linha.texto}
               onChange={(e) => {
-                const achado = corretores.find((c) => c.nome === e.target.value);
-                atualizarLinha(lista, set, i, "corretor_id", achado ? String(achado.id) : "");
+                const texto = e.target.value;
+                const achado = corretores.find((c) => c.nome === texto);
+                atualizarLinha(lista, set, i, { texto, corretor_id: achado ? achado.id : "" });
               }}
-              className={inputCls}
+              className={inputCls + (linha.texto && !linha.corretor_id ? " border-amber-400" : "")}
+              title={linha.texto && !linha.corretor_id ? "Escolha um nome da lista" : undefined}
             />
             <input
               type="number" placeholder="%" min={0} max={100} step={1}
               value={linha.percentual}
-              onChange={(e) => atualizarLinha(lista, set, i, "percentual", e.target.value)}
+              onChange={(e) => atualizarLinha(lista, set, i, { percentual: e.target.value })}
               className={inputCls + " w-20"}
             />
             {lista.length > 1 && (
@@ -68,7 +74,7 @@ function BlocoRateio({
       </div>
       <button
         type="button"
-        onClick={() => set([...lista, { corretor_id: "", percentual: "" }])}
+        onClick={() => set([...lista, { corretor_id: "", percentual: "", texto: "" }])}
         className="mt-1.5 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
       >
         <Plus size={12} /> adicionar corretor
@@ -105,18 +111,57 @@ export default function FechamentoForm({
   const [comissao, setComissao] = useState(""); // venda
   const [valorLocacao, setValorLocacao] = useState(""); // locação
   const [observacao, setObservacao] = useState("");
-  const [levantamento, setLevantamento] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "" }]);
-  const [fechamento, setFechamento] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "" }]);
+  const [levantamento, setLevantamento] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "", texto: "" }]);
+  const [fechamento, setFechamento] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "", texto: "" }]);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
+  const [aviso, setAviso] = useState("");
 
   const valorCalculado = tipo === "venda" && comissao ? Number(comissao) / TAXA_COMISSAO_VENDA : null;
 
+  /**
+   * A referência é a chave do imóvel no Kurole, então dá pra puxar endereço e
+   * captador em vez de digitar de novo — menos trabalho e menos erro de
+   * digitação. Só preenche o que está vazio: se a pessoa já escreveu alguma
+   * coisa, o que ela escreveu manda.
+   */
+  async function buscarImovel() {
+    if (!ref.trim()) return;
+    setAviso("");
+    try {
+      const r = await fetch(`/api/fechamento/imovel?ref=${encodeURIComponent(ref)}&tipo=${tipo}`);
+      if (r.status === 404) {
+        setAviso(`Nenhum imóvel com a referência ${ref} — confira o número ou preencha na mão.`);
+        return;
+      }
+      if (!r.ok) return;
+      const dados = await r.json();
+
+      if (dados.endereco && !endereco.trim()) setEndereco(dados.endereco);
+
+      const semCaptador = levantamento.every((l) => !l.corretor_id);
+      if (dados.captadores?.length && semCaptador) {
+        setLevantamento(
+          dados.captadores.map((c: { corretor_id: number; nome: string; percentual: number | null }) => ({
+            corretor_id: c.corretor_id,
+            texto: c.nome,
+            percentual: c.percentual != null ? String(c.percentual) : "",
+          }))
+        );
+      }
+      if (dados.captadores_fora > 0 && !dados.captadores?.length) {
+        setAviso("O captador deste imóvel não está na lista de rateio — escolha na mão.");
+      }
+    } catch {
+      // Busca é conveniência: falhou, a pessoa preenche na mão.
+    }
+  }
+
   function atualizarLinha(
-    lista: LinhaRateio[], set: (l: LinhaRateio[]) => void, i: number, campo: keyof LinhaRateio, valor: string
+    lista: LinhaRateio[], set: (l: LinhaRateio[]) => void, i: number, campos: Partial<LinhaRateio>
   ) {
     const copia = [...lista];
-    copia[i] = { ...copia[i], [campo]: campo === "corretor_id" ? (valor ? Number(valor) : "") : valor };
+    copia[i] = { ...copia[i], ...campos };
     set(copia);
   }
 
@@ -186,7 +231,13 @@ export default function FechamentoForm({
         </div>
         <div>
           <label className={labelCls}>Ref</label>
-          <input value={ref} onChange={(e) => setRef(e.target.value)} className={inputCls} />
+          <input
+            value={ref}
+            onChange={(e) => setRef(e.target.value)}
+            onBlur={buscarImovel}
+            placeholder="ex: 58298"
+            className={inputCls}
+          />
         </div>
         <div>
           <label className={labelCls}>Contrato</label>
@@ -239,6 +290,7 @@ export default function FechamentoForm({
         <input value={observacao} onChange={(e) => setObservacao(e.target.value)} className={inputCls} />
       </div>
 
+      {aviso && <p className="mt-3 text-xs text-amber-700">{aviso}</p>}
       {erro && <p className="mt-3 text-xs text-red-600">{erro}</p>}
 
       <div className="mt-4 flex justify-end gap-2">
