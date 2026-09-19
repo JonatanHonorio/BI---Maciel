@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Plus, Send, Download, Lock, Unlock } from "lucide-react";
 import DataTable from "@/components/DataTable";
 import FechamentoForm from "@/components/FechamentoForm";
@@ -55,12 +55,19 @@ export default function FechamentoPage() {
   const [confirmarEnvio, setConfirmarEnvio] = useState(false);
   const [confirmarExclusao, setConfirmarExclusao] = useState<number | null>(null);
 
+  // Trocar de mês/unidade rápido dispara mais de uma busca ao mesmo tempo, e
+  // elas não voltam necessariamente na ordem em que saíram — uma resposta
+  // antiga chegando depois sobrescrevia a nova, deixando a tela mostrando um
+  // mês e o seletor outro. Cada busca leva um número e só a última manda.
+  const buscaAtual = useRef(0);
+
   // Sem o try/catch, uma resposta de erro (ex: timeout do banco, que devolve
   // corpo vazio) estourava no r.json() e a tela ficava com os dados do mês
   // anterior na tela, sem avisar nada.
   // Só manda o que a pessoa pode escolher: quem tem uma opção só (o gerente,
   // e a adm de unidade única) é resolvido pelo servidor.
   const carregar = useCallback(async () => {
+    const minhaBusca = ++buscaAtual.current;
     setCarregando(true);
     setErro("");
     const permissoes = dados?.permissoes;
@@ -69,12 +76,16 @@ export default function FechamentoPage() {
     if (permissoes?.escolheTipo && tipoSel) params.set("tipo", tipoSel);
     try {
       const r = await fetch(`/api/fechamento?${params}`);
+      if (minhaBusca !== buscaAtual.current) return;
       if (!r.ok) throw new Error();
-      setDados((await r.json()) as Resposta);
+      const j = (await r.json()) as Resposta;
+      if (minhaBusca !== buscaAtual.current) return;
+      setDados(j);
     } catch {
+      if (minhaBusca !== buscaAtual.current) return;
       setErro("Não foi possível carregar o fechamento. Tente de novo.");
     } finally {
-      setCarregando(false);
+      if (minhaBusca === buscaAtual.current) setCarregando(false);
     }
   }, [dados?.permissoes, unidadeSel, tipoSel, competencia]);
 

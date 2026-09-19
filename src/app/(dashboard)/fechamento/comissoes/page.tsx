@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useEffect, useState, useCallback } from "react";
+import { Fragment, useEffect, useState, useCallback, useRef } from "react";
 import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 
@@ -51,26 +51,35 @@ export default function ComissoesPage() {
   const [expandido, setExpandido] = useState<number | null>(null);
   const [novoPagamento, setNovoPagamento] = useState<Record<number, { valor: string; data: string }>>({});
 
+  // Trocar de mês rápido dispara buscas simultâneas, e elas não voltam
+  // necessariamente na ordem em que saíram — sem isso uma resposta antiga
+  // chegando depois mostra o mês errado na tela. Só a última busca manda.
+  const buscaAtual = useRef(0);
+
   // 401/403 é falta de permissão mesmo; qualquer outro erro (banco fora do ar,
   // timeout do Neon) é falha temporária — não pode virar "acesso restrito",
   // que manda a gerente administrativa procurar permissão que ela já tem.
   const carregar = useCallback(async () => {
+    const minhaBusca = ++buscaAtual.current;
     setCarregando(true);
     setErro("");
     try {
       const r = await fetch(`/api/fechamento/comissoes?competencia=${competencia}`);
+      if (minhaBusca !== buscaAtual.current) return;
       if (r.status === 401 || r.status === 403) {
         setSemAcesso(true);
         return;
       }
       if (!r.ok) throw new Error("Não foi possível carregar as comissões. Tente de novo.");
       const j = await r.json();
+      if (minhaBusca !== buscaAtual.current) return;
       setSemAcesso(false);
       setNegocios(j.negocios ?? []);
     } catch {
+      if (minhaBusca !== buscaAtual.current) return;
       setErro("Não foi possível carregar as comissões. Tente de novo.");
     } finally {
-      setCarregando(false);
+      if (minhaBusca === buscaAtual.current) setCarregando(false);
     }
   }, [competencia]);
 
