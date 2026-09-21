@@ -25,6 +25,17 @@ export function ehRubrica(papel: string): boolean {
   return (PAPEIS_RUBRICA as readonly string[]).includes(papel);
 }
 
+/**
+ * 0.005 -> "0.5%", 0.3 -> "30%".
+ *
+ * Arredondar para inteiro NÃO serve: a Diretoria 3 recebe 0,5% e aparecia
+ * como "1%" na tela de comissões — o dobro do que é. Os centésimos só
+ * aparecem quando existem, pra 30% não virar "30.00%".
+ */
+export function pctTexto(fracao: number): string {
+  return `${(fracao * 100).toFixed(2).replace(/\.?0+$/, "")}%`;
+}
+
 export const ROTULO_PAPEL: Record<Papel, string> = {
   levantamento: "Levantamento",
   fechamento: "Fechamento",

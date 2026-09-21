@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { calcularStatusPagamento, ehRubrica, type Papel } from "@/lib/fechamento";
+import { pctTexto } from "@/lib/comissao";
 import { podeAcessarPeriodo } from "@/lib/permissoes";
 
 interface Rateio {
@@ -62,13 +63,13 @@ export async function GET(req: NextRequest) {
   const rubricasDoNegocio = (rateio: Rateio[]) =>
     rateio
       .filter((r) => ehRubrica(r.papel))
-      .map((r) => (r.percentual != null ? `${r.nome} (${(Number(r.percentual) * 100).toFixed(2).replace(/\.?0+$/, "")}%)` : r.nome))
+      .map((r) => (r.percentual != null ? `${r.nome} (${pctTexto(Number(r.percentual))})` : r.nome))
       .join(", ");
 
   const nomesPapel = (rateio: Rateio[], papel: string) =>
     rateio
       .filter((r) => r.papel === papel)
-      .map((r) => (r.percentual != null ? `${r.nome} (${(Number(r.percentual) * 100).toFixed(0)}%)` : r.nome))
+      .map((r) => (r.percentual != null ? `${r.nome} (${pctTexto(Number(r.percentual))})` : r.nome))
       .join(", ");
 
   const wb = new ExcelJS.Workbook();

@@ -3,7 +3,7 @@ import { Fragment, useEffect, useState, useCallback, useRef } from "react";
 import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 
-import { ROTULO_PAPEL, type Papel } from "@/lib/comissao";
+import { ROTULO_PAPEL, pctTexto, type Papel } from "@/lib/comissao";
 type StatusPagamento = "pendente" | "parcial" | "pago";
 
 type Pagamento = { id: number; valor: number; data_pagamento: string; observacao: string | null };
@@ -307,7 +307,7 @@ export default function ComissoesPage() {
                                 <div key={r.id} className="rounded-lg border border-gray-200 bg-white p-3">
                                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                                     <span className="font-medium text-gray-800">
-                                      {r.nome} <span className="text-gray-400">— {labelPapel[r.papel]}{r.percentual != null ? ` (${(r.percentual * 100).toFixed(0)}%)` : ""}</span>
+                                      {r.nome} <span className="text-gray-400">— {labelPapel[r.papel]}{r.percentual != null ? ` (${pctTexto(r.percentual)})` : ""}</span>
                                     </span>
                                     <span className="text-gray-500">
                                       Devido: <span className="font-medium text-gray-700">{r.valorDevido != null ? fmtMoney(r.valorDevido) : "—"}</span>

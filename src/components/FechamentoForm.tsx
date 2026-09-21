@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { PERMITE_NOME_LIVRE_NO_RATEIO } from "@/lib/flags";
-import { REGRAS, resumoRateio, type Tipo } from "@/lib/comissao";
+import { REGRAS, resumoRateio, pctTexto, type Tipo } from "@/lib/comissao";
 
 type Corretor = { id: number; nome: string };
 // `texto` é o que está escrito no campo; `corretor_id` só é preenchido quando
@@ -17,7 +17,6 @@ const labelCls = "mb-1 block text-xs font-medium text-muted-foreground";
 
 /** "30" (o que está no campo) -> 0.30. Campo vazio não conta no rateio. */
 const pctNum = (s: string): number | null => (s.trim() === "" ? null : Number(s) / 100);
-const pctTexto = (n: number) => `${(n * 100).toFixed(2).replace(/\.?0+$/, "")}%`;
 
 const temDestinatario = (l: LinhaRateio) => Boolean(l.corretor_id) || l.texto.trim() !== "";
 
