@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { competenciaAtual, UNIDADES_FECHAMENTO } from "@/lib/fechamento";
+import { competenciaAtual, UNIDADES_FECHAMENTO, gerenteDaUnidade } from "@/lib/fechamento";
 import { unidadesFechamento, tiposFechamento, podeAcessarPeriodo, podeReabrir, podeLancarComissao } from "@/lib/permissoes";
 import type { Tipo } from "@/lib/unidade";
 
@@ -84,5 +84,9 @@ export async function GET(req: NextRequest) {
     ORDER BY n.id
   `;
 
-  return NextResponse.json({ session: sessaoInfo, permissoes, unidades: permissoes.unidades, periodo, negocios });
+  // O gerente da unidade vai junto pro formulário preencher sozinho o bloco
+  // Gerência (10% da comissão). Nulo em Diretoria e Lançamento.
+  const gerente = await gerenteDaUnidade(sql, periodo.unidade, periodo.tipo);
+
+  return NextResponse.json({ session: sessaoInfo, permissoes, unidades: permissoes.unidades, periodo, gerente, negocios });
 }

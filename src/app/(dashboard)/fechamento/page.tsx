@@ -26,6 +26,8 @@ type Resposta = {
   permissoes: Permissoes;
   unidades: readonly string[];
   periodo: Periodo | null;
+  /** Gerente da unidade/vertical — o formulário usa pra preencher a Gerência. */
+  gerente: { id: number; nome: string } | null;
   negocios: Negocio[];
 };
 
@@ -270,6 +272,7 @@ export default function FechamentoPage() {
               periodoId={periodo.id}
               tipo={periodo.tipo}
               corretores={corretores}
+              gerente={dados?.gerente ?? null}
               onSalvo={() => { setMostrarForm(false); carregar(); }}
               onCancelar={() => setMostrarForm(false)}
             />

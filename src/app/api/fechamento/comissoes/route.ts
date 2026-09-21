@@ -1,24 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { competenciaAtual, calcularStatusPagamento, type Papel } from "@/lib/fechamento";
+import {
+  competenciaAtual, calcularStatusPagamento, negociosDaCompetencia,
+} from "@/lib/fechamento";
 import { podeLancarComissao, unidadesFechamento, tiposFechamento } from "@/lib/permissoes";
-
-interface PagamentoRow {
-  id: number;
-  valor: number;
-  data_pagamento: string;
-  observacao: string | null;
-}
-
-interface RateioRow {
-  id: number;
-  corretor_id: number;
-  nome: string;
-  papel: Papel;
-  percentual: number | null;
-  pagamentos: PagamentoRow[];
-}
 
 /**
  * Negócios do mês pra tela de comissão: o admin vê todas as unidades; a
@@ -35,45 +21,12 @@ export async function GET(req: NextRequest) {
   const tipos = tiposFechamento(session);
   if (unidades?.length === 0) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const todasUnidades = unidades === null;
-  const todosTipos = tipos === null;
-  const listaUnidades = unidades ?? [];
-  const listaTipos = tipos ?? [];
-
   const competencia = req.nextUrl.searchParams.get("competencia") || competenciaAtual();
   const sql = getDb();
 
-  const negocios = (await sql`
-    SELECT n.id, n.ref, n.endereco, n.valor, n.comissao,
-      p.unidade, p.tipo, p.competencia,
-      COALESCE(
-        json_agg(
-          json_build_object(
-            'id', rc.id, 'corretor_id', rc.corretor_id, 'nome', COALESCE(NULLIF(TRIM(cor.nome_comercial), ''), NULLIF(TRIM(cor.nome), ''), rc.nome_livre),
-            'papel', rc.papel, 'percentual', rc.percentual,
-            'pagamentos', COALESCE(pg.pagamentos, '[]'::json)
-          )
-        ) FILTER (WHERE rc.id IS NOT NULL), '[]'
-      ) AS rateio
-    FROM fechamento_negocios n
-    JOIN fechamento_periodos p ON p.id = n.periodo_id
-    LEFT JOIN fechamento_negocio_corretores rc ON rc.negocio_id = n.id
-    LEFT JOIN corretores cor ON cor.id = rc.corretor_id
-    LEFT JOIN LATERAL (
-      SELECT json_agg(json_build_object(
-        'id', fp.id, 'valor', fp.valor, 'data_pagamento', fp.data_pagamento, 'observacao', fp.observacao
-      ) ORDER BY fp.data_pagamento) AS pagamentos
-      FROM fechamento_pagamentos fp WHERE fp.negocio_corretor_id = rc.id
-    ) pg ON true
-    WHERE p.competencia = ${competencia}
-      AND (${todasUnidades} OR p.unidade = ANY(${listaUnidades}::text[]))
-      AND (${todosTipos} OR p.tipo = ANY(${listaTipos}::text[]))
-    GROUP BY n.id, p.unidade, p.tipo, p.competencia
-    ORDER BY p.unidade, p.tipo, n.id
-  `) as {
-    id: number; ref: string | null; endereco: string | null; valor: number | null; comissao: number | null;
-    unidade: string; tipo: "venda" | "locacao"; competencia: string; rateio: RateioRow[];
-  }[];
+  const negocios = await negociosDaCompetencia(
+    sql, competencia, unidades, tipos
+  );
 
   const comNegociosComputados = negocios.map((n) => {
     const pool = n.tipo === "venda" ? n.comissao : n.valor;
@@ -88,5 +41,51 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  return NextResponse.json({ competencia, negocios: comNegociosComputados });
+  /**
+   * Quanto cada destinatário tem a receber e quanto já recebeu no mês.
+   *
+   * Vem do servidor, e não somado na tela, porque a mesma conta alimenta a
+   * exportação em Excel — duas somas escritas em lugares diferentes acabam
+   * divergindo.
+   *
+   * A chave é o corretor quando existe e o rótulo quando é rubrica (Diretoria,
+   * Lançamento, Brizola), que não tem pessoa.
+   */
+  const porDestinatario = new Map<string, {
+    corretor_id: number | null; nome: string; papeis: Set<string>;
+    devido: number; pago: number; negocios: number;
+  }>();
+  for (const n of comNegociosComputados) {
+    for (const r of n.rateio) {
+      const chave = r.corretor_id != null ? `c${r.corretor_id}` : `r:${r.nome}`;
+      const atual = porDestinatario.get(chave) ?? {
+        corretor_id: r.corretor_id ?? null, nome: r.nome,
+        papeis: new Set<string>(), devido: 0, pago: 0, negocios: 0,
+      };
+      atual.papeis.add(r.papel);
+      atual.devido += r.valorDevido ?? 0;
+      atual.pago += r.valorPago;
+      atual.negocios += 1;
+      porDestinatario.set(chave, atual);
+    }
+  }
+
+  const destinatarios = [...porDestinatario.values()]
+    .map((d) => ({
+      corretor_id: d.corretor_id, nome: d.nome, papeis: [...d.papeis],
+      negocios: d.negocios, devido: d.devido, pago: d.pago,
+      pendente: d.devido - d.pago,
+    }))
+    .sort((a, b) => b.pendente - a.pendente || a.nome.localeCompare(b.nome));
+
+  const totais = {
+    devido: comNegociosComputados.reduce((s, n) => s + n.valor_devido_total, 0),
+    pago: comNegociosComputados.reduce((s, n) => s + n.valor_pago_total, 0),
+    imobiliaria: comNegociosComputados.reduce((s, n) => s + n.ficou_pra_imobiliaria, 0),
+    negocios: comNegociosComputados.length,
+  };
+
+  return NextResponse.json({
+    competencia, negocios: comNegociosComputados, destinatarios, totais,
+  });
 }

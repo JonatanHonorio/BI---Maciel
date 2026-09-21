@@ -3,7 +3,7 @@ import { Fragment, useEffect, useState, useCallback, useRef } from "react";
 import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 
-type Papel = "levantamento" | "fechamento";
+import { ROTULO_PAPEL, type Papel } from "@/lib/comissao";
 type StatusPagamento = "pendente" | "parcial" | "pago";
 
 type Pagamento = { id: number; valor: number; data_pagamento: string; observacao: string | null };
@@ -20,10 +20,17 @@ type Negocio = {
   status_pagamento: StatusPagamento;
 };
 
+/** Uma pessoa (ou rubrica) e o que ela tem a receber no mês inteiro. */
+type Destinatario = {
+  corretor_id: number | null; nome: string; papeis: string[];
+  negocios: number; devido: number; pago: number; pendente: number;
+};
+
 const nomesPapel = (rateio: Rateio[], papel: Papel) =>
   rateio.filter((r) => r.papel === papel).map((r) => r.nome).join(", ") || "—";
 
-const labelPapel: Record<Papel, string> = { levantamento: "Levantamento", fechamento: "Fechamento" };
+// Rótulos vêm de @/lib/comissao pra não haver duas listas de papéis.
+const labelPapel = ROTULO_PAPEL;
 
 const badgeStatus: Record<StatusPagamento, { label: string; cls: string }> = {
   pendente: { label: "Pendente", cls: "bg-amber-50 text-amber-700" },
@@ -47,6 +54,9 @@ export default function ComissoesPage() {
   const [competencia, setCompetencia] = useState(competenciaAtualISO());
   const [negocios, setNegocios] = useState<Negocio[]>([]);
   const [filtroStatus, setFiltroStatus] = useState<"todos" | StatusPagamento>("todos");
+  const [filtroDestinatario, setFiltroDestinatario] = useState("todos");
+  const [destinatarios, setDestinatarios] = useState<Destinatario[]>([]);
+  const [verResumo, setVerResumo] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [semAcesso, setSemAcesso] = useState(false);
   const [erro, setErro] = useState("");
@@ -77,6 +87,7 @@ export default function ComissoesPage() {
       if (minhaBusca !== buscaAtual.current) return;
       setSemAcesso(false);
       setNegocios(j.negocios ?? []);
+      setDestinatarios(j.destinatarios ?? []);
     } catch {
       if (minhaBusca !== buscaAtual.current) return;
       setErro("Não foi possível carregar as comissões. Tente de novo.");
@@ -124,7 +135,12 @@ export default function ComissoesPage() {
     }
   }
 
-  const filtrados = negocios.filter((n) => (filtroStatus === "todos" ? true : n.status_pagamento === filtroStatus));
+  // O filtro por destinatário casa pelo NOME, que é o que a API já resolve
+  // tanto pro corretor do Kurole quanto pras rubricas (Diretoria, Brizola),
+  // que não têm id de corretor.
+  const filtrados = negocios
+    .filter((n) => (filtroStatus === "todos" ? true : n.status_pagamento === filtroStatus))
+    .filter((n) => filtroDestinatario === "todos" || n.rateio.some((r) => r.nome === filtroDestinatario));
   const totalDevido = filtrados.reduce((s, n) => s + n.valor_devido_total, 0);
   const totalPago = filtrados.reduce((s, n) => s + n.valor_pago_total, 0);
   const totalFicou = filtrados.reduce((s, n) => s + n.ficou_pra_imobiliaria, 0);
@@ -141,11 +157,37 @@ export default function ComissoesPage() {
             className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm"
           />
           <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value as typeof filtroStatus)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
-            <option value="todos">Todos</option>
+            <option value="todos">Todos os status</option>
             <option value="pendente">Pendente</option>
             <option value="parcial">Parcial</option>
             <option value="pago">Pago</option>
           </select>
+          <select
+            value={filtroDestinatario}
+            onChange={(e) => setFiltroDestinatario(e.target.value)}
+            className="max-w-52 rounded-md border border-gray-200 px-2.5 py-1.5 text-sm"
+          >
+            <option value="todos">Todos os destinatários</option>
+            {destinatarios.map((d) => (
+              <option key={d.nome} value={d.nome}>{d.nome}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => setVerResumo((v) => !v)}
+            aria-pressed={verResumo}
+            className={
+              "rounded-md border px-2.5 py-1.5 text-sm " +
+              (verResumo ? "border-blue-600 bg-blue-600 text-white" : "border-gray-200 text-gray-600 hover:bg-gray-50")
+            }
+          >
+            Por destinatário
+          </button>
+          <a
+            href={`/api/fechamento/comissoes/exportar?competencia=${competencia}`}
+            className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+          >
+            Excel
+          </a>
         </div>
       </div>
 
@@ -163,6 +205,51 @@ export default function ComissoesPage() {
         <span><span className="text-gray-500">Pendente: </span><span className="font-semibold text-amber-600">{fmtMoney(totalDevido - totalPago)}</span></span>
         <span><span className="text-gray-500">Ficou pra Imobiliária: </span><span className="font-semibold">{fmtMoney(totalFicou)}</span></span>
       </div>
+
+      {/* Resumo por pessoa. É o que a adm usa pra pagar: a tabela de baixo é
+          por NEGÓCIO, e quem paga precisa do total de cada um no mês. Vem
+          pronto da API — somar de novo aqui abriria espaço pra tela e Excel
+          mostrarem números diferentes. */}
+      {verResumo && (
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium">Destinatário</th>
+                <th className="px-3 py-2 text-left font-medium">Papéis</th>
+                <th className="px-3 py-2 text-right font-medium">Negócios</th>
+                <th className="px-3 py-2 text-right font-medium">Devido</th>
+                <th className="px-3 py-2 text-right font-medium">Pago</th>
+                <th className="px-3 py-2 text-right font-medium">Pendente</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {destinatarios.length === 0 && (
+                <tr><td colSpan={6} className="px-3 py-4 text-center text-gray-500">Nenhum rateio no período.</td></tr>
+              )}
+              {destinatarios.map((d) => (
+                <tr
+                  key={d.nome}
+                  onClick={() => setFiltroDestinatario(d.nome === filtroDestinatario ? "todos" : d.nome)}
+                  className={
+                    "cursor-pointer hover:bg-gray-50 " +
+                    (filtroDestinatario === d.nome ? "bg-blue-50" : "")
+                  }
+                >
+                  <td className="px-3 py-2 font-medium text-gray-800">{d.nome}</td>
+                  <td className="px-3 py-2 text-xs text-gray-500">
+                    {d.papeis.map((p) => ROTULO_PAPEL[p as Papel] ?? p).join(", ")}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{d.negocios}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtMoney(d.devido)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-emerald-700">{fmtMoney(d.pago)}</td>
+                  <td className="px-3 py-2 text-right font-semibold tabular-nums text-amber-600">{fmtMoney(d.pendente)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
         <table className="w-full text-sm">

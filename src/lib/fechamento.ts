@@ -19,13 +19,18 @@ export const PAGAMENTOS_FECHAMENTO = [
 
 // "Captação" chegou a existir como terceiro papel (18/09/2026) e saiu no mesmo
 // dia: o Jonatan avisou que captação e levantamento são a mesma coisa.
-export const PAPEIS_RATEIO = ["levantamento", "fechamento"] as const;
-export type Papel = (typeof PAPEIS_RATEIO)[number];
+//
+// Os papéis e os percentuais moram em `@/lib/comissao`, que não importa nada
+// e por isso pode ser usado também pelo formulário (client component). Aqui
+// só reexporto pra não haver duas listas de papéis se desencontrando.
+export { PAPEIS_RATEIO, ehRubrica, type Papel } from "./comissao";
+import { PAPEIS_RATEIO as PAPEIS, ehRubrica as _ehRubrica } from "./comissao";
+import type { Papel as _Papel } from "./comissao";
 
 export interface RateioEntrada {
   corretor_id?: number | string | null;
   nome_livre?: string | null;
-  papel: Papel;
+  papel: _Papel;
   percentual?: number | null;
 }
 
@@ -46,7 +51,14 @@ export function normalizaLinhaRateio(
   r: RateioEntrada,
   permiteNomeLivre: boolean
 ): { corretor_id: number | null; nome_livre: string | null } | null {
-  if (!PAPEIS_RATEIO.includes(r.papel)) return null;
+  if (!PAPEIS.includes(r.papel)) return null;
+  // Rubrica (Diretoria, Lançamento, Brizola) não tem pessoa: o destinatário é
+  // o próprio rótulo. Não depende da chave de nome livre, que é temporária —
+  // rubrica é regra permanente do negócio.
+  if (_ehRubrica(r.papel)) {
+    const rotulo = (r.nome_livre ?? "").trim();
+    return rotulo ? { corretor_id: null, nome_livre: rotulo } : null;
+  }
   const id = Number(r.corretor_id);
   if (Number.isFinite(id) && id > 0) return { corretor_id: id, nome_livre: null };
   const nome = (r.nome_livre ?? "").trim();
@@ -121,6 +133,97 @@ export async function corretoresParaRateio(sql: SQL): Promise<CorretorFechamento
       return { id: c.id, nome: r?.nome || nomePeloEmail(r?.email ?? null) || c.nome };
     })
     .sort((a, b) => a.nome.localeCompare(b.nome));
+}
+
+/**
+ * O gerente da unidade/vertical, como CORRETOR — é ele que entra no bloco
+ * Gerência do rateio e recebe os 10%.
+ *
+ * A ponte entre as duas tabelas é o e-mail: `usuarios_bi` guarda quem é
+ * gerente de quê, e `corretores` guarda o cadastro que recebe comissão. Os 12
+ * gerentes casam pelos dois lados (conferido em 21/09/2026).
+ *
+ * Devolve null em Diretoria e Lançamento, que não têm gerente próprio — nesses
+ * o bloco fica vazio pra adm preencher.
+ */
+export async function gerenteDaUnidade(
+  sql: SQL, unidade: string | null, tipo: string | null
+): Promise<CorretorFechamento | null> {
+  if (!unidade || !tipo) return null;
+  const [row] = (await sql`
+    SELECT c.id,
+      COALESCE(NULLIF(TRIM(c.nome_comercial), ''), NULLIF(TRIM(c.nome), '')) AS nome
+    FROM usuarios_bi u
+    JOIN corretores c ON lower(c.email) = lower(u.email)
+    WHERE u.role = 'gerente' AND u.ativo = true
+      AND u.unidade = ${unidade} AND u.tipo = ${tipo}
+    LIMIT 1
+  `) as { id: number; nome: string | null }[];
+  return row?.id ? { id: Number(row.id), nome: row.nome || `corretor ${row.id}` } : null;
+}
+
+export interface RateioDoMes {
+  id: number;
+  corretor_id: number | null;
+  nome: string;
+  papel: string;
+  percentual: number | null;
+  pagamentos: { id: number; valor: number; data_pagamento: string; observacao: string | null }[];
+}
+
+export interface NegocioDoMes {
+  id: number; ref: string | null; endereco: string | null;
+  valor: number | null; comissao: number | null;
+  unidade: string; tipo: "venda" | "locacao"; competencia: string;
+  rateio: RateioDoMes[];
+}
+
+/**
+ * Negócios de uma competência com rateio e pagamentos, já escopados pelas
+ * unidades/tipos que a pessoa pode ver.
+ *
+ * Fica aqui, e não solto em cada rota, porque a tela de Comissões e a
+ * exportação em Excel precisam do MESMO resultado. Quando a consulta estava
+ * duplicada, uma delas ficou mostrando `nome_comercial` puro enquanto a outra
+ * já caía pro `nome` — e a mesma pessoa aparecia com nome numa tela e em
+ * branco na outra.
+ *
+ * `unidades`/`tipos` nulos significam "todas" (admin).
+ */
+export async function negociosDaCompetencia(
+  sql: SQL, competencia: string, unidades: string[] | null, tipos: string[] | null
+): Promise<NegocioDoMes[]> {
+  const todasUnidades = unidades === null;
+  const todosTipos = tipos === null;
+  return (await sql`
+    SELECT n.id, n.ref, n.endereco, n.valor, n.comissao,
+      p.unidade, p.tipo, p.competencia,
+      COALESCE(
+        json_agg(
+          json_build_object(
+            'id', rc.id, 'corretor_id', rc.corretor_id,
+            'nome', COALESCE(NULLIF(TRIM(cor.nome_comercial), ''), NULLIF(TRIM(cor.nome), ''), rc.nome_livre),
+            'papel', rc.papel, 'percentual', rc.percentual,
+            'pagamentos', COALESCE(pg.pagamentos, '[]'::json)
+          ) ORDER BY rc.papel, rc.id
+        ) FILTER (WHERE rc.id IS NOT NULL), '[]'
+      ) AS rateio
+    FROM fechamento_negocios n
+    JOIN fechamento_periodos p ON p.id = n.periodo_id
+    LEFT JOIN fechamento_negocio_corretores rc ON rc.negocio_id = n.id
+    LEFT JOIN corretores cor ON cor.id = rc.corretor_id
+    LEFT JOIN LATERAL (
+      SELECT json_agg(json_build_object(
+        'id', fp.id, 'valor', fp.valor, 'data_pagamento', fp.data_pagamento, 'observacao', fp.observacao
+      ) ORDER BY fp.data_pagamento) AS pagamentos
+      FROM fechamento_pagamentos fp WHERE fp.negocio_corretor_id = rc.id
+    ) pg ON true
+    WHERE p.competencia = ${competencia}
+      AND (${todasUnidades} OR p.unidade = ANY(${unidades ?? []}::text[]))
+      AND (${todosTipos} OR p.tipo = ANY(${tipos ?? []}::text[]))
+    GROUP BY n.id, p.unidade, p.tipo, p.competencia
+    ORDER BY p.unidade, p.tipo, n.id
+  `) as NegocioDoMes[];
 }
 
 export interface RateioPagamento {

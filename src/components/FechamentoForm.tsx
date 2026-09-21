@@ -1,8 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { PERMITE_NOME_LIVRE_NO_RATEIO } from "@/lib/flags";
+import {
+  REGRAS, percentualSugerido, resumoRateio, type Tipo, type PapelPessoa,
+} from "@/lib/comissao";
 
 type Corretor = { id: number; nome: string };
 // `texto` é o que está escrito no campo; `corretor_id` só é preenchido quando
@@ -13,6 +16,10 @@ type LinhaRateio = { corretor_id: number | ""; percentual: string; texto: string
 
 const inputCls = "border-input bg-card w-full rounded-md border px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring";
 const labelCls = "mb-1 block text-xs font-medium text-muted-foreground";
+
+/** "30" (o que está no campo) -> 0.30. Campo vazio não conta no rateio. */
+const pctNum = (s: string): number | null => (s.trim() === "" ? null : Number(s) / 100);
+const pctTexto = (n: number) => `${(n * 100).toFixed(2).replace(/\.?0+$/, "")}%`;
 
 const ORIGENS = [
   "Cliente de Carteira", "Plantão de Vendas", "Canal Pro", "Indicação", "Site",
@@ -31,19 +38,25 @@ const TAXA_COMISSAO_VENDA = 0.06;
  * as unidades; num select nativo só dá pra pular pela primeira letra.
  */
 function BlocoRateio({
-  titulo, lista, set, corretores, atualizarLinha,
+  titulo, ajuda, lista, set, corretores, atualizarLinha, sugerirPercentual,
 }: {
   titulo: string;
+  ajuda?: string;
   lista: LinhaRateio[];
   set: (l: LinhaRateio[]) => void;
   corretores: Corretor[];
   atualizarLinha: (
     lista: LinhaRateio[], set: (l: LinhaRateio[]) => void, i: number, campos: Partial<LinhaRateio>
   ) => void;
+  /** Percentual que este bloco paga, já considerando quantas linhas tem. */
+  sugerirPercentual?: (quantasLinhas: number) => number;
 }) {
   return (
     <div>
-      <label className={labelCls}>{titulo}</label>
+      <label className={labelCls}>
+        {titulo}
+        {ajuda && <span className="ml-1.5 font-normal text-muted-foreground/70">{ajuda}</span>}
+      </label>
       <div className="space-y-1.5">
         {lista.map((linha, i) => (
           <div key={i} className="flex gap-1.5">
@@ -54,7 +67,15 @@ function BlocoRateio({
               onChange={(e) => {
                 const texto = e.target.value;
                 const achado = corretores.find((c) => c.nome === texto);
-                atualizarLinha(lista, set, i, { texto, corretor_id: achado ? achado.id : "" });
+                // Preenche o percentual da regra assim que há um destinatário,
+                // e só se o campo ainda estiver vazio — quem digitou manda.
+                const preencher =
+                  sugerirPercentual && !linha.percentual.trim() && (achado || texto.trim())
+                    ? { percentual: String(Number((sugerirPercentual(lista.length) * 100).toFixed(4))) }
+                    : {};
+                atualizarLinha(lista, set, i, {
+                  texto, corretor_id: achado ? achado.id : "", ...preencher,
+                });
               }}
               className={inputCls + (linha.texto && !linha.corretor_id ? " border-amber-400" : "")}
               title={
@@ -109,12 +130,15 @@ export default function FechamentoForm({
   periodoId,
   tipo,
   corretores,
+  gerente,
   onSalvo,
   onCancelar,
 }: {
   periodoId: number;
-  tipo: "venda" | "locacao";
+  tipo: Tipo;
   corretores: Corretor[];
+  /** Gerente da unidade/vertical — entra sozinho no bloco Gerência. */
+  gerente?: Corretor | null;
   onSalvo: () => void;
   onCancelar: () => void;
 }) {
@@ -129,11 +153,41 @@ export default function FechamentoForm({
   const [observacao, setObservacao] = useState("");
   const [levantamento, setLevantamento] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "", texto: "" }]);
   const [fechamento, setFechamento] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "", texto: "" }]);
+  const [gerencia, setGerencia] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "", texto: "" }]);
+  // Rubricas opcionais: nem toda venda tem influência do setor de lançamentos
+  // ou do Brizola, então a adm liga quando acontece.
+  const [opcionais, setOpcionais] = useState<Record<string, boolean>>({});
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
 
   const valorCalculado = tipo === "venda" && comissao ? Number(comissao) / TAXA_COMISSAO_VENDA : null;
+  const regra = REGRAS[tipo];
+
+  /** Comissão da venda, ou a prestação de serviço da locação — é sobre isso
+   *  que todos os percentuais incidem. */
+  const pool = tipo === "venda" ? Number(comissao || 0) : Number(valorLocacao || 0);
+
+  // O gerente da unidade entra sozinho com os 10%. Só enquanto a adm não
+  // mexeu: se ela trocou o nome ou o percentual, o que ela fez manda.
+  useEffect(() => {
+    if (!gerente) return;
+    setGerencia((atual) =>
+      atual.length === 1 && !atual[0].corretor_id && !atual[0].texto
+        ? [{ corretor_id: gerente.id, texto: gerente.nome, percentual: String(regra.gerencia * 100) }]
+        : atual
+    );
+  }, [gerente, regra.gerencia]);
+
+  const rubricasAtivas = regra.rubricas.filter((r) => r.obrigatoria || opcionais[r.papel]);
+
+  const linhasParaResumo = [
+    ...levantamento.map((l) => ({ papel: "levantamento", percentual: pctNum(l.percentual) })),
+    ...fechamento.map((l) => ({ papel: "fechamento", percentual: pctNum(l.percentual) })),
+    ...gerencia.map((l) => ({ papel: "gerencia", percentual: pctNum(l.percentual) })),
+    ...rubricasAtivas.map((r) => ({ papel: r.papel, percentual: r.percentual })),
+  ];
+  const resumo = resumoRateio(pool, linhasParaResumo);
 
   /**
    * A referência é a chave do imóvel no Kurole, então dá pra puxar endereço e
@@ -161,12 +215,24 @@ export default function FechamentoForm({
       // escrever — exatamente o contrário da regra "o que ela escreveu manda".
       const semCaptador = levantamento.every((l) => !l.corretor_id && !l.texto.trim());
       if (dados.captadores?.length && semCaptador) {
+        // A Maciel paga 10% da comissão pela captação INTEIRA. O percentual
+        // que vem do Kurole é a divisão entre os captadores (0,5 e 0,5 quando
+        // são dois), não a fatia da comissão — então ele multiplica os 10%,
+        // dando 5% pra cada. Antes o número do Kurole entrava cru e virava
+        // "50% da comissão" pra cada captador.
+        const n = dados.captadores.length;
         setLevantamento(
-          dados.captadores.map((c: { corretor_id: number; nome: string; percentual: number | null }) => ({
-            corretor_id: c.corretor_id,
-            texto: c.nome,
-            percentual: c.percentual != null ? String(c.percentual) : "",
-          }))
+          dados.captadores.map((c: { corretor_id: number; nome: string; percentual: number | null }) => {
+            // O Kurole grava o rateio do captador em 0–100 ("50" para meio a
+            // meio, "100" para captador único), não em fração. Tratando como
+            // fração, um captador sozinho virava 1000% da comissão.
+            const fatia = c.percentual != null && c.percentual > 0 ? c.percentual / 100 : 1 / n;
+            return {
+              corretor_id: c.corretor_id,
+              texto: c.nome,
+              percentual: String(Number((regra.levantamento * fatia * 100).toFixed(4))),
+            };
+          })
         );
       }
       if (dados.captadores_fora > 0 && !dados.captadores?.length) {
@@ -196,6 +262,7 @@ export default function FechamentoForm({
     const rateio = [
       ...levantamento.filter(usavel).map((l) => ({ ...l, papel: "levantamento" as const })),
       ...fechamento.filter(usavel).map((l) => ({ ...l, papel: "fechamento" as const })),
+      ...gerencia.filter(usavel).map((l) => ({ ...l, papel: "gerencia" as const })),
     ];
     if (rateio.length === 0) {
       setErro(
@@ -223,15 +290,26 @@ export default function FechamentoForm({
           comissao: tipo === "venda" && comissao ? Number(comissao) : null,
           pagamento: tipo === "venda" ? (pagamento || null) : null,
           observacao: observacao || null,
-          rateio: rateio.map((l) => ({
-            corretor_id: l.corretor_id || null,
-            // Só vai nome digitado quando não houve casamento com a lista —
-            // corretor do Kurole é sempre preferível, porque liga a comissão
-            // a um cadastro de verdade.
-            nome_livre: l.corretor_id ? null : l.texto.trim(),
-            papel: l.papel,
-            percentual: l.percentual ? Number(l.percentual) / 100 : null,
-          })),
+          rateio: [
+            ...rateio.map((l) => ({
+              corretor_id: l.corretor_id || null,
+              // Só vai nome digitado quando não houve casamento com a lista —
+              // corretor do Kurole é sempre preferível, porque liga a comissão
+              // a um cadastro de verdade.
+              nome_livre: l.corretor_id ? null : l.texto.trim(),
+              papel: l.papel,
+              percentual: l.percentual ? Number(l.percentual) / 100 : null,
+            })),
+            // Rubricas não têm pessoa: o destinatário é o próprio rótulo.
+            // As obrigatórias entram em todo negócio; Lançamento e Brizola
+            // só quando a adm liga.
+            ...rubricasAtivas.map((r) => ({
+              corretor_id: null,
+              nome_livre: r.rotulo,
+              papel: r.papel,
+              percentual: r.percentual,
+            })),
+          ],
         }),
       });
       if (!r.ok) {
@@ -314,10 +392,81 @@ export default function FechamentoForm({
         )}
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <BlocoRateio titulo="Levantamento" lista={levantamento} set={setLevantamento} corretores={corretores} atualizarLinha={atualizarLinha} />
-        <BlocoRateio titulo="Fechamento" lista={fechamento} set={setFechamento} corretores={corretores} atualizarLinha={atualizarLinha} />
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <BlocoRateio
+          titulo="Levantamento" ajuda={`${pctTexto(regra.levantamento)} no total`}
+          lista={levantamento} set={setLevantamento} corretores={corretores}
+          atualizarLinha={atualizarLinha}
+          sugerirPercentual={(n) => percentualSugerido(tipo, "levantamento" as PapelPessoa, n)}
+        />
+        <BlocoRateio
+          titulo="Fechamento" ajuda={pctTexto(regra.fechamento)}
+          lista={fechamento} set={setFechamento} corretores={corretores}
+          atualizarLinha={atualizarLinha}
+          sugerirPercentual={() => regra.fechamento}
+        />
+        <BlocoRateio
+          titulo="Gerência" ajuda={pctTexto(regra.gerencia)}
+          lista={gerencia} set={setGerencia} corretores={corretores}
+          atualizarLinha={atualizarLinha}
+          sugerirPercentual={() => regra.gerencia}
+        />
       </div>
+
+      {/* Rubricas: destinação sem pessoa. As obrigatórias aparecem só como
+          informação; Lançamento e Brizola são os dois botões que a adm liga
+          quando a venda teve influência do setor ou do parceiro. */}
+      <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className={labelCls + " mb-0"}>Destinações fixas</span>
+          {regra.rubricas.filter((r) => r.obrigatoria).map((r) => (
+            <span key={r.papel} className="text-xs text-gray-600">
+              {r.rotulo} <strong className="tabular-nums">{pctTexto(r.percentual)}</strong>
+            </span>
+          ))}
+        </div>
+        {regra.rubricas.some((r) => !r.obrigatoria) && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Houve influência de:</span>
+            {regra.rubricas.filter((r) => !r.obrigatoria).map((r) => (
+              <button
+                key={r.papel}
+                type="button"
+                onClick={() => setOpcionais((o) => ({ ...o, [r.papel]: !o[r.papel] }))}
+                aria-pressed={!!opcionais[r.papel]}
+                className={
+                  "rounded-full border px-3 py-1 text-xs transition-colors " +
+                  (opcionais[r.papel]
+                    ? "border-blue-600 bg-blue-600 text-white"
+                    : "border-gray-300 bg-white text-gray-600 hover:border-gray-400")
+                }
+              >
+                {r.rotulo} {pctTexto(r.percentual)}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* O resultado enquanto se digita: passar de 100% é erro, e é melhor
+          ver antes de salvar do que descobrir na tela de comissões. */}
+      {pool > 0 && (
+        <div className={
+          "mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs " +
+          (resumo.estourou ? "border-red-300 bg-red-50 text-red-800" : "border-gray-200 bg-white text-gray-600")
+        }>
+          <span>
+            Distribuído <strong className="tabular-nums">{pctTexto(resumo.percentualDistribuido)}</strong>
+            {" — "}{fmtMoney(resumo.valorDistribuido)}
+          </span>
+          <span>
+            Fica com a imobiliária{" "}
+            <strong className="tabular-nums">{pctTexto(resumo.percentualImobiliaria)}</strong>
+            {" — "}{fmtMoney(resumo.valorImobiliaria)}
+          </span>
+          {resumo.estourou && <span className="font-medium">O rateio passou de 100% da comissão.</span>}
+        </div>
+      )}
 
       <div className="mt-3">
         <label className={labelCls}>Observação</label>
