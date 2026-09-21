@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { PAPEIS_RATEIO, type Papel } from "@/lib/fechamento";
+import { normalizaLinhaRateio, type Papel, type RateioEntrada } from "@/lib/fechamento";
+import { PERMITE_NOME_LIVRE_NO_RATEIO } from "@/lib/flags";
 import { podeAcessarPeriodo } from "@/lib/permissoes";
 
-interface RateioInput {
-  corretor_id: number;
+interface RateioInput extends RateioEntrada {
   papel: Papel;
   percentual: number | null;
 }
@@ -37,11 +37,17 @@ export async function POST(req: NextRequest) {
   if (!body.periodo_id) {
     return NextResponse.json({ error: "periodo_id obrigatório" }, { status: 400 });
   }
-  const rateio = body.rateio ?? [];
-  for (const r of rateio) {
-    if (!r.corretor_id || !PAPEIS_RATEIO.includes(r.papel)) {
-      return NextResponse.json({ error: "rateio inválido: cada item precisa de corretor_id e papel" }, { status: 400 });
-    }
+  // Normaliza antes de gravar: cada linha vira (corretor do Kurole) OU
+  // (nome digitado), nunca as duas coisas nem nenhuma.
+  const rateio = (body.rateio ?? []).map((r) => {
+    const destino = normalizaLinhaRateio(r, PERMITE_NOME_LIVRE_NO_RATEIO);
+    return destino && { ...destino, papel: r.papel, percentual: r.percentual };
+  });
+  if (rateio.some((r) => !r)) {
+    return NextResponse.json(
+      { error: "rateio inválido: cada item precisa de papel e de um corretor (da lista ou pelo nome)" },
+      { status: 400 }
+    );
   }
 
   const sql = getDb();
@@ -68,8 +74,8 @@ export async function POST(req: NextRequest) {
 
   for (const r of rateio) {
     await sql`
-      INSERT INTO fechamento_negocio_corretores (negocio_id, papel, corretor_id, percentual)
-      VALUES (${negocio.id}, ${r.papel}, ${r.corretor_id}, ${r.percentual})
+      INSERT INTO fechamento_negocio_corretores (negocio_id, papel, corretor_id, nome_livre, percentual)
+      VALUES (${negocio.id}, ${r!.papel}, ${r!.corretor_id}, ${r!.nome_livre}, ${r!.percentual})
     `;
   }
 

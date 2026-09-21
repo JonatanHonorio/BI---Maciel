@@ -5,7 +5,9 @@ import DataTable from "@/components/DataTable";
 import FechamentoForm from "@/components/FechamentoForm";
 import { fmtMoney } from "@/lib/format";
 
-type Rateio = { corretor_id: number; nome: string; papel: "levantamento" | "fechamento"; percentual: number | null };
+// corretor_id vem nulo quando a linha foi gravada com nome digitado (pessoa
+// fora do cadastro do Kurole) — o `nome` já chega resolvido pela API.
+type Rateio = { corretor_id: number | null; nome: string; papel: "levantamento" | "fechamento"; percentual: number | null };
 type Negocio = {
   id: number; data_contrato: string | null; ref: string | null; contrato: string | null;
   endereco: string | null; origem: string | null; valor: number | null; comissao: number | null;

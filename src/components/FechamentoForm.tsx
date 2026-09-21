@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
+import { PERMITE_NOME_LIVRE_NO_RATEIO } from "@/lib/flags";
 
 type Corretor = { id: number; nome: string };
 // `texto` é o que está escrito no campo; `corretor_id` só é preenchido quando
@@ -56,8 +57,18 @@ function BlocoRateio({
                 atualizarLinha(lista, set, i, { texto, corretor_id: achado ? achado.id : "" });
               }}
               className={inputCls + (linha.texto && !linha.corretor_id ? " border-amber-400" : "")}
-              title={linha.texto && !linha.corretor_id ? "Escolha um nome da lista" : undefined}
+              title={
+                linha.texto && !linha.corretor_id
+                  ? PERMITE_NOME_LIVRE_NO_RATEIO
+                    ? "Não está no Kurole — será gravado como nome digitado. Se a pessoa existe lá, confira a grafia."
+                    : "Escolha um nome da lista"
+                  : undefined
+              }
             />
+            {/* A borda âmbar continua aparecendo mesmo com o nome digitado
+                valendo: ela deixou de significar "erro" e passou a significar
+                "este não veio do Kurole". É o aviso que faz alguém perceber
+                que digitou "Fabiana Olivera" quando a Fabiana existe. */}
             <input
               type="number" placeholder="%" min={0} max={100} step={1}
               value={linha.percentual}
@@ -88,6 +99,11 @@ function BlocoRateio({
  * hoje, só que com seletores em vez de digitação livre. Levantamento e
  * Fechamento aceitam mais de um corretor cada (é assim na vida real: já
  * teve negócio com 2 pessoas levantando e 2 fechando).
+ *
+ * Exceção enquanto `PERMITE_NOME_LIVRE_NO_RATEIO` estiver ligada: o rateio
+ * aceita nome digitado, para os fechamentos antigos cujos corretores já não
+ * existem no Kurole. A busca pela referência não muda — ela continua trazendo
+ * o captador do cadastro; digitar é só a saída pra quem o Kurole não conhece.
  */
 export default function FechamentoForm({
   periodoId,
@@ -139,7 +155,11 @@ export default function FechamentoForm({
 
       if (dados.endereco && !endereco.trim()) setEndereco(dados.endereco);
 
-      const semCaptador = levantamento.every((l) => !l.corretor_id);
+      // Também conta como preenchido o que foi só DIGITADO. Olhando apenas
+      // corretor_id, um nome digitado (que não tem id) parecia campo vazio e
+      // a busca pela referência sobrescrevia o que a pessoa acabou de
+      // escrever — exatamente o contrário da regra "o que ela escreveu manda".
+      const semCaptador = levantamento.every((l) => !l.corretor_id && !l.texto.trim());
       if (dados.captadores?.length && semCaptador) {
         setLevantamento(
           dados.captadores.map((c: { corretor_id: number; nome: string; percentual: number | null }) => ({
@@ -167,12 +187,22 @@ export default function FechamentoForm({
 
   async function salvar() {
     setErro("");
+    // Linha vale se aponta pra um corretor da lista ou — enquanto a carga
+    // retroativa estiver acontecendo — se tem um nome digitado. Antes, nome
+    // fora da lista era DESCARTADO em silêncio aqui: o negócio salvava sem
+    // aquele destinatário e ninguém era avisado.
+    const usavel = (l: LinhaRateio) =>
+      Boolean(l.corretor_id) || (PERMITE_NOME_LIVRE_NO_RATEIO && l.texto.trim() !== "");
     const rateio = [
-      ...levantamento.filter((l) => l.corretor_id).map((l) => ({ ...l, papel: "levantamento" as const })),
-      ...fechamento.filter((l) => l.corretor_id).map((l) => ({ ...l, papel: "fechamento" as const })),
+      ...levantamento.filter(usavel).map((l) => ({ ...l, papel: "levantamento" as const })),
+      ...fechamento.filter(usavel).map((l) => ({ ...l, papel: "fechamento" as const })),
     ];
     if (rateio.length === 0) {
-      setErro("Informe pelo menos um corretor (Levantamento ou Fechamento).");
+      setErro(
+        PERMITE_NOME_LIVRE_NO_RATEIO
+          ? "Informe pelo menos um corretor (Levantamento ou Fechamento) — da lista ou digitando o nome."
+          : "Informe pelo menos um corretor (Levantamento ou Fechamento)."
+      );
       return;
     }
 
@@ -194,7 +224,11 @@ export default function FechamentoForm({
           pagamento: tipo === "venda" ? (pagamento || null) : null,
           observacao: observacao || null,
           rateio: rateio.map((l) => ({
-            corretor_id: l.corretor_id,
+            corretor_id: l.corretor_id || null,
+            // Só vai nome digitado quando não houve casamento com a lista —
+            // corretor do Kurole é sempre preferível, porque liga a comissão
+            // a um cadastro de verdade.
+            nome_livre: l.corretor_id ? null : l.texto.trim(),
             papel: l.papel,
             percentual: l.percentual ? Number(l.percentual) / 100 : null,
           })),

@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
       COALESCE(
         json_agg(
           json_build_object(
-            'corretor_id', rc.corretor_id, 'nome', cor.nome_comercial,
+            'corretor_id', rc.corretor_id, 'nome', COALESCE(NULLIF(TRIM(cor.nome_comercial), ''), NULLIF(TRIM(cor.nome), ''), rc.nome_livre),
             'papel', rc.papel, 'percentual', rc.percentual
           )
         ) FILTER (WHERE rc.id IS NOT NULL), '[]'

@@ -8,7 +8,9 @@ type StatusPagamento = "pendente" | "parcial" | "pago";
 
 type Pagamento = { id: number; valor: number; data_pagamento: string; observacao: string | null };
 type Rateio = {
-  id: number; corretor_id: number; nome: string; papel: Papel; percentual: number | null;
+  // corretor_id nulo = linha gravada com nome digitado; o pagamento é
+  // amarrado ao `id` da linha de rateio, não ao corretor, então funciona igual.
+  id: number; corretor_id: number | null; nome: string; papel: Papel; percentual: number | null;
   pagamentos: Pagamento[]; valorDevido: number | null; valorPago: number;
 };
 type Negocio = {

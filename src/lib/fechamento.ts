@@ -22,6 +22,38 @@ export const PAGAMENTOS_FECHAMENTO = [
 export const PAPEIS_RATEIO = ["levantamento", "fechamento"] as const;
 export type Papel = (typeof PAPEIS_RATEIO)[number];
 
+export interface RateioEntrada {
+  corretor_id?: number | string | null;
+  nome_livre?: string | null;
+  papel: Papel;
+  percentual?: number | null;
+}
+
+/**
+ * Valida uma linha de rateio e devolve os dois campos de destinatário já
+ * normalizados, ou `null` se a linha não serve.
+ *
+ * Uma linha precisa apontar para ALGUÉM: um corretor do Kurole ou, enquanto
+ * `PERMITE_NOME_LIVRE_NO_RATEIO` estiver ligada, um nome digitado. Quando os
+ * dois vêm preenchidos, o corretor do Kurole ganha — é o que liga a comissão
+ * a um cadastro de verdade, e o texto seria só o rótulo que a pessoa viu na
+ * tela.
+ *
+ * A mesma função serve o POST e o PUT pra que as duas portas de escrita não
+ * divirjam: já aconteceu de uma aceitar o que a outra recusava.
+ */
+export function normalizaLinhaRateio(
+  r: RateioEntrada,
+  permiteNomeLivre: boolean
+): { corretor_id: number | null; nome_livre: string | null } | null {
+  if (!PAPEIS_RATEIO.includes(r.papel)) return null;
+  const id = Number(r.corretor_id);
+  if (Number.isFinite(id) && id > 0) return { corretor_id: id, nome_livre: null };
+  const nome = (r.nome_livre ?? "").trim();
+  if (permiteNomeLivre && nome) return { corretor_id: null, nome_livre: nome };
+  return null;
+}
+
 /** Primeiro dia do mês corrente, formato YYYY-MM-DD (pra coluna DATE). */
 export function competenciaAtual(): string {
   const hoje = new Date();
