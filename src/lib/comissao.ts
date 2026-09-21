@@ -85,17 +85,17 @@ export function rotuloRubrica(tipo: Tipo, papel: Papel): string {
 }
 
 /**
- * Percentual sugerido para cada linha de um bloco de PESSOAS.
+ * Percentual de cada linha de um bloco de PESSOAS.
  *
- * O levantamento é o único que divide: a Maciel paga 10% pela captação
- * inteira, então dois captadores ficam com 5% cada. Fechamento e gerência são
- * percentuais por pessoa — se houver dois fechadores, cada um recebe 30%, e é
- * decisão de quem preenche reduzir na mão.
+ * O percentual é da FUNÇÃO, não da pessoa: a Maciel paga 10% pela captação,
+ * 30% pelo fechamento e 10% pela gerência, e quem dividir divide entre os
+ * envolvidos. Dois captadores ficam com 5% cada; dois fechadores, 15% cada.
+ *
+ * Com uma linha só o resultado é o percentual cheio, que é o caso comum.
  */
 export function percentualSugerido(tipo: Tipo, papel: PapelPessoa, quantasLinhas: number): number {
-  const regra = REGRAS[tipo];
-  if (papel === "levantamento") return quantasLinhas > 0 ? regra.levantamento / quantasLinhas : regra.levantamento;
-  return regra[papel];
+  const total = REGRAS[tipo][papel];
+  return quantasLinhas > 0 ? total / quantasLinhas : total;
 }
 
 export interface LinhaRateioCalc {

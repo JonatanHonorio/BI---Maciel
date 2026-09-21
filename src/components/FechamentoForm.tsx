@@ -3,9 +3,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { PERMITE_NOME_LIVRE_NO_RATEIO } from "@/lib/flags";
-import {
-  REGRAS, percentualSugerido, resumoRateio, type Tipo, type PapelPessoa,
-} from "@/lib/comissao";
+import { REGRAS, resumoRateio, type Tipo } from "@/lib/comissao";
 
 type Corretor = { id: number; nome: string };
 // `texto` é o que está escrito no campo; `corretor_id` só é preenchido quando
@@ -20,6 +18,23 @@ const labelCls = "mb-1 block text-xs font-medium text-muted-foreground";
 /** "30" (o que está no campo) -> 0.30. Campo vazio não conta no rateio. */
 const pctNum = (s: string): number | null => (s.trim() === "" ? null : Number(s) / 100);
 const pctTexto = (n: number) => `${(n * 100).toFixed(2).replace(/\.?0+$/, "")}%`;
+
+const temDestinatario = (l: LinhaRateio) => Boolean(l.corretor_id) || l.texto.trim() !== "";
+
+/**
+ * Divide o percentual do bloco entre as linhas que já têm destinatário.
+ *
+ * O percentual é da FUNÇÃO: a Maciel paga 30% pelo fechamento, então dois
+ * fechadores ficam com 15% cada. Precisa rodar também ao ADICIONAR ou REMOVER
+ * uma linha — sem isso o primeiro corretor continuava com os 30% cheios e o
+ * negócio distribuía 60%.
+ */
+function redistribuir(lista: LinhaRateio[], totalDoBloco: number): LinhaRateio[] {
+  const quantos = lista.filter(temDestinatario).length;
+  if (quantos === 0) return lista;
+  const cada = String(Number(((totalDoBloco / quantos) * 100).toFixed(4)));
+  return lista.map((l) => (temDestinatario(l) ? { ...l, percentual: cada } : l));
+}
 
 const ORIGENS = [
   "Cliente de Carteira", "Plantão de Vendas", "Canal Pro", "Indicação", "Site",
@@ -38,7 +53,7 @@ const TAXA_COMISSAO_VENDA = 0.06;
  * as unidades; num select nativo só dá pra pular pela primeira letra.
  */
 function BlocoRateio({
-  titulo, ajuda, lista, set, corretores, atualizarLinha, sugerirPercentual,
+  titulo, ajuda, lista, set, corretores, atualizarLinha, totalDoBloco,
 }: {
   titulo: string;
   ajuda?: string;
@@ -48,8 +63,8 @@ function BlocoRateio({
   atualizarLinha: (
     lista: LinhaRateio[], set: (l: LinhaRateio[]) => void, i: number, campos: Partial<LinhaRateio>
   ) => void;
-  /** Percentual que este bloco paga, já considerando quantas linhas tem. */
-  sugerirPercentual?: (quantasLinhas: number) => number;
+  /** Percentual da comissão que este bloco paga no total, a dividir entre as linhas. */
+  totalDoBloco: number;
 }) {
   return (
     <div>
@@ -67,15 +82,11 @@ function BlocoRateio({
               onChange={(e) => {
                 const texto = e.target.value;
                 const achado = corretores.find((c) => c.nome === texto);
-                // Preenche o percentual da regra assim que há um destinatário,
-                // e só se o campo ainda estiver vazio — quem digitou manda.
-                const preencher =
-                  sugerirPercentual && !linha.percentual.trim() && (achado || texto.trim())
-                    ? { percentual: String(Number((sugerirPercentual(lista.length) * 100).toFixed(4))) }
-                    : {};
-                atualizarLinha(lista, set, i, {
-                  texto, corretor_id: achado ? achado.id : "", ...preencher,
-                });
+                const copia = [...lista];
+                copia[i] = { ...copia[i], texto, corretor_id: achado ? achado.id : "" };
+                // Divide o percentual do bloco entre quem já tem nome. Entrar
+                // ou sair alguém muda a fatia de todos, não só a da linha nova.
+                set(redistribuir(copia, totalDoBloco));
               }}
               className={inputCls + (linha.texto && !linha.corretor_id ? " border-amber-400" : "")}
               title={
@@ -97,7 +108,11 @@ function BlocoRateio({
               className={inputCls + " w-20"}
             />
             {lista.length > 1 && (
-              <button type="button" onClick={() => set(lista.filter((_, x) => x !== i))} className="text-muted-foreground hover:text-destructive px-1">
+              <button
+                type="button"
+                onClick={() => set(redistribuir(lista.filter((_, x) => x !== i), totalDoBloco))}
+                className="text-muted-foreground hover:text-destructive px-1"
+              >
                 <Trash2 size={14} />
               </button>
             )}
@@ -397,19 +412,19 @@ export default function FechamentoForm({
           titulo="Levantamento" ajuda={`${pctTexto(regra.levantamento)} no total`}
           lista={levantamento} set={setLevantamento} corretores={corretores}
           atualizarLinha={atualizarLinha}
-          sugerirPercentual={(n) => percentualSugerido(tipo, "levantamento" as PapelPessoa, n)}
+          totalDoBloco={regra.levantamento}
         />
         <BlocoRateio
           titulo="Fechamento" ajuda={pctTexto(regra.fechamento)}
           lista={fechamento} set={setFechamento} corretores={corretores}
           atualizarLinha={atualizarLinha}
-          sugerirPercentual={() => regra.fechamento}
+          totalDoBloco={regra.fechamento}
         />
         <BlocoRateio
           titulo="Gerência" ajuda={pctTexto(regra.gerencia)}
           lista={gerencia} set={setGerencia} corretores={corretores}
           atualizarLinha={atualizarLinha}
-          sugerirPercentual={() => regra.gerencia}
+          totalDoBloco={regra.gerencia}
         />
       </div>
 
