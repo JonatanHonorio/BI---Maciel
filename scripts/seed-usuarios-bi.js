@@ -27,6 +27,9 @@ const usuarios = [
   { email: "jonatanhonorio@gmail.com", nome: "Jonatan Honório", ...ADMIN },
   { email: "pietracmaciel5@gmail.com", nome: "Pietra Maciel", ...ADMIN },
   { email: "tatiane@imobiliariamaciel.com.br", nome: "Tatiane", ...ADMIN },
+  // Suzana, administrativo da matriz (21/09/2026). Único acesso no domínio
+  // mtorre.com.br — os outros são imobiliariamaciel.com.br.
+  { email: "adm@mtorre.com.br", nome: "Suzana", ...ADMIN },
 
   // Diretora de Vendas — todas as unidades, só vendas
   { email: "daniela@imobiliariamaciel.com.br", nome: "Daniela", ...DIRETORA_VENDAS },
