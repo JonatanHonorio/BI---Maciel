@@ -81,6 +81,19 @@ function getAction(actions, type) {
   return a ? parseInt(a.value) : 0;
 }
 
+/**
+ * A Meta reporta as MESMAS conversoes de lead sob varios action_types
+ * ("lead" e "onsite_conversion.lead_grouped" vem com valores identicos).
+ * Somar os dois dobra o numero de leads e corta o CPL pela metade —
+ * por isso aqui pegamos o maior, nunca a soma.
+ */
+function getLeads(actions) {
+  return Math.max(
+    getAction(actions, "lead"),
+    getAction(actions, "onsite_conversion.lead_grouped")
+  );
+}
+
 async function syncInsights(days) {
   const since = new Date();
   since.setDate(since.getDate() - days);
@@ -90,7 +103,7 @@ async function syncInsights(days) {
   console.log(`📊 Sincronizando insights (adset) de ${sinceStr} a ${untilStr}...`);
 
   const insights = await fetchAllPages(`${ACCOUNT}/insights`, {
-    fields: "campaign_id,adset_id,spend,impressions,clicks,cpc,cpm,ctr,reach,actions",
+    fields: "campaign_id,adset_id,spend,impressions,clicks,cpc,cpm,ctr,reach,frequency,actions",
     time_range: { since: sinceStr, until: untilStr },
     time_increment: "1",
     level: "adset",
@@ -103,14 +116,15 @@ async function syncInsights(days) {
     const lpViews = getAction(actions, "landing_page_view");
 
     await sql`INSERT INTO meta_insights_diarios
-      (campanha_id, conjunto_id, data, impressoes, cliques, gasto, cpc, cpm, ctr, alcance, leads, conversas_iniciadas, link_clicks, video_views, landing_page_views)
+      (campanha_id, conjunto_id, data, impressoes, cliques, gasto, cpc, cpm, ctr, alcance, frequencia, leads, conversas_iniciadas, link_clicks, video_views, landing_page_views)
       VALUES (
         ${row.campaign_id}, ${row.adset_id || ""}, ${row.date_start},
         ${parseInt(row.impressions || 0)}, ${parseInt(row.clicks || 0)},
         ${parseFloat(row.spend || 0)}, ${parseFloat(row.cpc || 0)},
         ${parseFloat(row.cpm || 0)}, ${parseFloat(row.ctr || 0)},
         ${parseInt(row.reach || 0)},
-        ${getAction(actions, "lead") + getAction(actions, "onsite_conversion.lead_grouped")},
+        ${parseFloat(row.frequency || 0)},
+        ${getLeads(actions)},
         ${getAction(actions, "onsite_conversion.messaging_conversation_started_7d")},
         ${getAction(actions, "link_click")},
         ${getAction(actions, "video_view")},
@@ -119,6 +133,7 @@ async function syncInsights(days) {
       ON CONFLICT (campanha_id, conjunto_id, data) DO UPDATE SET
         impressoes=EXCLUDED.impressoes, cliques=EXCLUDED.cliques, gasto=EXCLUDED.gasto,
         cpc=EXCLUDED.cpc, cpm=EXCLUDED.cpm, ctr=EXCLUDED.ctr, alcance=EXCLUDED.alcance,
+        frequencia=EXCLUDED.frequencia,
         leads=EXCLUDED.leads, conversas_iniciadas=EXCLUDED.conversas_iniciadas,
         link_clicks=EXCLUDED.link_clicks, video_views=EXCLUDED.video_views,
         landing_page_views=EXCLUDED.landing_page_views`;
@@ -132,18 +147,19 @@ async function syncAds() {
   console.log("🎨 Sincronizando anúncios (criativos)...");
 
   const ads = await fetchAllPages(`${ACCOUNT}/ads`, {
-    fields: "name,status,campaign_id,adset_id,creative{id,name,thumbnail_url,object_type}",
+    fields: "name,status,effective_status,campaign_id,adset_id,preview_shareable_link,creative{id,name,thumbnail_url,image_url,object_type}",
   });
 
   let count = 0;
   for (const ad of ads) {
     const creative = ad.creative || {};
     const tipo = creative.object_type || "UNKNOWN";
-    const thumb = creative.thumbnail_url || null;
+    const thumb = creative.thumbnail_url || creative.image_url || null;
+    const preview = ad.preview_shareable_link || null;
 
-    await sql`INSERT INTO meta_anuncios (id, campanha_id, conjunto_id, nome, status, tipo_criativo, thumbnail_url, updated_at)
-      VALUES (${ad.id}, ${ad.campaign_id}, ${ad.adset_id}, ${ad.name}, ${ad.status}, ${tipo}, ${thumb}, NOW())
-      ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome, status=EXCLUDED.status, tipo_criativo=EXCLUDED.tipo_criativo, thumbnail_url=EXCLUDED.thumbnail_url, updated_at=NOW()`;
+    await sql`INSERT INTO meta_anuncios (id, campanha_id, conjunto_id, nome, status, status_efetivo, tipo_criativo, thumbnail_url, preview_url, updated_at)
+      VALUES (${ad.id}, ${ad.campaign_id}, ${ad.adset_id}, ${ad.name}, ${ad.status}, ${ad.effective_status || null}, ${tipo}, ${thumb}, ${preview}, NOW())
+      ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome, status=EXCLUDED.status, status_efetivo=EXCLUDED.status_efetivo, tipo_criativo=EXCLUDED.tipo_criativo, thumbnail_url=EXCLUDED.thumbnail_url, preview_url=EXCLUDED.preview_url, updated_at=NOW()`;
     count++;
   }
 
@@ -159,7 +175,7 @@ async function syncAdInsights(days) {
   console.log(`📊 Sincronizando insights (anúncio) de ${sinceStr} a ${untilStr}...`);
 
   const insights = await fetchAllPages(`${ACCOUNT}/insights`, {
-    fields: "ad_id,campaign_id,spend,impressions,clicks,cpc,cpm,ctr,reach,actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions",
+    fields: "ad_id,campaign_id,spend,impressions,clicks,cpc,cpm,ctr,reach,frequency,actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions",
     time_range: { since: sinceStr, until: untilStr },
     time_increment: "1",
     level: "ad",
@@ -175,14 +191,15 @@ async function syncAdInsights(days) {
     const vp100 = row.video_p100_watched_actions ? parseInt(row.video_p100_watched_actions[0]?.value || 0) : 0;
 
     await sql`INSERT INTO meta_anuncio_insights
-      (anuncio_id, campanha_id, data, impressoes, cliques, gasto, ctr, cpc, cpm, alcance, leads, conversas_iniciadas, link_clicks, video_views, video_p25, video_p50, video_p75, video_p100, landing_page_views)
+      (anuncio_id, campanha_id, data, impressoes, cliques, gasto, ctr, cpc, cpm, alcance, frequencia, leads, conversas_iniciadas, link_clicks, video_views, video_p25, video_p50, video_p75, video_p100, landing_page_views)
       VALUES (
         ${row.ad_id}, ${row.campaign_id}, ${row.date_start},
         ${parseInt(row.impressions || 0)}, ${parseInt(row.clicks || 0)},
         ${parseFloat(row.spend || 0)}, ${parseFloat(row.ctr || 0)},
         ${parseFloat(row.cpc || 0)}, ${parseFloat(row.cpm || 0)},
         ${parseInt(row.reach || 0)},
-        ${getAction(actions, "lead") + getAction(actions, "onsite_conversion.lead_grouped")},
+        ${parseFloat(row.frequency || 0)},
+        ${getLeads(actions)},
         ${getAction(actions, "onsite_conversion.messaging_conversation_started_7d")},
         ${getAction(actions, "link_click")},
         ${getAction(actions, "video_view")},
@@ -192,6 +209,7 @@ async function syncAdInsights(days) {
       ON CONFLICT (anuncio_id, data) DO UPDATE SET
         impressoes=EXCLUDED.impressoes, cliques=EXCLUDED.cliques, gasto=EXCLUDED.gasto,
         ctr=EXCLUDED.ctr, cpc=EXCLUDED.cpc, cpm=EXCLUDED.cpm, alcance=EXCLUDED.alcance,
+        frequencia=EXCLUDED.frequencia,
         leads=EXCLUDED.leads, conversas_iniciadas=EXCLUDED.conversas_iniciadas,
         link_clicks=EXCLUDED.link_clicks, video_views=EXCLUDED.video_views,
         video_p25=EXCLUDED.video_p25, video_p50=EXCLUDED.video_p50,

@@ -5,6 +5,7 @@ import { fmtMoney, fmtNum } from "@/lib/format";
 import DateFilter from "@/components/DateFilter";
 import KpiCard from "@/components/KpiCard";
 import LineChartCard from "@/components/charts/LineChartCard";
+import CampanhasAtivas from "@/components/CampanhasAtivas";
 import {
   DollarSign, Eye, MousePointerClick, MonitorSmartphone, Users,
   TrendingUp, Megaphone, Image,
@@ -242,6 +243,11 @@ export default function TrafegoPage() {
           </button>
         ))}
       </div>
+
+      {/* O quadro que se lê primeiro: uma linha por campanha, da mais barata
+          pra mais cara, com a janela recente ao lado. Vem antes dos KPIs
+          porque é onde a decisão é tomada — os agregados explicam depois. */}
+      <CampanhasAtivas since={since} until={until} />
 
       {/* Visao Geral */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
