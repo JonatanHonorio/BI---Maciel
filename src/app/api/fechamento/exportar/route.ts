@@ -65,31 +65,71 @@ export async function GET(req: NextRequest) {
       .map((r) => (r.percentual != null ? `${r.nome} (${pctTexto(Number(r.percentual))})` : r.nome))
       .join(", ");
 
+  const ehVenda = periodo.tipo === "venda";
+
+  /**
+   * Uma lista só descreve a coluna inteira — título, largura, formato e de
+   * onde sai o valor.
+   *
+   * Antes eram três arrays paralelos (cabeçalho, linha, larguras) e os índices
+   * de `numFmt` escritos na mão. Tirar uma coluna obrigava a contar posição em
+   * quatro lugares, e a conta errada não quebra nada: só desalinha a planilha.
+   */
+  interface Coluna {
+    titulo: string;
+    largura: number;
+    dinheiro?: boolean;
+    valor: (n: (typeof negocios)[number], i: number, status: string) => unknown;
+  }
+
+  const colunas: Coluna[] = [
+    { titulo: "QTDE", largura: 6, valor: (_n, i) => i + 1 },
+    { titulo: "Data Contrato", largura: 13, valor: (n) => n.data_contrato },
+    { titulo: "Unidade", largura: 14, valor: () => periodo.unidade },
+    { titulo: "Ref", largura: 10, valor: (n) => n.ref },
+    { titulo: "Contrato", largura: 10, valor: (n) => n.contrato },
+    { titulo: "Endereço", largura: 34, valor: (n) => n.endereco },
+    { titulo: "Levantamento", largura: 24, valor: (n) => nomesPapel(n.rateio, "levantamento") },
+    { titulo: "Fechamento", largura: 24, valor: (n) => nomesPapel(n.rateio, "fechamento") },
+    {
+      titulo: ehVenda ? "Valor da Venda" : "Valor", largura: 16, dinheiro: true,
+      valor: (n) => (n.valor ? Number(n.valor) : null),
+    },
+    // Comissão, Pagamento e Status Pagamento saem da locação (pedido do
+    // Jonatan em 22/09): locação não tem campo de comissão — o que a
+    // imobiliária recebe já é o próprio Valor — e a forma de pagamento é
+    // coisa de venda (Financiamento, FGTS, Consórcio).
+    ...(ehVenda
+      ? [{
+          titulo: "Comissão", largura: 14, dinheiro: true,
+          valor: (n: (typeof negocios)[number]) => (n.comissao ? Number(n.comissao) : null),
+        }]
+      : []),
+    { titulo: "Origem", largura: 14, valor: (n) => n.origem },
+    ...(ehVenda
+      ? [
+          { titulo: "Pagamento", largura: 14, valor: (n: (typeof negocios)[number]) => n.pagamento },
+          { titulo: "Status Pagamento", largura: 14, valor: (_n: (typeof negocios)[number], _i: number, status: string) => status },
+        ]
+      : []),
+  ];
+
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet(`${periodo.tipo === "venda" ? "Vendas" : "Locação"} - ${periodo.unidade}`);
-  ws.addRow([
-    "QTDE", "Data Contrato", "Unidade", "Ref", "Contrato", "Endereço",
-    "Levantamento", "Fechamento", periodo.tipo === "venda" ? "Valor da Venda" : "Valor",
-    "Comissão", "Origem", "Pagamento", "Status Pagamento",
-  ]);
+  const ws = wb.addWorksheet(`${ehVenda ? "Vendas" : "Locação"} - ${periodo.unidade}`);
+  ws.addRow(colunas.map((c) => c.titulo));
   ws.getRow(1).font = { bold: true };
   ws.views = [{ state: "frozen", ySplit: 1 }];
 
   negocios.forEach((n, i) => {
-    const pool = periodo.tipo === "venda" ? n.comissao : n.valor;
+    const pool = ehVenda ? n.comissao : n.valor;
     const { status } = calcularStatusPagamento(pool, n.rateio);
-    ws.addRow([
-      i + 1, n.data_contrato, periodo.unidade, n.ref, n.contrato, n.endereco,
-      nomesPapel(n.rateio, "levantamento"), nomesPapel(n.rateio, "fechamento"),
-      n.valor ? Number(n.valor) : null, n.comissao ? Number(n.comissao) : null,
-      n.origem, n.pagamento, labelStatus[status],
-    ]);
+    ws.addRow(colunas.map((c) => c.valor(n, i, labelStatus[status])));
   });
 
-  ws.getColumn(9).numFmt = "R$ #,##0.00";
-  ws.getColumn(10).numFmt = "R$ #,##0.00";
-  ws.columns.forEach((c, i) => {
-    c.width = [6, 13, 14, 10, 10, 34, 24, 24, 16, 14, 14, 14, 14][i];
+  colunas.forEach((c, i) => {
+    const col = ws.getColumn(i + 1);
+    col.width = c.largura;
+    if (c.dinheiro) col.numFmt = "R$ #,##0.00";
   });
 
   const buffer = await wb.xlsx.writeBuffer();
