@@ -54,8 +54,7 @@ export function normalizaLinhaRateio(
   if (!PAPEIS.includes(r.papel)) return null;
   // Rubrica (Diretoria) não tem pessoa: o destinatário é o próprio rótulo.
   // Não depende da chave de nome livre, que é temporária — rubrica é regra
-  // permanente do negócio. `brizola` continua aceito aqui só pra não perder
-  // a linha de um negócio gravado antes de 22/09/2026.
+  // permanente do negócio.
   if (_ehRubrica(r.papel)) {
     const rotulo = (r.nome_livre ?? "").trim();
     return rotulo ? { corretor_id: null, nome_livre: rotulo } : null;

@@ -22,13 +22,13 @@ export const PAPEIS_PESSOA = [
 /**
  * Destinação sem pessoa: o destinatário é o próprio rótulo.
  *
- * `brizola` está aqui só para LER o que já foi gravado — o botão saiu junto
- * com o de Lançamento em 22/09/2026, e quem participa de um negócio nessa
- * condição agora entra pelo nome, no bloco Lançamento. Não aparece em
- * `REGRAS`, então nenhuma tela o oferece.
+ * `brizola` existiu aqui como botão de 5% e saiu em 22/09/2026 junto com o de
+ * Lançamento — quem participa de um negócio nessa condição agora entra pelo
+ * nome, no bloco Lançamento. Saiu inteiro, e não como papel legado, porque o
+ * único negócio gravado com ele era o teste da Satélite, apagado no mesmo dia.
  */
 export const PAPEIS_RUBRICA = [
-  "diretoria_1", "diretoria_2", "diretoria_3", "brizola",
+  "diretoria_1", "diretoria_2", "diretoria_3",
 ] as const;
 export const PAPEIS_RATEIO = [...PAPEIS_PESSOA, ...PAPEIS_RUBRICA] as const;
 
@@ -59,7 +59,6 @@ export const ROTULO_PAPEL: Record<Papel, string> = {
   diretoria_1: "Diretoria 1",
   diretoria_2: "Diretoria 2",
   diretoria_3: "Diretoria 3",
-  brizola: "Brizola",
 };
 
 interface Rubrica {
