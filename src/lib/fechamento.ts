@@ -179,8 +179,12 @@ export interface NegocioDoMes {
 }
 
 /**
- * Negócios de uma competência com rateio e pagamentos, já escopados pelas
- * unidades/tipos que a pessoa pode ver.
+ * Negócios de uma FAIXA de competências, com rateio e pagamentos, já escopados
+ * pelas unidades/tipos que a pessoa pode ver.
+ *
+ * Faixa, e não mês único, porque a diretoria precisa perguntar coisas que
+ * atravessam meses: o que falta pagar no ano, quanto um corretor recebeu num
+ * período. `de` e `ate` são inclusivos e podem ser o mesmo mês.
  *
  * Fica aqui, e não solto em cada rota, porque a tela de Comissões e a
  * exportação em Excel precisam do MESMO resultado. Quando a consulta estava
@@ -191,7 +195,7 @@ export interface NegocioDoMes {
  * `unidades`/`tipos` nulos significam "todas" (admin).
  */
 export async function negociosDaCompetencia(
-  sql: SQL, competencia: string, unidades: string[] | null, tipos: string[] | null
+  sql: SQL, de: string, ate: string, unidades: string[] | null, tipos: string[] | null
 ): Promise<NegocioDoMes[]> {
   const todasUnidades = unidades === null;
   const todosTipos = tipos === null;
@@ -218,11 +222,11 @@ export async function negociosDaCompetencia(
       ) ORDER BY fp.data_pagamento) AS pagamentos
       FROM fechamento_pagamentos fp WHERE fp.negocio_corretor_id = rc.id
     ) pg ON true
-    WHERE p.competencia = ${competencia}
+    WHERE p.competencia BETWEEN ${de} AND ${ate}
       AND (${todasUnidades} OR p.unidade = ANY(${unidades ?? []}::text[]))
       AND (${todosTipos} OR p.tipo = ANY(${tipos ?? []}::text[]))
     GROUP BY n.id, p.unidade, p.tipo, p.competencia
-    ORDER BY p.unidade, p.tipo, n.id
+    ORDER BY p.competencia, p.unidade, p.tipo, n.id
   `) as NegocioDoMes[];
 }
 

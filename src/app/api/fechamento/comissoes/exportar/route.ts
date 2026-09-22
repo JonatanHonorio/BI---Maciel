@@ -12,7 +12,7 @@ const LABEL_STATUS = { pendente: "Pendente", parcial: "Parcial", pago: "Pago" } 
 const DINHEIRO = "R$ #,##0.00";
 
 /**
- * Excel do mês de comissões, em duas abas:
+ * Excel das comissões de uma faixa de competências, em duas abas:
  *
  *   Negócios        uma linha por rateio — quem recebe, de qual negócio,
  *                   quanto é devido e quanto já foi pago
@@ -35,8 +35,13 @@ export async function GET(req: NextRequest) {
   const tipos = tiposFechamento(session);
   if (unidades?.length === 0) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const competencia = req.nextUrl.searchParams.get("competencia") || competenciaAtual();
-  const negocios = await negociosDaCompetencia(getDb(), competencia, unidades, tipos);
+  // Faixa de competências. Sem parâmetro, o mês corrente — a tela abre no mês,
+  // e quem quiser o ano inteiro amplia. `ate` sozinho vale como `de`, e
+  // vice-versa, pra não devolver vazio quando só um lado vem preenchido.
+  const p = req.nextUrl.searchParams;
+  const de = p.get("de") || p.get("competencia") || competenciaAtual();
+  const ate = p.get("ate") || p.get("competencia") || de;
+  const negocios = await negociosDaCompetencia(getDb(), de, ate, unidades, tipos);
 
   const wb = new ExcelJS.Workbook();
 
@@ -98,10 +103,10 @@ export async function GET(req: NextRequest) {
   wd.columns.forEach((c, i) => { c.width = [28, 26, 10, 16, 16, 16][i]; });
 
   const buffer = await wb.xlsx.writeBuffer();
-  // Fatia a string em vez de `new Date(competencia)`: "2026-09-01" é lido como
+  // Fatia a string em vez de `new Date(...)`: "2026-09-01" é lido como
   // meia-noite UTC, que no fuso do Brasil é 31/08 às 21h — o arquivo de
   // setembro saía chamado "comissoes_2026-08.xlsx".
-  const comp = competencia.slice(0, 7);
+  const comp = de.slice(0, 7) === ate.slice(0, 7) ? de.slice(0, 7) : `${de.slice(0, 7)}_a_${ate.slice(0, 7)}`;
   return new NextResponse(Buffer.from(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

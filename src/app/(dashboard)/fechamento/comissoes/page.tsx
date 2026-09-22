@@ -15,7 +15,7 @@ type Rateio = {
 };
 type Negocio = {
   id: number; ref: string | null; endereco: string | null; valor: number | null; comissao: number | null;
-  unidade: string; tipo: "venda" | "locacao"; rateio: Rateio[];
+  unidade: string; tipo: "venda" | "locacao"; competencia: string; rateio: Rateio[];
   valor_devido_total: number; valor_pago_total: number; ficou_pra_imobiliaria: number;
   status_pagamento: StatusPagamento;
 };
@@ -51,7 +51,11 @@ function competenciaAtualISO() {
 
 /** Visão do financeiro: todos os negócios do mês, histórico de pagamento por destinatário do rateio. */
 export default function ComissoesPage() {
-  const [competencia, setCompetencia] = useState(competenciaAtualISO());
+  // Faixa de competências: a diretoria precisa olhar o ano inteiro ("o que
+  // falta pagar") e recortes ("quanto o corretor recebeu no semestre"). Abre
+  // no mês corrente, que é o uso do dia a dia da adm.
+  const [de, setDe] = useState(competenciaAtualISO());
+  const [ate, setAte] = useState(competenciaAtualISO());
   const [negocios, setNegocios] = useState<Negocio[]>([]);
   const [filtroStatus, setFiltroStatus] = useState<"todos" | StatusPagamento>("todos");
   const [filtroDestinatario, setFiltroDestinatario] = useState("todos");
@@ -76,7 +80,7 @@ export default function ComissoesPage() {
     setCarregando(true);
     setErro("");
     try {
-      const r = await fetch(`/api/fechamento/comissoes?competencia=${competencia}`);
+      const r = await fetch(`/api/fechamento/comissoes?de=${de}&ate=${ate}`);
       if (minhaBusca !== buscaAtual.current) return;
       if (r.status === 401 || r.status === 403) {
         setSemAcesso(true);
@@ -94,7 +98,7 @@ export default function ComissoesPage() {
     } finally {
       if (minhaBusca === buscaAtual.current) setCarregando(false);
     }
-  }, [competencia]);
+  }, [de, ate]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -147,15 +151,36 @@ export default function ComissoesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-bold text-gray-900">Controle de comissões</h2>
-        <div className="flex gap-2">
-          <input
-            type="month"
-            value={competencia.slice(0, 7)}
-            onChange={(e) => setCompetencia(`${e.target.value}-01`)}
-            className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm"
-          />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <label className="flex items-center gap-1.5 text-sm text-gray-500">
+            De
+            <input
+              type="month"
+              value={de.slice(0, 7)}
+              onChange={(e) => {
+                const novo = `${e.target.value}-01`;
+                setDe(novo);
+                // Início depois do fim devolve lista vazia sem explicar por quê.
+                if (novo > ate) setAte(novo);
+              }}
+              className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+            />
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-gray-500">
+            até
+            <input
+              type="month"
+              value={ate.slice(0, 7)}
+              onChange={(e) => {
+                const novo = `${e.target.value}-01`;
+                setAte(novo);
+                if (novo < de) setDe(novo);
+              }}
+              className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+            />
+          </label>
           <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value as typeof filtroStatus)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
             <option value="todos">Todos os status</option>
             <option value="pendente">Pendente</option>
@@ -183,7 +208,7 @@ export default function ComissoesPage() {
             Por destinatário
           </button>
           <a
-            href={`/api/fechamento/comissoes/exportar?competencia=${competencia}`}
+            href={`/api/fechamento/comissoes/exportar?de=${de}&ate=${ate}`}
             className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
           >
             Excel
@@ -256,6 +281,7 @@ export default function ComissoesPage() {
           <thead className="bg-gray-50">
             <tr className="text-left text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
               <th className="px-3 py-2.5"></th>
+              <th className="px-3 py-2.5">Competência</th>
               <th className="px-3 py-2.5">Unidade</th>
               <th className="px-3 py-2.5">Tipo</th>
               <th className="px-3 py-2.5">Ref</th>
@@ -268,9 +294,9 @@ export default function ComissoesPage() {
           </thead>
           <tbody>
             {carregando ? (
-              <tr><td colSpan={9} className="px-3 py-8 text-center text-xs text-gray-400">Carregando...</td></tr>
+              <tr><td colSpan={10} className="px-3 py-8 text-center text-xs text-gray-400">Carregando...</td></tr>
             ) : filtrados.length === 0 ? (
-              <tr><td colSpan={9} className="px-3 py-8 text-center text-xs text-gray-400">Nenhum negócio neste mês.</td></tr>
+              <tr><td colSpan={10} className="px-3 py-8 text-center text-xs text-gray-400">Nenhum negócio no período.</td></tr>
             ) : (
               filtrados.map((n, i) => {
                 const aberto = expandido === n.id;
@@ -282,6 +308,7 @@ export default function ComissoesPage() {
                       className={`cursor-pointer ${i % 2 === 1 ? "bg-gray-50/50" : ""} hover:bg-blue-50/40`}
                     >
                       <td className="px-3 py-2 text-gray-400">{aberto ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</td>
+                      <td className="px-3 py-2 tabular-nums text-gray-500">{n.competencia.slice(0, 7).split("-").reverse().join("/")}</td>
                       <td className="px-3 py-2">{n.unidade}</td>
                       <td className="px-3 py-2">{n.tipo === "venda" ? "Vendas" : "Locação"}</td>
                       <td className="px-3 py-2">{n.ref || "—"}</td>
@@ -297,7 +324,7 @@ export default function ComissoesPage() {
                     {aberto && (
                       <tr className="bg-gray-50/70">
                         <td></td>
-                        <td colSpan={8} className="space-y-3 px-3 py-3">
+                        <td colSpan={9} className="space-y-3 px-3 py-3">
                           {n.rateio.length === 0 ? (
                             <p className="text-xs text-gray-400">Nenhum destinatário de rateio neste negócio.</p>
                           ) : (

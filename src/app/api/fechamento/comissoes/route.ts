@@ -21,12 +21,15 @@ export async function GET(req: NextRequest) {
   const tipos = tiposFechamento(session);
   if (unidades?.length === 0) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const competencia = req.nextUrl.searchParams.get("competencia") || competenciaAtual();
+  // Faixa de competências. Sem parâmetro, o mês corrente — a tela abre no mês,
+  // e quem quiser o ano inteiro amplia. `ate` sozinho vale como `de`, e
+  // vice-versa, pra não devolver vazio quando só um lado vem preenchido.
+  const p = req.nextUrl.searchParams;
+  const de = p.get("de") || p.get("competencia") || competenciaAtual();
+  const ate = p.get("ate") || p.get("competencia") || de;
   const sql = getDb();
 
-  const negocios = await negociosDaCompetencia(
-    sql, competencia, unidades, tipos
-  );
+  const negocios = await negociosDaCompetencia(sql, de, ate, unidades, tipos);
 
   const comNegociosComputados = negocios.map((n) => {
     const pool = n.tipo === "venda" ? n.comissao : n.valor;
@@ -86,6 +89,6 @@ export async function GET(req: NextRequest) {
   };
 
   return NextResponse.json({
-    competencia, negocios: comNegociosComputados, destinatarios, totais,
+    de, ate, negocios: comNegociosComputados, destinatarios, totais,
   });
 }
