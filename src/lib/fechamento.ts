@@ -162,6 +162,21 @@ export async function gerenteDaUnidade(
   return row?.id ? { id: Number(row.id), nome: row.nome || `corretor ${row.id}` } : null;
 }
 
+/**
+ * Cruza a unidade PEDIDA no filtro com as que a pessoa PODE ver.
+ *
+ * Nunca amplia: a gerente administrativa que mandar `unidade=Aquarius` na URL
+ * recebe lista vazia, não o fechamento da Aquarius. `permitidas` nulo é o
+ * admin, que vê todas — aí o filtro vale sozinho.
+ */
+export function escopoUnidade(
+  permitidas: string[] | null, pedida: string | null
+): string[] | null {
+  if (!pedida) return permitidas;
+  if (permitidas === null) return [pedida];
+  return permitidas.includes(pedida) ? [pedida] : [];
+}
+
 export interface RateioDoMes {
   id: number;
   corretor_id: number | null;

@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import {
-  competenciaAtual, calcularStatusPagamento, negociosDaCompetencia,
+  competenciaAtual, calcularStatusPagamento, negociosDaCompetencia, escopoUnidade,
 } from "@/lib/fechamento";
 import { ROTULO_PAPEL, type Papel } from "@/lib/comissao";
 import { podeLancarComissao, unidadesFechamento, tiposFechamento } from "@/lib/permissoes";
@@ -41,7 +41,12 @@ export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
   const de = p.get("de") || p.get("competencia") || competenciaAtual();
   const ate = p.get("ate") || p.get("competencia") || de;
-  const negocios = await negociosDaCompetencia(getDb(), de, ate, unidades, tipos);
+  // Mesmo filtro de unidade da tela — o Excel não pode trazer linha que a
+  // tela não mostrou.
+  const unidadeFiltro = p.get("unidade");
+  const negocios = await negociosDaCompetencia(
+    getDb(), de, ate, escopoUnidade(unidades, unidadeFiltro), tipos
+  );
 
   const wb = new ExcelJS.Workbook();
 
@@ -107,10 +112,15 @@ export async function GET(req: NextRequest) {
   // meia-noite UTC, que no fuso do Brasil é 31/08 às 21h — o arquivo de
   // setembro saía chamado "comissoes_2026-08.xlsx".
   const comp = de.slice(0, 7) === ate.slice(0, 7) ? de.slice(0, 7) : `${de.slice(0, 7)}_a_${ate.slice(0, 7)}`;
+  // Sem a unidade no nome, dois arquivos de unidades diferentes do mesmo mês
+  // se sobrescrevem na pasta de downloads. Acento e espaço saem fora.
+  const sufixo = unidadeFiltro
+    ? "_" + unidadeFiltro.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "-")
+    : "";
   return new NextResponse(Buffer.from(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="comissoes_${comp}.xlsx"`,
+      "Content-Disposition": `attachment; filename="comissoes_${comp}${sufixo}.xlsx"`,
     },
   });
 }

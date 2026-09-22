@@ -57,6 +57,12 @@ export default function ComissoesPage() {
   const [de, setDe] = useState(competenciaAtualISO());
   const [ate, setAte] = useState(competenciaAtualISO());
   const [negocios, setNegocios] = useState<Negocio[]>([]);
+  // Unidade é filtrada no SERVIDOR, e não aqui como status e destinatário:
+  // o resumo "Por destinatário" e o Excel vêm prontos da API, e filtrar só na
+  // tela deixaria os dois mostrando a empresa inteira enquanto a tabela mostra
+  // uma unidade. É justamente o total por pessoa que a adm usa pra pagar.
+  const [filtroUnidade, setFiltroUnidade] = useState("");
+  const [unidades, setUnidades] = useState<string[]>([]);
   const [filtroStatus, setFiltroStatus] = useState<"todos" | StatusPagamento>("todos");
   const [filtroDestinatario, setFiltroDestinatario] = useState("todos");
   const [destinatarios, setDestinatarios] = useState<Destinatario[]>([]);
@@ -80,7 +86,10 @@ export default function ComissoesPage() {
     setCarregando(true);
     setErro("");
     try {
-      const r = await fetch(`/api/fechamento/comissoes?de=${de}&ate=${ate}`);
+      const r = await fetch(
+        `/api/fechamento/comissoes?de=${de}&ate=${ate}` +
+        (filtroUnidade ? `&unidade=${encodeURIComponent(filtroUnidade)}` : "")
+      );
       if (minhaBusca !== buscaAtual.current) return;
       if (r.status === 401 || r.status === 403) {
         setSemAcesso(true);
@@ -92,13 +101,14 @@ export default function ComissoesPage() {
       setSemAcesso(false);
       setNegocios(j.negocios ?? []);
       setDestinatarios(j.destinatarios ?? []);
+      setUnidades(j.unidades_disponiveis ?? []);
     } catch {
       if (minhaBusca !== buscaAtual.current) return;
       setErro("Não foi possível carregar as comissões. Tente de novo.");
     } finally {
       if (minhaBusca === buscaAtual.current) setCarregando(false);
     }
-  }, [de, ate]);
+  }, [de, ate, filtroUnidade]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -181,6 +191,23 @@ export default function ComissoesPage() {
               className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
             />
           </label>
+          {/* Escondido pra quem só tem uma unidade: um seletor com uma opção
+              só não filtra nada e ainda sugere que existe outra coisa pra ver. */}
+          {unidades.length > 1 && (
+            <select
+              value={filtroUnidade}
+              onChange={(e) => {
+                setFiltroUnidade(e.target.value);
+                // Sem isto, um destinatário escolhido antes que não atue na
+                // unidade nova deixa a tela vazia sem dizer por quê.
+                setFiltroDestinatario("todos");
+              }}
+              className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm"
+            >
+              <option value="">Todas as unidades</option>
+              {unidades.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+          )}
           <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value as typeof filtroStatus)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
             <option value="todos">Todos os status</option>
             <option value="pendente">Pendente</option>
@@ -208,7 +235,10 @@ export default function ComissoesPage() {
             Por destinatário
           </button>
           <a
-            href={`/api/fechamento/comissoes/exportar?de=${de}&ate=${ate}`}
+            href={
+              `/api/fechamento/comissoes/exportar?de=${de}&ate=${ate}` +
+              (filtroUnidade ? `&unidade=${encodeURIComponent(filtroUnidade)}` : "")
+            }
             className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
           >
             Excel
