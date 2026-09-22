@@ -13,9 +13,11 @@ type Rateio = {
   id: number; corretor_id: number | null; nome: string; papel: Papel; percentual: number | null;
   pagamentos: Pagamento[]; valorDevido: number | null; valorPago: number;
 };
+type Recebimento = { id: number; valor: number; data_recebimento: string; observacao: string | null };
 type Negocio = {
   id: number; ref: string | null; endereco: string | null; valor: number | null; comissao: number | null;
   unidade: string; tipo: "venda" | "locacao"; competencia: string; rateio: Rateio[];
+  recebimentos: Recebimento[];
   valor_devido_total: number; valor_pago_total: number; ficou_pra_imobiliaria: number;
   status_pagamento: StatusPagamento;
 };
@@ -72,6 +74,12 @@ export default function ComissoesPage() {
   const [erro, setErro] = useState("");
   const [expandido, setExpandido] = useState<number | null>(null);
   const [novoPagamento, setNovoPagamento] = useState<Record<number, { valor: string; data: string }>>({});
+  // Recebimento é por NEGÓCIO: a imobiliária recebe uma parcela da comissão e
+  // o sistema reparte entre os destinatários. Pedido da Tatiane em 22/09 —
+  // antes ela multiplicava cada parcela por 3%, 1%, 30%... e lançava seis
+  // baixas à mão, por parcela e por negócio.
+  const [novoRecebimento, setNovoRecebimento] = useState<Record<number, { valor: string; data: string }>>({});
+  const [detalhado, setDetalhado] = useState<Record<number, boolean>>({});
 
   // Trocar de mês rápido dispara buscas simultâneas, e elas não voltam
   // necessariamente na ordem em que saíram — sem isso uma resposta antiga
@@ -135,6 +143,38 @@ export default function ComissoesPage() {
       carregar();
     } catch {
       setErro("Não foi possível registrar o pagamento. Tente de novo.");
+    }
+  }
+
+  async function registrarRecebimento(negocioId: number) {
+    const form = novoRecebimento[negocioId];
+    if (!form?.valor || !form?.data) {
+      setErro("Informe o valor recebido e a data.");
+      return;
+    }
+    setErro("");
+    try {
+      const r = await fetch("/api/fechamento/recebimentos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ negocio_id: negocioId, valor: Number(form.valor), data_recebimento: form.data }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.error);
+      setNovoRecebimento((s) => ({ ...s, [negocioId]: { valor: "", data: "" } }));
+      carregar();
+    } catch (e) {
+      setErro(e instanceof Error && e.message ? e.message : "Não foi possível registrar o recebimento.");
+    }
+  }
+
+  async function excluirRecebimento(id: number) {
+    setErro("");
+    try {
+      const r = await fetch(`/api/fechamento/recebimentos/${id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error();
+      carregar();
+    } catch {
+      setErro("Não foi possível desfazer o recebimento. Tente de novo.");
     }
   }
 
@@ -355,7 +395,93 @@ export default function ComissoesPage() {
                       <tr className="bg-gray-50/70">
                         <td></td>
                         <td colSpan={9} className="space-y-3 px-3 py-3">
-                          {n.rateio.length === 0 ? (
+                          {/* Recebimento da parcela: um valor e uma data, e o
+                              sistema reparte pelo percentual de cada um. É o
+                              caminho normal — a baixa pessoa a pessoa embaixo
+                              fica pra corrigir centavo ou adiantar a um só. */}
+                          {(() => {
+                            const pool = Number((n.tipo === "venda" ? n.comissao : n.valor) ?? 0);
+                            const recebido = n.recebimentos.reduce((s, r) => s + Number(r.valor), 0);
+                            const falta = pool - recebido;
+                            const form = novoRecebimento[n.id] ?? { valor: "", data: "" };
+                            // Quanto desta parcela vai pra fora e quanto fica.
+                            const pctRateio = n.rateio.reduce((s, r) => s + (r.percentual ?? 0), 0);
+                            const previsto = Number(form.valor) > 0 ? Number(form.valor) : 0;
+                            return (
+                              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                  <span className="font-medium text-gray-800">Recebimento da comissão</span>
+                                  <span className="text-gray-600">
+                                    Comissão <strong>{fmtMoney(pool)}</strong>
+                                    {" · "}recebido <strong className="text-emerald-700">{fmtMoney(recebido)}</strong>
+                                    {" · "}falta <strong className={falta > 0.009 ? "text-amber-700" : "text-emerald-700"}>{fmtMoney(Math.max(falta, 0))}</strong>
+                                  </span>
+                                </div>
+
+                                {n.recebimentos.length > 0 && (
+                                  <ul className="mt-2 space-y-1">
+                                    {n.recebimentos.map((r) => (
+                                      <li key={r.id} className="flex items-center justify-between text-xs text-gray-600">
+                                        <span>{fmtDataISO(r.data_recebimento)} — {fmtMoney(Number(r.valor))}</span>
+                                        <button onClick={() => excluirRecebimento(r.id)} className="text-gray-300 hover:text-red-600" title="Desfazer esta parcela e as baixas que ela gerou">
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+
+                                {falta > 0.009 && (
+                                  <>
+                                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                      <input
+                                        type="number" step="0.01" placeholder="Valor recebido"
+                                        value={form.valor}
+                                        onChange={(e) => setNovoRecebimento((s) => ({ ...s, [n.id]: { ...form, valor: e.target.value } }))}
+                                        className="w-36 rounded-md border border-gray-200 px-2 py-1 text-xs"
+                                      />
+                                      <input
+                                        type="date"
+                                        value={form.data}
+                                        onChange={(e) => setNovoRecebimento((s) => ({ ...s, [n.id]: { ...form, data: e.target.value } }))}
+                                        className="rounded-md border border-gray-200 px-2 py-1 text-xs"
+                                      />
+                                      <button
+                                        onClick={() => registrarRecebimento(n.id)}
+                                        className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                                      >
+                                        Registrar recebimento
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setNovoRecebimento((s) => ({ ...s, [n.id]: { ...form, valor: String(Number(falta.toFixed(2))) } }))}
+                                        className="text-xs text-blue-600 hover:underline"
+                                      >
+                                        recebi tudo
+                                      </button>
+                                    </div>
+                                    {previsto > 0 && (
+                                      <p className="mt-1.5 text-[11px] text-gray-600">
+                                        Distribui <strong>{fmtMoney(previsto * pctRateio)}</strong> entre{" "}
+                                        {n.rateio.length} destinatário{n.rateio.length > 1 ? "s" : ""} ·{" "}
+                                        <strong>{fmtMoney(previsto * (1 - pctRateio))}</strong> fica com a imobiliária
+                                      </p>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          <button
+                            type="button"
+                            onClick={() => setDetalhado((d) => ({ ...d, [n.id]: !d[n.id] }))}
+                            className="text-xs text-gray-500 hover:text-gray-700 hover:underline"
+                          >
+                            {detalhado[n.id] ? "ocultar" : "ver"} baixa por destinatário
+                          </button>
+
+                          {!detalhado[n.id] ? null : n.rateio.length === 0 ? (
                             <p className="text-xs text-gray-400">Nenhum destinatário de rateio neste negócio.</p>
                           ) : (
                             n.rateio.map((r) => {

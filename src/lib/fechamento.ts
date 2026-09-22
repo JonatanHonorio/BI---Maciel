@@ -186,11 +186,17 @@ export interface RateioDoMes {
   pagamentos: { id: number; valor: number; data_pagamento: string; observacao: string | null }[];
 }
 
+/** Uma parcela da comissão que a imobiliária recebeu. */
+export interface RecebimentoDoNegocio {
+  id: number; valor: number; data_recebimento: string; observacao: string | null;
+}
+
 export interface NegocioDoMes {
   id: number; ref: string | null; endereco: string | null;
   valor: number | null; comissao: number | null;
   unidade: string; tipo: "venda" | "locacao"; competencia: string;
   rateio: RateioDoMes[];
+  recebimentos: RecebimentoDoNegocio[];
 }
 
 /**
@@ -226,7 +232,18 @@ export async function negociosDaCompetencia(
             'pagamentos', COALESCE(pg.pagamentos, '[]'::json)
           ) ORDER BY rc.papel, rc.id
         ) FILTER (WHERE rc.id IS NOT NULL), '[]'
-      ) AS rateio
+      ) AS rateio,
+      -- Subconsulta escalar, e não LATERAL: o tipo json não tem operador de
+      -- igualdade, então uma coluna json vinda de LATERAL não pode entrar no
+      -- GROUP BY. O Postgres responde "could not identify an equality
+      -- operator for type json" e a tela inteira fica sem carregar.
+      COALESCE((
+        SELECT json_agg(json_build_object(
+          'id', fr.id, 'valor', fr.valor,
+          'data_recebimento', fr.data_recebimento, 'observacao', fr.observacao
+        ) ORDER BY fr.data_recebimento, fr.id)
+        FROM fechamento_recebimentos fr WHERE fr.negocio_id = n.id
+      ), '[]'::json) AS recebimentos
     FROM fechamento_negocios n
     JOIN fechamento_periodos p ON p.id = n.periodo_id
     LEFT JOIN fechamento_negocio_corretores rc ON rc.negocio_id = n.id
