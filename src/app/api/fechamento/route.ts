@@ -5,11 +5,20 @@ import { competenciaAtual, UNIDADES_FECHAMENTO, gerenteDaUnidade } from "@/lib/f
 import { unidadesFechamento, tiposFechamento, podeAcessarPeriodo, podeReabrir, podeLancarComissao } from "@/lib/permissoes";
 import type { Tipo } from "@/lib/unidade";
 
+/** Valor do seletor que pede o mês inteiro, sem separar por unidade. */
+const TODAS_AS_UNIDADES = "__todas";
+
 /**
  * Período do mês pedido. Quem tem UMA opção só é resolvido aqui no servidor
  * (o gerente é preso na unidade+vertical dele; a gerente administrativa, na
  * unidade dela); quem tem mais de uma escolhe por query param, e a escolha é
  * validada contra o que ela pode. Admin escolhe qualquer uma.
+ *
+ * `unidade=__todas` devolve o mês inteiro numa lista só, sem período: é uma
+ * LEITURA consolidada, pra diretoria conferir tudo de uma vez. Não dá pra
+ * lançar nem enviar dali, porque período é sempre de uma unidade + vertical —
+ * e por isso o consolidado também não faz o upsert de período abaixo, que
+ * criaria período vazio em toda unidade a cada visita à tela.
  */
 export async function GET(req: NextRequest) {
   const session = getSession(req);
@@ -26,6 +35,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "competência inválida" }, { status: 400 });
   }
 
+  // Só faz sentido pra quem tem mais de uma unidade — e nunca amplia o que a
+  // pessoa já podia ver: `unidadesOk` continua sendo o escopo.
+  const querTodas = unidade === TODAS_AS_UNIDADES && (unidadesOk === null || unidadesOk.length > 1);
+
   const sessaoInfo = { role: session.role, unidade: session.unidade, tipo: session.tipo, nome: session.nome };
   const permissoes = {
     unidades: unidadesOk ?? [...UNIDADES_FECHAMENTO],
@@ -34,6 +47,47 @@ export async function GET(req: NextRequest) {
     podeReabrir: podeReabrir(session),
     podeComissoes: podeLancarComissao(session),
   };
+
+  if (querTodas && tipo) {
+    const sqlTodas = getDb();
+    const todasPermitidas = unidadesOk === null;
+    const negociosTodos = await sqlTodas`
+      SELECT n.id, n.data_contrato, n.ref, n.contrato, n.endereco, n.origem,
+        n.valor, n.comissao, n.pagamento, n.observacao,
+        n.comissao_paga, n.comissao_paga_em, p.unidade, p.status AS periodo_status,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'corretor_id', rc.corretor_id, 'nome', COALESCE(NULLIF(TRIM(cor.nome_comercial), ''), NULLIF(TRIM(cor.nome), ''), rc.nome_livre),
+              'papel', rc.papel, 'percentual', rc.percentual
+            )
+          ) FILTER (WHERE rc.id IS NOT NULL), '[]'
+        ) AS rateio
+      FROM fechamento_negocios n
+      JOIN fechamento_periodos p ON p.id = n.periodo_id
+      LEFT JOIN fechamento_negocio_corretores rc ON rc.negocio_id = n.id
+      LEFT JOIN corretores cor ON cor.id = rc.corretor_id
+      WHERE p.competencia = ${competencia} AND p.tipo = ${tipo}
+        AND (${todasPermitidas} OR p.unidade = ANY(${unidadesOk ?? []}::text[]))
+      GROUP BY n.id, p.unidade, p.status
+      ORDER BY p.unidade, n.id
+    `;
+    // Quais unidades já fecharam o mês — é a primeira coisa que se pergunta
+    // olhando o consolidado, e sem isso um total baixo parece erro quando na
+    // verdade é unidade que ainda não lançou.
+    const periodos = await sqlTodas`
+      SELECT unidade, status FROM fechamento_periodos
+      WHERE competencia = ${competencia} AND tipo = ${tipo}
+        AND (${todasPermitidas} OR unidade = ANY(${unidadesOk ?? []}::text[]))
+      ORDER BY unidade
+    `;
+    return NextResponse.json({
+      session: sessaoInfo, permissoes, unidades: permissoes.unidades,
+      periodo: null, gerente: null,
+      consolidado: { competencia, tipo, periodos },
+      negocios: negociosTodos,
+    });
+  }
 
   // Ainda falta escolher: devolve as opções, sem abrir período (não sabe qual).
   if (!unidade || !tipo) {

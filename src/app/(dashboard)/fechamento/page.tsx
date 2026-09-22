@@ -12,8 +12,15 @@ type Negocio = {
   id: number; data_contrato: string | null; ref: string | null; contrato: string | null;
   endereco: string | null; origem: string | null; valor: number | null; comissao: number | null;
   pagamento: string | null; observacao: string | null; comissao_paga: boolean; rateio: Rateio[];
+  /** Só vem no consolidado, onde a lista mistura unidades. */
+  unidade?: string;
 };
 type Periodo = { id: number; competencia: string; unidade: string; tipo: "venda" | "locacao"; status: "aberto" | "enviado" };
+/** Leitura do mês inteiro, sem separar por unidade — não tem período pra lançar/enviar. */
+type Consolidado = {
+  competencia: string; tipo: "venda" | "locacao";
+  periodos: { unidade: string; status: "aberto" | "enviado" }[];
+};
 type Permissoes = {
   unidades: string[];
   escolheUnidade: boolean;
@@ -26,10 +33,14 @@ type Resposta = {
   permissoes: Permissoes;
   unidades: readonly string[];
   periodo: Periodo | null;
+  consolidado?: Consolidado | null;
   /** Gerente da unidade/vertical — o formulário usa pra preencher a Gerência. */
   gerente: { id: number; nome: string } | null;
   negocios: Negocio[];
 };
+
+/** Valor do seletor que pede o mês inteiro. Combina com a API. */
+const TODAS_AS_UNIDADES = "__todas";
 
 const nomesPapel = (rateio: Rateio[], papel: string) =>
   rateio.filter((r) => r.papel === papel).map((r) => r.nome).join(", ") || "—";
@@ -38,6 +49,24 @@ const nomesPapel = (rateio: Rateio[], papel: string) =>
 const fmtDataISO = (s: string) => {
   const [y, m, d] = s.slice(0, 10).split("-");
   return `${d}/${m}/${y}`;
+};
+
+const MESES = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
+
+/**
+ * "2025-12-01" -> "dezembro de 2025".
+ *
+ * Pela mesma razão de `fmtDataISO`, e não é detalhe: a competência é sempre
+ * dia 1, que `new Date()` lê como meia-noite UTC — 21h do dia anterior no
+ * Brasil. O cabeçalho anunciava NOVEMBRO enquanto o seletor mostrava dezembro
+ * e a tela listava os negócios de dezembro.
+ */
+const mesAno = (iso: string) => {
+  const [y, m] = iso.slice(0, 10).split("-");
+  return `${MESES[Number(m) - 1]} de ${y}`;
 };
 
 // Duplicada (não importa de @/lib/fechamento): esse arquivo puxa unidade.ts,
@@ -162,6 +191,7 @@ export default function FechamentoPage() {
 
   const permissoes = dados.permissoes;
   const periodo = dados.periodo;
+  const consolidado = dados.consolidado ?? null;
   const travado = periodo?.status === "enviado";
   const totalValor = dados.negocios.reduce((s, n) => s + (n.valor ? Number(n.valor) : 0), 0);
   const totalComissao = dados.negocios.reduce((s, n) => s + (n.comissao ? Number(n.comissao) : 0), 0);
@@ -174,11 +204,18 @@ export default function FechamentoPage() {
           {periodo && (
             <p className="text-sm text-gray-500">
               {periodo.unidade} · {periodo.tipo === "venda" ? "Vendas" : "Locação"} ·{" "}
-              {new Date(periodo.competencia).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+              {mesAno(periodo.competencia)}
               {" — "}
               <span className={travado ? "font-medium text-amber-600" : "font-medium text-emerald-600"}>
                 {travado ? "Enviado" : "Em aberto"}
               </span>
+            </p>
+          )}
+          {consolidado && (
+            <p className="text-sm text-gray-500">
+              Todas as unidades · {consolidado.tipo === "venda" ? "Vendas" : "Locação"} ·{" "}
+              {mesAno(consolidado.competencia)}
+              {" — "}<span className="font-medium text-gray-600">somente leitura</span>
             </p>
           )}
         </div>
@@ -193,6 +230,7 @@ export default function FechamentoPage() {
           {permissoes.escolheUnidade && (
             <select value={unidadeSel} onChange={(e) => setUnidadeSel(e.target.value)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
               <option value="">Unidade...</option>
+              <option value={TODAS_AS_UNIDADES}>Todas as unidades</option>
               {dados.unidades.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
           )}
@@ -213,12 +251,75 @@ export default function FechamentoPage() {
         </div>
       )}
 
-      {!periodo && (permissoes.escolheUnidade || permissoes.escolheTipo) && (
+      {!periodo && !consolidado && (permissoes.escolheUnidade || permissoes.escolheTipo) && (
         <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">
           {permissoes.escolheUnidade
             ? "Escolha unidade e tipo acima pra abrir o fechamento do mês."
             : "Escolha o tipo (Vendas ou Locação) acima pra abrir o fechamento do mês."}
         </div>
+      )}
+
+      {consolidado && (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4">
+            <div className="flex gap-6 text-sm">
+              <span><span className="text-gray-500">Negócios: </span><span className="font-semibold">{dados.negocios.length}</span></span>
+              <span><span className="text-gray-500">Total: </span><span className="font-semibold">{fmtMoney(totalValor)}</span></span>
+              {consolidado.tipo === "venda" && (
+                <span><span className="text-gray-500">Comissão: </span><span className="font-semibold">{fmtMoney(totalComissao)}</span></span>
+              )}
+            </div>
+            {/* Quais unidades já fecharam. Sem isso, um total baixo parece erro
+                quando na verdade é unidade que ainda não lançou. */}
+            <div className="flex flex-wrap gap-1.5">
+              {consolidado.periodos.length === 0 && (
+                <span className="text-xs text-gray-400">Nenhuma unidade abriu este mês ainda.</span>
+              )}
+              {consolidado.periodos.map((p) => (
+                <span
+                  key={p.unidade}
+                  className={
+                    "rounded-full px-2 py-0.5 text-xs " +
+                    (p.status === "enviado" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700")
+                  }
+                  title={p.status === "enviado" ? "Fechamento enviado" : "Ainda em aberto"}
+                >
+                  {p.unidade}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <DataTable
+              searchable
+              columns={[
+                { key: "data_contrato", label: "Data", format: (v) => (v ? fmtDataISO(v as string) : "—") },
+                { key: "unidade", label: "Unidade" },
+                { key: "ref", label: "Ref" },
+                { key: "endereco", label: "Endereço" },
+                { key: "levantamento", label: "Levantamento" },
+                { key: "fechamento", label: "Fechamento" },
+                { key: "valor", label: "Valor", align: "right", format: (v) => (v ? fmtMoney(v as number) : "—") },
+                ...(consolidado.tipo === "venda"
+                  ? [{ key: "comissao", label: "Comissão", align: "right" as const, format: (v: unknown) => (v ? fmtMoney(v as number) : "—") }]
+                  : []),
+                { key: "origem", label: "Origem" },
+              ]}
+              data={dados.negocios.map((n) => ({
+                ...n,
+                levantamento: nomesPapel(n.rateio, "levantamento"),
+                fechamento: nomesPapel(n.rateio, "fechamento"),
+              }))}
+            />
+            {/* Sem Adicionar/Enviar/Excel de propósito: as três são do PERÍODO,
+                que é sempre de uma unidade + vertical. Pra mexer, escolhe a
+                unidade no seletor. */}
+            <p className="mt-3 border-t border-gray-100 pt-3 text-xs text-gray-400">
+              Para lançar, enviar ou exportar, escolha uma unidade no seletor acima.
+            </p>
+          </div>
+        </>
       )}
 
       {periodo && (
