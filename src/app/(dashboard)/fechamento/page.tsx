@@ -12,14 +12,15 @@ type Negocio = {
   id: number; data_contrato: string | null; ref: string | null; contrato: string | null;
   endereco: string | null; origem: string | null; valor: number | null; comissao: number | null;
   pagamento: string | null; observacao: string | null; comissao_paga: boolean; rateio: Rateio[];
-  /** Só vem no consolidado, onde a lista mistura unidades. */
+  /** Só vêm no consolidado, onde a lista mistura unidades e meses. */
   unidade?: string;
+  competencia?: string;
 };
 type Periodo = { id: number; competencia: string; unidade: string; tipo: "venda" | "locacao"; status: "aberto" | "enviado" };
-/** Leitura do mês inteiro, sem separar por unidade — não tem período pra lançar/enviar. */
+/** Leitura sem período: mais de uma unidade, mais de um mês, ou os dois. */
 type Consolidado = {
-  competencia: string; tipo: "venda" | "locacao";
-  periodos: { unidade: string; status: "aberto" | "enviado" }[];
+  de: string; ate: string; tipo: "venda" | "locacao"; unidade: string | null;
+  periodos: { competencia: string; unidade: string; status: "aberto" | "enviado" }[];
 };
 type Permissoes = {
   unidades: string[];
@@ -50,6 +51,18 @@ const fmtDataISO = (s: string) => {
   const [y, m, d] = s.slice(0, 10).split("-");
   return `${d}/${m}/${y}`;
 };
+
+/** Agrupa os períodos por mês, pra faixa longa não virar 80 etiquetas. */
+function resumoPorMes(periodos: Consolidado["periodos"]) {
+  const por = new Map<string, { competencia: string; unidades: number; enviadas: number }>();
+  for (const p of periodos) {
+    const atual = por.get(p.competencia) ?? { competencia: p.competencia, unidades: 0, enviadas: 0 };
+    atual.unidades += 1;
+    if (p.status === "enviado") atual.enviadas += 1;
+    por.set(p.competencia, atual);
+  }
+  return [...por.values()].sort((a, b) => a.competencia.localeCompare(b.competencia));
+}
 
 const MESES = [
   "janeiro", "fevereiro", "março", "abril", "maio", "junho",
@@ -82,7 +95,11 @@ export default function FechamentoPage() {
   const [mostrarForm, setMostrarForm] = useState(false);
   const [unidadeSel, setUnidadeSel] = useState("");
   const [tipoSel, setTipoSel] = useState<"venda" | "locacao" | "">("");
-  const [competencia, setCompetencia] = useState(competenciaAtualISO());
+  // Faixa de competências, igual à tela de Comissões. Abre no mês corrente,
+  // que é o uso do dia a dia; faixa de mais de um mês vira leitura, porque um
+  // período é sempre de um mês só.
+  const [de, setDe] = useState(competenciaAtualISO());
+  const [ate, setAte] = useState(competenciaAtualISO());
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [confirmarEnvio, setConfirmarEnvio] = useState(false);
@@ -104,7 +121,7 @@ export default function FechamentoPage() {
     setCarregando(true);
     setErro("");
     const permissoes = dados?.permissoes;
-    const params = new URLSearchParams({ competencia });
+    const params = new URLSearchParams({ de, ate });
     if (permissoes?.escolheUnidade && unidadeSel) params.set("unidade", unidadeSel);
     if (permissoes?.escolheTipo && tipoSel) params.set("tipo", tipoSel);
     try {
@@ -120,11 +137,11 @@ export default function FechamentoPage() {
     } finally {
       if (minhaBusca === buscaAtual.current) setCarregando(false);
     }
-  }, [dados?.permissoes, unidadeSel, tipoSel, competencia]);
+  }, [dados?.permissoes, unidadeSel, tipoSel, de, ate]);
 
   // Um efeito só: a adm de unidade única não tem seletor de unidade, então
   // esperar por unidadeSel deixaria a tela sem recarregar ao trocar a vertical.
-  useEffect(() => { carregar(); }, [competencia, unidadeSel, tipoSel]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { carregar(); }, [de, ate, unidadeSel, tipoSel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lista de corretores é a mesma pra todo mundo — busca uma vez.
   useEffect(() => {
@@ -213,20 +230,46 @@ export default function FechamentoPage() {
           )}
           {consolidado && (
             <p className="text-sm text-gray-500">
-              Todas as unidades · {consolidado.tipo === "venda" ? "Vendas" : "Locação"} ·{" "}
-              {mesAno(consolidado.competencia)}
+              {consolidado.unidade && consolidado.unidade !== TODAS_AS_UNIDADES
+                ? consolidado.unidade
+                : "Todas as unidades"}{" "}
+              · {consolidado.tipo === "venda" ? "Vendas" : "Locação"} ·{" "}
+              {consolidado.de === consolidado.ate
+                ? mesAno(consolidado.de)
+                : `${mesAno(consolidado.de)} a ${mesAno(consolidado.ate)}`}
               {" — "}<span className="font-medium text-gray-600">somente leitura</span>
             </p>
           )}
         </div>
 
         <div className="flex gap-2">
-          <input
-            type="month"
-            value={competencia.slice(0, 7)}
-            onChange={(e) => setCompetencia(`${e.target.value}-01`)}
-            className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm"
-          />
+          <label className="flex items-center gap-1.5 text-sm text-gray-500">
+            De
+            <input
+              type="month"
+              value={de.slice(0, 7)}
+              onChange={(e) => {
+                const novo = `${e.target.value}-01`;
+                setDe(novo);
+                // Início depois do fim devolve lista vazia sem explicar por quê.
+                if (novo > ate) setAte(novo);
+              }}
+              className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+            />
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-gray-500">
+            até
+            <input
+              type="month"
+              value={ate.slice(0, 7)}
+              onChange={(e) => {
+                const novo = `${e.target.value}-01`;
+                setAte(novo);
+                if (novo < de) setDe(novo);
+              }}
+              className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+            />
+          </label>
           {permissoes.escolheUnidade && (
             <select value={unidadeSel} onChange={(e) => setUnidadeSel(e.target.value)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
               <option value="">Unidade...</option>
@@ -270,23 +313,32 @@ export default function FechamentoPage() {
               )}
             </div>
             {/* Quais unidades já fecharam. Sem isso, um total baixo parece erro
-                quando na verdade é unidade que ainda não lançou. */}
+                quando na verdade é unidade que ainda não lançou.
+                Numa faixa de vários meses seriam 8 unidades × N meses de
+                etiqueta — aí vira um resumo por mês. */}
             <div className="flex flex-wrap gap-1.5">
               {consolidado.periodos.length === 0 && (
-                <span className="text-xs text-gray-400">Nenhuma unidade abriu este mês ainda.</span>
+                <span className="text-xs text-gray-400">Nenhuma unidade abriu o período ainda.</span>
               )}
-              {consolidado.periodos.map((p) => (
-                <span
-                  key={p.unidade}
-                  className={
-                    "rounded-full px-2 py-0.5 text-xs " +
-                    (p.status === "enviado" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700")
-                  }
-                  title={p.status === "enviado" ? "Fechamento enviado" : "Ainda em aberto"}
-                >
-                  {p.unidade}
-                </span>
-              ))}
+              {consolidado.de === consolidado.ate
+                ? consolidado.periodos.map((p) => (
+                    <span
+                      key={p.unidade}
+                      className={
+                        "rounded-full px-2 py-0.5 text-xs " +
+                        (p.status === "enviado" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700")
+                      }
+                      title={p.status === "enviado" ? "Fechamento enviado" : "Ainda em aberto"}
+                    >
+                      {p.unidade}
+                    </span>
+                  ))
+                : resumoPorMes(consolidado.periodos).map((m) => (
+                    <span key={m.competencia} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                      {m.competencia.split("-").reverse().join("/")}: {m.unidades} un.
+                      {m.enviadas > 0 && <span className="text-amber-700"> · {m.enviadas} enviada{m.enviadas > 1 ? "s" : ""}</span>}
+                    </span>
+                  ))}
             </div>
           </div>
 
@@ -295,6 +347,13 @@ export default function FechamentoPage() {
               searchable
               columns={[
                 { key: "data_contrato", label: "Data", format: (v) => (v ? fmtDataISO(v as string) : "—") },
+                // Com faixa de um mês só, a competência é o próprio cabeçalho.
+                ...(consolidado.de !== consolidado.ate
+                  ? [{
+                      key: "competencia", label: "Competência",
+                      format: (v: unknown) => String(v ?? "").slice(0, 7).split("-").reverse().join("/"),
+                    }]
+                  : []),
                 { key: "unidade", label: "Unidade" },
                 { key: "ref", label: "Ref" },
                 { key: "endereco", label: "Endereço" },
