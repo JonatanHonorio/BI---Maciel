@@ -1,6 +1,6 @@
 /**
  * Como a comissão de um negócio é repartida (regras dadas pelo Jonatan em
- * 21/09/2026).
+ * 21/09/2026, Lançamento revisto em 22/09/2026).
  *
  * Tudo incide sobre a COMISSÃO do fechamento — não sobre o valor do imóvel.
  * Em venda é o campo Comissão; em locação é o valor da prestação de serviço
@@ -11,9 +11,24 @@
  * morar lá.
  */
 
-export const PAPEIS_PESSOA = ["levantamento", "fechamento", "gerencia"] as const;
+// Lançamento entrou aqui em 22/09/2026. Era um botão de 5% fixo, e não servia:
+// o Maciel traz um diretor de lançamento diferente a cada produto, e o
+// percentual muda junto. Virou um bloco de pessoas como os outros, só que com
+// o percentual digitado na mão.
+export const PAPEIS_PESSOA = [
+  "levantamento", "fechamento", "gerencia", "lancamento",
+] as const;
+
+/**
+ * Destinação sem pessoa: o destinatário é o próprio rótulo.
+ *
+ * `brizola` está aqui só para LER o que já foi gravado — o botão saiu junto
+ * com o de Lançamento em 22/09/2026, e quem participa de um negócio nessa
+ * condição agora entra pelo nome, no bloco Lançamento. Não aparece em
+ * `REGRAS`, então nenhuma tela o oferece.
+ */
 export const PAPEIS_RUBRICA = [
-  "diretoria_1", "diretoria_2", "diretoria_3", "lancamento", "brizola",
+  "diretoria_1", "diretoria_2", "diretoria_3", "brizola",
 ] as const;
 export const PAPEIS_RATEIO = [...PAPEIS_PESSOA, ...PAPEIS_RUBRICA] as const;
 
@@ -40,10 +55,10 @@ export const ROTULO_PAPEL: Record<Papel, string> = {
   levantamento: "Levantamento",
   fechamento: "Fechamento",
   gerencia: "Gerência",
+  lancamento: "Lançamento",
   diretoria_1: "Diretoria 1",
   diretoria_2: "Diretoria 2",
   diretoria_3: "Diretoria 3",
-  lancamento: "Lançamento",
   brizola: "Brizola",
 };
 
@@ -51,8 +66,6 @@ interface Rubrica {
   papel: Papel;
   rotulo: string;
   percentual: number;
-  /** Rubrica obrigatória entra sozinha; opcional depende de o usuário ligar. */
-  obrigatoria: boolean;
 }
 
 interface Regra {
@@ -60,6 +73,15 @@ interface Regra {
   levantamento: number;
   fechamento: number;
   gerencia: number;
+  /**
+   * `null` = o bloco existe, mas sem percentual de tabela: é digitado caso a
+   * caso, e o formulário não redistribui sozinho. `false` = não existe nessa
+   * vertical.
+   *
+   * Lançamento não tem número fixo: depende do produto e de quem é o diretor
+   * daquele lançamento (no Parque Floresta, dez/2025, foram 10%).
+   */
+  lancamento: number | null | false;
   rubricas: Rubrica[];
 }
 
@@ -68,24 +90,25 @@ export const REGRAS: Record<Tipo, Regra> = {
     levantamento: 0.10,
     fechamento: 0.30,
     gerencia: 0.10,
+    lancamento: null,
     rubricas: [
-      { papel: "diretoria_1", rotulo: "Diretoria 1", percentual: 0.03, obrigatoria: true },
-      { papel: "diretoria_2", rotulo: "Diretoria 2", percentual: 0.01, obrigatoria: true },
-      { papel: "diretoria_3", rotulo: "Diretoria 3", percentual: 0.005, obrigatoria: true },
-      // Nem toda venda tem influência do setor de lançamentos ou do Brizola;
-      // quando tem, a adm liga na tela.
-      { papel: "lancamento", rotulo: "Lançamento", percentual: 0.05, obrigatoria: false },
-      { papel: "brizola", rotulo: "Brizola", percentual: 0.05, obrigatoria: false },
+      { papel: "diretoria_1", rotulo: "Diretoria 1", percentual: 0.03 },
+      { papel: "diretoria_2", rotulo: "Diretoria 2", percentual: 0.01 },
+      { papel: "diretoria_3", rotulo: "Diretoria 3", percentual: 0.005 },
     ],
   },
   locacao: {
     levantamento: 0.10,
     fechamento: 0.30,
     gerencia: 0.10,
+    // Lançamento é coisa de venda: quem lança um empreendimento não entra no
+    // primeiro aluguel. Se um dia precisar, é só trocar por `null` e o bloco
+    // aparece na locação também.
+    lancamento: false,
     // Em locação a diretoria é uma linha só. Fica em `diretoria_1` pra não
     // inventar um papel que só existiria numa vertical.
     rubricas: [
-      { papel: "diretoria_1", rotulo: "Diretoria", percentual: 0.03, obrigatoria: true },
+      { papel: "diretoria_1", rotulo: "Diretoria", percentual: 0.03 },
     ],
   },
 };
@@ -96,7 +119,8 @@ export function rotuloRubrica(tipo: Tipo, papel: Papel): string {
 }
 
 /**
- * Percentual de cada linha de um bloco de PESSOAS.
+ * Percentual de cada linha de um bloco de PESSOAS, ou `null` quando o bloco
+ * é de percentual manual.
  *
  * O percentual é da FUNÇÃO, não da pessoa: a Maciel paga 10% pela captação,
  * 30% pelo fechamento e 10% pela gerência, e quem dividir divide entre os
@@ -104,9 +128,17 @@ export function rotuloRubrica(tipo: Tipo, papel: Papel): string {
  *
  * Com uma linha só o resultado é o percentual cheio, que é o caso comum.
  */
-export function percentualSugerido(tipo: Tipo, papel: PapelPessoa, quantasLinhas: number): number {
+export function percentualSugerido(
+  tipo: Tipo, papel: PapelPessoa, quantasLinhas: number
+): number | null {
   const total = REGRAS[tipo][papel];
+  if (typeof total !== "number") return null;
   return quantasLinhas > 0 ? total / quantasLinhas : total;
+}
+
+/** O bloco de Lançamento só aparece onde a regra o prevê (hoje, só venda). */
+export function temBlocoLancamento(tipo: Tipo): boolean {
+  return REGRAS[tipo].lancamento !== false;
 }
 
 export interface LinhaRateioCalc {
@@ -118,8 +150,9 @@ export interface LinhaRateioCalc {
  * Soma o que sai da comissão e o que sobra para a imobiliária.
  *
  * Serve pra tela mostrar o resultado enquanto a pessoa digita: com as regras
- * cheias, venda distribui 54,5% (64,5% com lançamento e Brizola) e locação
- * 53%. Passar de 100% é erro de digitação, e é melhor ver antes de salvar.
+ * cheias, venda distribui 54,5% e locação 53% — mais o que o Lançamento
+ * levar, que varia. Passar de 100% é erro de digitação, e é melhor ver antes
+ * de salvar.
  */
 export function resumoRateio(pool: number, linhas: LinhaRateioCalc[]) {
   const distribuido = linhas.reduce((s, l) => s + (l.percentual ?? 0), 0);

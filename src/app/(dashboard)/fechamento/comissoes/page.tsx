@@ -140,7 +140,7 @@ export default function ComissoesPage() {
   }
 
   // O filtro por destinatário casa pelo NOME, que é o que a API já resolve
-  // tanto pro corretor do Kurole quanto pras rubricas (Diretoria, Brizola),
+  // tanto pro corretor do Kurole quanto pras rubricas (Diretoria),
   // que não têm id de corretor.
   const filtrados = negocios
     .filter((n) => (filtroStatus === "todos" ? true : n.status_pagamento === filtroStatus))

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { PERMITE_NOME_LIVRE_NO_RATEIO } from "@/lib/flags";
-import { REGRAS, resumoRateio, pctTexto, type Tipo } from "@/lib/comissao";
+import { REGRAS, resumoRateio, pctTexto, temBlocoLancamento, type Tipo } from "@/lib/comissao";
 
 type Corretor = { id: number; nome: string };
 // `texto` é o que está escrito no campo; `corretor_id` só é preenchido quando
@@ -27,8 +27,12 @@ const temDestinatario = (l: LinhaRateio) => Boolean(l.corretor_id) || l.texto.tr
  * fechadores ficam com 15% cada. Precisa rodar também ao ADICIONAR ou REMOVER
  * uma linha — sem isso o primeiro corretor continuava com os 30% cheios e o
  * negócio distribuía 60%.
+ *
+ * `totalDoBloco` nulo é o bloco de percentual MANUAL (Lançamento): aí nada é
+ * redistribuído, porque o número que a adm digitou é o que vale.
  */
-function redistribuir(lista: LinhaRateio[], totalDoBloco: number): LinhaRateio[] {
+function redistribuir(lista: LinhaRateio[], totalDoBloco: number | null): LinhaRateio[] {
+  if (totalDoBloco == null) return lista;
   const quantos = lista.filter(temDestinatario).length;
   if (quantos === 0) return lista;
   const cada = String(Number(((totalDoBloco / quantos) * 100).toFixed(4)));
@@ -62,8 +66,11 @@ function BlocoRateio({
   atualizarLinha: (
     lista: LinhaRateio[], set: (l: LinhaRateio[]) => void, i: number, campos: Partial<LinhaRateio>
   ) => void;
-  /** Percentual da comissão que este bloco paga no total, a dividir entre as linhas. */
-  totalDoBloco: number;
+  /**
+   * Percentual da comissão que este bloco paga no total, a dividir entre as
+   * linhas — ou `null` quando o percentual é digitado caso a caso.
+   */
+  totalDoBloco: number | null;
 }) {
   return (
     <div>
@@ -101,7 +108,7 @@ function BlocoRateio({
                 "este não veio do Kurole". É o aviso que faz alguém perceber
                 que digitou "Fabiana Olivera" quando a Fabiana existe. */}
             <input
-              type="number" placeholder="%" min={0} max={100} step={1}
+              type="number" placeholder="%" min={0} max={100} step="0.01"
               value={linha.percentual}
               onChange={(e) => atualizarLinha(lista, set, i, { percentual: e.target.value })}
               className={inputCls + " w-20"}
@@ -123,7 +130,7 @@ function BlocoRateio({
         onClick={() => set([...lista, { corretor_id: "", percentual: "", texto: "" }])}
         className="mt-1.5 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
       >
-        <Plus size={12} /> adicionar corretor
+        <Plus size={12} /> adicionar
       </button>
     </div>
   );
@@ -131,9 +138,13 @@ function BlocoRateio({
 
 /**
  * Formulário de "novo negócio" do fechamento — mesmos campos da planilha de
- * hoje, só que com seletores em vez de digitação livre. Levantamento e
- * Fechamento aceitam mais de um corretor cada (é assim na vida real: já
- * teve negócio com 2 pessoas levantando e 2 fechando).
+ * hoje, só que com seletores em vez de digitação livre. Todos os blocos
+ * aceitam mais de uma pessoa (é assim na vida real: já teve negócio com 2
+ * pessoas levantando e 2 fechando).
+ *
+ * Levantamento, Fechamento e Gerência dividem um percentual de tabela entre
+ * as linhas. Lançamento não: o diretor de lançamento muda conforme o perfil
+ * do produto e o percentual muda com ele, então ali se digita.
  *
  * Exceção enquanto `PERMITE_NOME_LIVRE_NO_RATEIO` estiver ligada: o rateio
  * aceita nome digitado, para os fechamentos antigos cujos corretores já não
@@ -168,9 +179,10 @@ export default function FechamentoForm({
   const [levantamento, setLevantamento] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "", texto: "" }]);
   const [fechamento, setFechamento] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "", texto: "" }]);
   const [gerencia, setGerencia] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "", texto: "" }]);
-  // Rubricas opcionais: nem toda venda tem influência do setor de lançamentos
-  // ou do Brizola, então a adm liga quando acontece.
-  const [opcionais, setOpcionais] = useState<Record<string, boolean>>({});
+  // Lançamento: começa VAZIO porque a maioria das vendas não tem lançamento
+  // envolvido, e quando tem o diretor muda de produto pra produto — não há um
+  // nome nem um percentual que sirvam de padrão.
+  const [lancamento, setLancamento] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "", texto: "" }]);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
@@ -193,13 +205,14 @@ export default function FechamentoForm({
     );
   }, [gerente, regra.gerencia]);
 
-  const rubricasAtivas = regra.rubricas.filter((r) => r.obrigatoria || opcionais[r.papel]);
+  const mostraLancamento = temBlocoLancamento(tipo);
 
   const linhasParaResumo = [
     ...levantamento.map((l) => ({ papel: "levantamento", percentual: pctNum(l.percentual) })),
     ...fechamento.map((l) => ({ papel: "fechamento", percentual: pctNum(l.percentual) })),
     ...gerencia.map((l) => ({ papel: "gerencia", percentual: pctNum(l.percentual) })),
-    ...rubricasAtivas.map((r) => ({ papel: r.papel, percentual: r.percentual })),
+    ...lancamento.map((l) => ({ papel: "lancamento", percentual: pctNum(l.percentual) })),
+    ...regra.rubricas.map((r) => ({ papel: r.papel, percentual: r.percentual })),
   ];
   const resumo = resumoRateio(pool, linhasParaResumo);
 
@@ -273,11 +286,20 @@ export default function FechamentoForm({
     // aquele destinatário e ninguém era avisado.
     const usavel = (l: LinhaRateio) =>
       Boolean(l.corretor_id) || (PERMITE_NOME_LIVRE_NO_RATEIO && l.texto.trim() !== "");
+    const doLancamento = mostraLancamento ? lancamento.filter(usavel) : [];
     const rateio = [
       ...levantamento.filter(usavel).map((l) => ({ ...l, papel: "levantamento" as const })),
       ...fechamento.filter(usavel).map((l) => ({ ...l, papel: "fechamento" as const })),
       ...gerencia.filter(usavel).map((l) => ({ ...l, papel: "gerencia" as const })),
+      ...doLancamento.map((l) => ({ ...l, papel: "lancamento" as const })),
     ];
+    // Em Lançamento o percentual é digitado, e digitado é esquecido: sem esta
+    // trava o nome seria gravado com percentual nulo, apareceria como "—" nas
+    // comissões e a pessoa simplesmente não receberia — sem erro nenhum.
+    if (doLancamento.some((l) => l.percentual.trim() === "")) {
+      setErro("Informe o percentual de cada pessoa em Lançamento — ele não tem valor padrão.");
+      return;
+    }
     if (rateio.length === 0) {
       setErro(
         PERMITE_NOME_LIVRE_NO_RATEIO
@@ -314,10 +336,9 @@ export default function FechamentoForm({
               papel: l.papel,
               percentual: l.percentual ? Number(l.percentual) / 100 : null,
             })),
-            // Rubricas não têm pessoa: o destinatário é o próprio rótulo.
-            // As obrigatórias entram em todo negócio; Lançamento e Brizola
-            // só quando a adm liga.
-            ...rubricasAtivas.map((r) => ({
+            // Rubricas não têm pessoa: o destinatário é o próprio rótulo, e
+            // entram em todo negócio.
+            ...regra.rubricas.map((r) => ({
               corretor_id: null,
               nome_livre: r.rotulo,
               papel: r.papel,
@@ -406,7 +427,10 @@ export default function FechamentoForm({
         )}
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className={
+        "mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 " +
+        (mostraLancamento ? "xl:grid-cols-4" : "xl:grid-cols-3")
+      }>
         <BlocoRateio
           titulo="Levantamento" ajuda={`${pctTexto(regra.levantamento)} no total`}
           lista={levantamento} set={setLevantamento} corretores={corretores}
@@ -425,41 +449,30 @@ export default function FechamentoForm({
           atualizarLinha={atualizarLinha}
           totalDoBloco={regra.gerencia}
         />
+        {/* Lançamento é o único bloco de percentual MANUAL: o diretor de
+            lançamento muda conforme o perfil do produto, e o percentual muda
+            com ele. Por isso não há sugestão nem divisão automática. */}
+        {mostraLancamento && (
+          <BlocoRateio
+            titulo="Lançamento" ajuda="% manual"
+            lista={lancamento} set={setLancamento} corretores={corretores}
+            atualizarLinha={atualizarLinha}
+            totalDoBloco={null}
+          />
+        )}
       </div>
 
-      {/* Rubricas: destinação sem pessoa. As obrigatórias aparecem só como
-          informação; Lançamento e Brizola são os dois botões que a adm liga
-          quando a venda teve influência do setor ou do parceiro. */}
+      {/* Rubricas: destinação sem pessoa, presente em todo negócio — aqui só
+          como informação, porque não há nada a escolher. */}
       <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <span className={labelCls + " mb-0"}>Destinações fixas</span>
-          {regra.rubricas.filter((r) => r.obrigatoria).map((r) => (
+          {regra.rubricas.map((r) => (
             <span key={r.papel} className="text-xs text-gray-600">
               {r.rotulo} <strong className="tabular-nums">{pctTexto(r.percentual)}</strong>
             </span>
           ))}
         </div>
-        {regra.rubricas.some((r) => !r.obrigatoria) && (
-          <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">Houve influência de:</span>
-            {regra.rubricas.filter((r) => !r.obrigatoria).map((r) => (
-              <button
-                key={r.papel}
-                type="button"
-                onClick={() => setOpcionais((o) => ({ ...o, [r.papel]: !o[r.papel] }))}
-                aria-pressed={!!opcionais[r.papel]}
-                className={
-                  "rounded-full border px-3 py-1 text-xs transition-colors " +
-                  (opcionais[r.papel]
-                    ? "border-blue-600 bg-blue-600 text-white"
-                    : "border-gray-300 bg-white text-gray-600 hover:border-gray-400")
-                }
-              >
-                {r.rotulo} {pctTexto(r.percentual)}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* O resultado enquanto se digita: passar de 100% é erro, e é melhor

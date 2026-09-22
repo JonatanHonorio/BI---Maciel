@@ -268,7 +268,13 @@ export default function FechamentoPage() {
           </div>
 
           {mostrarForm && (
+            // `key` pelo período: sem ela o React reaproveita o formulário ao
+            // trocar de unidade/tipo/mês e ele fica com o estado do período
+            // anterior — a Gerência continuava preenchida com o gerente da
+            // OUTRA vertical (Locação numa venda), e aqueles 10% da comissão
+            // iriam pra pessoa errada sem nenhum aviso.
             <FechamentoForm
+              key={periodo.id}
               periodoId={periodo.id}
               tipo={periodo.tipo}
               corretores={corretores}

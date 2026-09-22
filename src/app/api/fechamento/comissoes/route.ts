@@ -51,8 +51,9 @@ export async function GET(req: NextRequest) {
    * exportação em Excel — duas somas escritas em lugares diferentes acabam
    * divergindo.
    *
-   * A chave é o corretor quando existe e o rótulo quando é rubrica (Diretoria,
-   * Lançamento, Brizola), que não tem pessoa.
+   * A chave é o corretor quando existe e o rótulo quando é rubrica
+   * (Diretoria), que não tem pessoa — ou o nome digitado, enquanto a carga
+   * retroativa estiver acontecendo.
    */
   const porDestinatario = new Map<string, {
     corretor_id: number | null; nome: string; papeis: Set<string>;
