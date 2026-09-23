@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import {
   competenciaAtual, calcularStatusPagamento, negociosDaCompetencia,
-  escopoUnidade, UNIDADES_FECHAMENTO,
+  escopoUnidade, escopoTipo, UNIDADES_FECHAMENTO,
 } from "@/lib/fechamento";
 import { podeLancarComissao, unidadesFechamento, tiposFechamento } from "@/lib/permissoes";
 
@@ -30,9 +30,10 @@ export async function GET(req: NextRequest) {
   const ate = p.get("ate") || p.get("competencia") || de;
   const sql = getDb();
 
-  // Filtro de unidade. Estreita o que a pessoa já podia ver — nunca amplia.
-  const doFiltro = escopoUnidade(unidades, p.get("unidade"));
-  const negocios = await negociosDaCompetencia(sql, de, ate, doFiltro, tipos);
+  // Unidade e vertical estreitam o que a pessoa já podia ver — nunca ampliam.
+  const unidadesFiltro = escopoUnidade(unidades, p.get("unidade"));
+  const tiposFiltro = escopoTipo(tipos, p.get("tipo"));
+  const negocios = await negociosDaCompetencia(sql, de, ate, unidadesFiltro, tiposFiltro);
 
   const comNegociosComputados = negocios.map((n) => {
     const pool = n.tipo === "venda" ? n.comissao : n.valor;
@@ -98,7 +99,7 @@ export async function GET(req: NextRequest) {
   const unidadesDisponiveis = unidades ?? [...UNIDADES_FECHAMENTO];
 
   return NextResponse.json({
-    de, ate, unidade: p.get("unidade") || null,
+    de, ate, unidade: p.get("unidade") || null, tipo: p.get("tipo") || null,
     unidades_disponiveis: unidadesDisponiveis,
     negocios: comNegociosComputados, destinatarios, totais,
   });

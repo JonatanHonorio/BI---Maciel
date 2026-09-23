@@ -3,7 +3,8 @@ import ExcelJS from "exceljs";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import {
-  competenciaAtual, calcularStatusPagamento, negociosDaCompetencia, escopoUnidade,
+  competenciaAtual, calcularStatusPagamento, negociosDaCompetencia,
+  escopoUnidade, escopoTipo,
 } from "@/lib/fechamento";
 import { ROTULO_PAPEL, type Papel } from "@/lib/comissao";
 import { podeLancarComissao, unidadesFechamento, tiposFechamento } from "@/lib/permissoes";
@@ -41,11 +42,14 @@ export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
   const de = p.get("de") || p.get("competencia") || competenciaAtual();
   const ate = p.get("ate") || p.get("competencia") || de;
-  // Mesmo filtro de unidade da tela — o Excel não pode trazer linha que a
-  // tela não mostrou.
+  // Mesmos filtros da tela — o Excel não pode trazer linha que a tela não
+  // mostrou.
   const unidadeFiltro = p.get("unidade");
+  const tipoFiltro = p.get("tipo");
   const negocios = await negociosDaCompetencia(
-    getDb(), de, ate, escopoUnidade(unidades, unidadeFiltro), tipos
+    getDb(), de, ate,
+    escopoUnidade(unidades, unidadeFiltro),
+    escopoTipo(tipos, tipoFiltro)
   );
 
   const wb = new ExcelJS.Workbook();
@@ -114,9 +118,11 @@ export async function GET(req: NextRequest) {
   const comp = de.slice(0, 7) === ate.slice(0, 7) ? de.slice(0, 7) : `${de.slice(0, 7)}_a_${ate.slice(0, 7)}`;
   // Sem a unidade no nome, dois arquivos de unidades diferentes do mesmo mês
   // se sobrescrevem na pasta de downloads. Acento e espaço saem fora.
-  const sufixo = unidadeFiltro
-    ? "_" + unidadeFiltro.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "-")
-    : "";
+  const sufixo =
+    (unidadeFiltro
+      ? "_" + unidadeFiltro.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "-")
+      : "") +
+    (tipoFiltro === "venda" ? "_vendas" : tipoFiltro === "locacao" ? "_locacao" : "");
   return new NextResponse(Buffer.from(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

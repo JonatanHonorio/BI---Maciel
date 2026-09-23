@@ -177,6 +177,22 @@ export function escopoUnidade(
   return permitidas.includes(pedida) ? [pedida] : [];
 }
 
+/**
+ * Mesma ideia de `escopoUnidade`, para a vertical.
+ *
+ * Um valor inventado na URL vira lista vazia em vez de "todos": sem isso,
+ * `tipo=vendas` (no plural, fácil de errar) passaria batido e a tela mostraria
+ * venda E locação como se o filtro estivesse valendo.
+ */
+export function escopoTipo(
+  permitidos: string[] | null, pedido: string | null
+): string[] | null {
+  if (!pedido) return permitidos;
+  if (pedido !== "venda" && pedido !== "locacao") return [];
+  if (permitidos === null) return [pedido];
+  return permitidos.includes(pedido) ? [pedido] : [];
+}
+
 export interface RateioDoMes {
   id: number;
   corretor_id: number | null;

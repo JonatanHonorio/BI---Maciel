@@ -64,6 +64,9 @@ export default function ComissoesPage() {
   // tela deixaria os dois mostrando a empresa inteira enquanto a tabela mostra
   // uma unidade. É justamente o total por pessoa que a adm usa pra pagar.
   const [filtroUnidade, setFiltroUnidade] = useState("");
+  // A vertical também vai pro servidor, pelo mesmo motivo da unidade: o resumo
+  // "Por destinatário" e o Excel vêm prontos de lá.
+  const [filtroTipo, setFiltroTipo] = useState<"" | "venda" | "locacao">("");
   const [unidades, setUnidades] = useState<string[]>([]);
   const [filtroStatus, setFiltroStatus] = useState<"todos" | StatusPagamento>("todos");
   const [filtroDestinatario, setFiltroDestinatario] = useState("todos");
@@ -96,7 +99,8 @@ export default function ComissoesPage() {
     try {
       const r = await fetch(
         `/api/fechamento/comissoes?de=${de}&ate=${ate}` +
-        (filtroUnidade ? `&unidade=${encodeURIComponent(filtroUnidade)}` : "")
+        (filtroUnidade ? `&unidade=${encodeURIComponent(filtroUnidade)}` : "") +
+        (filtroTipo ? `&tipo=${filtroTipo}` : "")
       );
       if (minhaBusca !== buscaAtual.current) return;
       if (r.status === 401 || r.status === 403) {
@@ -116,7 +120,7 @@ export default function ComissoesPage() {
     } finally {
       if (minhaBusca === buscaAtual.current) setCarregando(false);
     }
-  }, [de, ate, filtroUnidade]);
+  }, [de, ate, filtroUnidade, filtroTipo]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -248,6 +252,18 @@ export default function ComissoesPage() {
               {unidades.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
           )}
+          <select
+            value={filtroTipo}
+            onChange={(e) => {
+              setFiltroTipo(e.target.value as typeof filtroTipo);
+              setFiltroDestinatario("todos");
+            }}
+            className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm"
+          >
+            <option value="">Vendas e locação</option>
+            <option value="venda">Vendas</option>
+            <option value="locacao">Locação</option>
+          </select>
           <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value as typeof filtroStatus)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
             <option value="todos">Todos os status</option>
             <option value="pendente">Pendente</option>
@@ -277,7 +293,8 @@ export default function ComissoesPage() {
           <a
             href={
               `/api/fechamento/comissoes/exportar?de=${de}&ate=${ate}` +
-              (filtroUnidade ? `&unidade=${encodeURIComponent(filtroUnidade)}` : "")
+              (filtroUnidade ? `&unidade=${encodeURIComponent(filtroUnidade)}` : "") +
+              (filtroTipo ? `&tipo=${filtroTipo}` : "")
             }
             className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
           >
