@@ -34,6 +34,22 @@
       "departamento_errado": "18 = Venda Aquarius",
       "fonte": "Jonatan em 11/09/2026 (unidade) e 18/09/2026 (vertical) — ela é locação da Dutra, cadastro do Kurole está errado nas duas dimensões; estava aparecendo no rateio de vendas do Daniel em vez do de locação da Jessica. Vai corrigir no Kurole."
     },
+    "739": {
+      "corretor": "ANTONIO CARLOS DE SOUZA",
+      "de": "Vista Verde",
+      "para": "Vista Verde",
+      "de_tipo": "locacao",
+      "para_tipo": "venda",
+      "departamento_errado": "48 = Locação Vista Verde",
+      "fonte": "Jonatan em 23/09/2026 — é vendas da Vista Verde (está na roleta 'Leads Online Vista Verde - VENDAS'), mas o cadastro do Kurole põe ele em Locação; aparecia pra Gisela em vez da Patricia. Só a vertical está errada."
+    },
+    "192": {
+      "corretor": "Marcia Ribeiro",
+      "de": "Esplanada",
+      "para": "Urbanova",
+      "departamento_errado": "43 = Vendas Esplanada",
+      "fonte": "Jonatan em 23/09/2026 — é da Urbanova (está na roleta 'Leads Online Urbanova - VENDAS'), mas o cadastro do Kurole põe ela na Esplanada; aparecia pra Lilian em vez do Bruno. A vertical (vendas) já está certa."
+    },
     "1015": {
       "corretor": "JAMERSON LIMA DOS SANTOS",
       "de": "Esplanada",
