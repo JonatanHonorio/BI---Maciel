@@ -34,6 +34,15 @@
       "departamento_errado": "18 = Venda Aquarius",
       "fonte": "Jonatan em 11/09/2026 (unidade) e 18/09/2026 (vertical) — ela é locação da Dutra, cadastro do Kurole está errado nas duas dimensões; estava aparecendo no rateio de vendas do Daniel em vez do de locação da Jessica. Vai corrigir no Kurole."
     },
+    "1015": {
+      "corretor": "JAMERSON LIMA DOS SANTOS",
+      "de": "Esplanada",
+      "para": "Esplanada",
+      "de_tipo": "venda",
+      "para_tipo": "locacao",
+      "departamento_errado": "43 = Vendas Esplanada",
+      "fonte": "Jonatan em 23/09/2026 — é locação da Esplanada (é o 1º da roleta 'Leads Online Esplanada - LOCAÇÃO'), mas o cadastro do Kurole põe ele em Vendas; não aparecia na visão do Wellington. Só a vertical está errada, a unidade já está certa."
+    },
     "840": {
       "corretor": "PEDRO CHAFFY HALLAK RENOVATO FELIX",
       "de": "Urbanova",
