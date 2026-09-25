@@ -1,5 +1,5 @@
 import { UNIDADES_FECHAMENTO } from "./fechamento";
-import { faseValida } from "./contratos";
+import { faseValida, GARANTIAS_LOCACAO } from "./contratos";
 
 /**
  * Peças compartilhadas pelas rotas de contrato.
@@ -23,6 +23,8 @@ export interface CorpoContrato {
   banco?: unknown;
   pagamento?: string | null;
   observacao?: string | null;
+  garantia?: string | null;
+  garantia_detalhe?: string | null;
   fase?: number;
 }
 
@@ -50,6 +52,11 @@ export function validarBase(b: CorpoContrato): string | null {
     return "unidade inválida";
   }
   if (b.fase !== undefined && !faseValida(b.fase)) return "fase inválida";
+  // Garantia é lista fechada: texto solto viraria "seguro fiança", "seg.
+  // fianca" e "SEGURO-FIANÇA" na mesma coluna, e aí não dá para filtrar.
+  if (b.garantia && !(GARANTIAS_LOCACAO as readonly string[]).includes(b.garantia)) {
+    return "garantia inválida";
+  }
   return null;
 }
 

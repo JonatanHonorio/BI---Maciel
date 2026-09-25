@@ -109,5 +109,33 @@ export function motivoBloqueioMover(s: Session, de: number, para: number): strin
   return null;
 }
 
+/**
+ * Garantias de locação aceitas. Lista fechada porque é o que a Ana filtra e o
+ * que muda o pacote de documentos exigido — texto livre viraria "seguro
+ * fiança", "seg. fianca" e "SEGURO-FIANÇA" na mesma coluna.
+ */
+export const GARANTIAS_LOCACAO = [
+  "Caução", "Seguro fiança", "Fiador", "Título de capitalização", "Sem garantia",
+] as const;
+
+/**
+ * Rótulos que mudam entre venda e locação (pedido da Ana em 26/09/2026). São
+ * os mesmos papéis com outro nome no contrato: quem entrega o imóvel é
+ * vendedor na venda e LOCADOR na locação, e "formas de pagamento" vira o
+ * "valor da locação".
+ */
+export function rotulosDoTipo(tipo: "venda" | "locacao") {
+  const locacao = tipo === "locacao";
+  return {
+    ladoA: locacao ? "Dados do locador(a)" : "Dados do vendedor (proprietário)",
+    ladoB: locacao ? "Dados do locatário(a)" : "Dados do comprador",
+    banco: locacao ? "Conta bancária do locador(a)" : "Conta bancária do vendedor",
+    pagamento: locacao ? "Valor da locação" : "Formas de pagamento",
+    pagamentoDica: locacao
+      ? "Ex.: R$ 2.500,00 + condomínio R$ 480,00 + IPTU"
+      : "Ex.: Entrada R$ 50.000 + financiamento Caixa R$ 300.000",
+  };
+}
+
 /** Fases cujo card recém-chegado dispara e-mail para o gerente da unidade. */
 export const FASES_QUE_AVISAM = [FASE_PENDENCIA, FASE_CONFERENCIA, FASE_FINAL];

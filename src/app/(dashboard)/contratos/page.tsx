@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, X, ArrowRight, Undo2, MessageSquare, Loader2, Archive } from "lucide-react";
 import ContratoForm, { CONTRATO_VAZIO, type ContratoEdicao, type Pessoa, type ContaBancaria } from "@/components/ContratoForm";
-import { FASES, FASE_CONFERENCIA, FASE_PENDENCIA, nomeFase } from "@/lib/contratos";
+import { FASES, FASE_CONFERENCIA, FASE_PENDENCIA, nomeFase, rotulosDoTipo } from "@/lib/contratos";
 
 type Contrato = {
   id: number; ref: string; imovel_id: number | null;
@@ -12,6 +12,7 @@ type Contrato = {
   imovel_endereco: string | null; imovel_dados: Record<string, unknown>;
   banco: { contas?: ContaBancaria[] } | null; banco_oculto?: boolean;
   pagamento: string | null; observacao: string | null;
+  garantia: string | null; garantia_detalhe: string | null;
   arquivado: boolean; criado_em: string; atualizado_em: string;
   /** Senha de chegada, dada quando a Ana cria o card. */
   senha: number | null;
@@ -446,6 +447,7 @@ export default function ContratosPage() {
                             imovel_endereco: aberto.imovel_endereco, imovel_dados: aberto.imovel_dados ?? {},
                             banco: aberto.banco ?? { contas: [] },
                             pagamento: aberto.pagamento, observacao: aberto.observacao,
+                            garantia: aberto.garantia, garantia_detalhe: aberto.garantia_detalhe,
                           })
                         }
                         className="border border-gray-300 text-sm px-3 py-1.5 rounded-lg hover:bg-gray-50"
@@ -475,8 +477,14 @@ export default function ContratosPage() {
                   <p className="text-xs text-gray-500 mt-1">Corretor: {aberto.corretor_nome || "—"}</p>
                 </BlocoLeitura>
 
-                <BlocoPessoasLeitura titulo="Vendedor" pessoas={aberto.vendedor ?? []} />
-                <BlocoPessoasLeitura titulo="Comprador" pessoas={aberto.comprador ?? []} />
+                <BlocoPessoasLeitura
+                  titulo={aberto.tipo === "locacao" ? "Locador(a)" : "Vendedor"}
+                  pessoas={aberto.vendedor ?? []}
+                />
+                <BlocoPessoasLeitura
+                  titulo={aberto.tipo === "locacao" ? "Locatário(a)" : "Comprador"}
+                  pessoas={aberto.comprador ?? []}
+                />
 
                 {aberto.banco_oculto ? (
                   <BlocoLeitura titulo="Conta bancária">
@@ -484,7 +492,7 @@ export default function ContratosPage() {
                   </BlocoLeitura>
                 ) : (
                   (aberto.banco?.contas ?? []).length > 0 && (
-                    <BlocoLeitura titulo="Conta bancária do vendedor">
+                    <BlocoLeitura titulo={rotulosDoTipo(aberto.tipo).banco}>
                       {(aberto.banco?.contas ?? []).map((c, i) => (
                         <p key={i} className="text-sm text-gray-700">
                           {c.titular} — {c.banco} · ag. {c.agencia} · cc {c.conta}
@@ -495,8 +503,19 @@ export default function ContratosPage() {
                   )
                 )}
 
+                {aberto.tipo === "locacao" && (aberto.garantia || aberto.garantia_detalhe) && (
+                  <BlocoLeitura titulo="Garantia">
+                    <p className="text-sm text-gray-700">
+                      {aberto.garantia || "—"}
+                      {aberto.garantia_detalhe && (
+                        <span className="text-gray-500"> · {aberto.garantia_detalhe}</span>
+                      )}
+                    </p>
+                  </BlocoLeitura>
+                )}
+
                 {aberto.pagamento && (
-                  <BlocoLeitura titulo="Formas de pagamento">
+                  <BlocoLeitura titulo={rotulosDoTipo(aberto.tipo).pagamento}>
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{aberto.pagamento}</p>
                   </BlocoLeitura>
                 )}

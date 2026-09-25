@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Trash2, Loader2, Search, UserPlus } from "lucide-react";
+import { GARANTIAS_LOCACAO, rotulosDoTipo } from "@/lib/contratos";
 
 /**
  * Formulário do card de contrato.
@@ -40,6 +41,8 @@ export interface ContratoEdicao {
   banco: { contas?: ContaBancaria[] } | null;
   pagamento: string | null;
   observacao: string | null;
+  garantia: string | null;
+  garantia_detalhe: string | null;
 }
 
 type Corretor = { id: number; nome: string; unidade: string; tipo: "venda" | "locacao" | null };
@@ -47,7 +50,7 @@ type Corretor = { id: number; nome: string; unidade: string; tipo: "venda" | "lo
 export const CONTRATO_VAZIO: ContratoEdicao = {
   ref: "", imovel_id: null, tipo: "venda", unidade: "", corretor_id: null, corretor_nome: "",
   vendedor: [], comprador: [], imovel_endereco: "", imovel_dados: {}, banco: { contas: [] },
-  pagamento: "", observacao: "",
+  pagamento: "", observacao: "", garantia: "", garantia_detalhe: "",
 };
 
 const CAMPOS_PESSOA: { chave: keyof Pessoa; rotulo: string; largura?: string }[] = [
@@ -197,10 +200,11 @@ function BlocoPessoas({
 }
 
 function BlocoBancario({
-  contas, onChange,
+  contas, onChange, titulo,
 }: {
   contas: ContaBancaria[];
   onChange: (c: ContaBancaria[]) => void;
+  titulo: string;
 }) {
   const alterar = (i: number, chave: keyof ContaBancaria, valor: string) =>
     onChange(contas.map((c, idx) => (idx === i ? { ...c, [chave]: valor } : c)));
@@ -208,7 +212,7 @@ function BlocoBancario({
   return (
     <section className="border border-amber-200 bg-amber-50/40 rounded-xl p-4">
       <div className="flex items-center justify-between mb-1">
-        <h4 className="text-sm font-semibold text-amber-900">Conta bancária do vendedor</h4>
+        <h4 className="text-sm font-semibold text-amber-900">{titulo}</h4>
         <button
           type="button"
           onClick={() => onChange([...contas, { titular: "", banco: "", agencia: "", conta: "" }])}
@@ -353,6 +357,7 @@ export default function ContratoForm({
   };
 
   const contas = valor.banco?.contas ?? [];
+  const rotulos = rotulosDoTipo(valor.tipo);
 
   return (
     <div className="space-y-5">
@@ -433,7 +438,7 @@ export default function ContratoForm({
       )}
 
       <BlocoPessoas
-        titulo="Dados do vendedor (proprietário)"
+        titulo={rotulos.ladoA}
         pessoas={valor.vendedor}
         onChange={(p) => mudar("vendedor", p)}
         vazioTexto="Digite a referência para puxar do Kurole, ou adicione na mão."
@@ -441,23 +446,61 @@ export default function ContratoForm({
       />
 
       <BlocoPessoas
-        titulo={valor.tipo === "locacao" ? "Dados do locatário" : "Dados do comprador"}
+        titulo={rotulos.ladoB}
         pessoas={valor.comprador}
         onChange={(p) => mudar("comprador", p)}
         vazioTexto="Digite o ID do cliente no Kurole para puxar a ficha."
         buscarPorId={buscarCliente}
       />
 
-      {verBanco && <BlocoBancario contas={contas} onChange={(c) => mudar("banco", { contas: c })} />}
+      {verBanco && (
+        <BlocoBancario titulo={rotulos.banco} contas={contas} onChange={(c) => mudar("banco", { contas: c })} />
+      )}
+
+      {valor.tipo === "locacao" && (
+        <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className={rotulo}>Garantia</label>
+            <select
+              className={campo}
+              value={valor.garantia ?? ""}
+              onChange={(e) => mudar("garantia", e.target.value)}
+            >
+              <option value="">selecione</option>
+              {GARANTIAS_LOCACAO.map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            {/* O que preencher muda com a garantia: valor da caução,
+                seguradora e apólice, ou o nome do fiador. */}
+            <label className={rotulo}>
+              {valor.garantia === "Caução"
+                ? "Valor da caução"
+                : valor.garantia === "Seguro fiança"
+                  ? "Seguradora e apólice"
+                  : valor.garantia === "Fiador"
+                    ? "Fiador (nome e CPF)"
+                    : "Detalhe da garantia"}
+            </label>
+            <input
+              className={campo}
+              value={valor.garantia_detalhe ?? ""}
+              onChange={(e) => mudar("garantia_detalhe", e.target.value)}
+            />
+          </div>
+        </section>
+      )}
 
       <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className={rotulo}>Formas de pagamento</label>
+          <label className={rotulo}>{rotulos.pagamento}</label>
           <textarea
             className={`${campo} h-24`}
             value={valor.pagamento ?? ""}
             onChange={(e) => mudar("pagamento", e.target.value)}
-            placeholder="Ex.: Entrada R$ 50.000 + financiamento Caixa R$ 300.000"
+            placeholder={rotulos.pagamentoDica}
           />
         </div>
         <div>

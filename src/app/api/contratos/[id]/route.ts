@@ -36,8 +36,29 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     FROM contrato_eventos WHERE contrato_id = ${id} ORDER BY id
   `;
 
+  /*
+   * A posição na fila vem também aqui, e não só na listagem: o gerente abre o
+   * card justamente para ver se está chegando a vez dele, e sem isto o painel
+   * perdia a informação que o cartão mostrava.
+   *
+   * Contada sobre a fila INTEIRA, pelo mesmo motivo da listagem — ele só
+   * enxerga a própria unidade.
+   */
+  const [naFila] = (await sql`
+    SELECT posicao, total FROM (
+      SELECT id,
+        row_number() OVER (ORDER BY senha)::int AS posicao,
+        count(*) OVER ()::int AS total
+      FROM contratos WHERE fase = 1 AND arquivado = false
+    ) f WHERE f.id = ${id}
+  `) as { posicao: number; total: number }[];
+
   return NextResponse.json({
-    contrato: limparContrato(contrato, podeVerBanco(session)),
+    contrato: {
+      ...limparContrato(contrato, podeVerBanco(session)),
+      fila_posicao: naFila?.posicao ?? null,
+      fila_total: naFila?.total ?? null,
+    },
     eventos,
   });
 }
@@ -95,6 +116,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     body.ref !== undefined || body.tipo !== undefined || body.unidade !== undefined ||
     body.vendedor !== undefined || body.comprador !== undefined || body.banco !== undefined ||
     body.pagamento !== undefined || body.observacao !== undefined ||
+    body.garantia !== undefined || body.garantia_detalhe !== undefined ||
     body.corretor_id !== undefined || body.corretor_nome !== undefined ||
     body.imovel_endereco !== undefined || body.imovel_dados !== undefined ||
     body.imovel_id !== undefined || body.arquivado !== undefined;
@@ -107,6 +129,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       ref: body.ref ?? (atual.ref as string),
       tipo: body.tipo ?? (atual.tipo as string),
       unidade: body.unidade ?? (atual.unidade as string),
+      garantia: body.garantia,
     };
     const erro = validarBase(base);
     if (erro) return NextResponse.json({ error: erro }, { status: 400 });
@@ -126,6 +149,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         banco = ${body.banco !== undefined ? json(body.banco, "{}") : JSON.stringify(atual.banco ?? {})},
         pagamento = ${body.pagamento !== undefined ? body.pagamento : (atual.pagamento as string | null)},
         observacao = ${body.observacao !== undefined ? body.observacao : (atual.observacao as string | null)},
+        garantia = ${body.garantia !== undefined ? (body.garantia || null) : (atual.garantia as string | null)},
+        garantia_detalhe = ${body.garantia_detalhe !== undefined ? body.garantia_detalhe : (atual.garantia_detalhe as string | null)},
         arquivado = ${body.arquivado !== undefined ? body.arquivado : (atual.arquivado as boolean)},
         atualizado_em = NOW(), atualizado_por = ${session.id}
       WHERE id = ${id}

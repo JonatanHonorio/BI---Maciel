@@ -125,13 +125,14 @@ export async function POST(req: NextRequest) {
     INSERT INTO contratos (
       ref, imovel_id, tipo, unidade, corretor_id, corretor_nome, fase,
       vendedor, comprador, imovel_endereco, imovel_dados, banco,
-      pagamento, observacao, criado_por, atualizado_por
+      pagamento, observacao, garantia, garantia_detalhe, criado_por, atualizado_por
     ) VALUES (
       ${body.ref!.trim()}, ${body.imovel_id ?? null}, ${body.tipo!}, ${body.unidade!},
       ${body.corretor_id ?? null}, ${body.corretor_nome ?? ""}, ${body.fase ?? 1},
       ${json(body.vendedor, "[]")}, ${json(body.comprador, "[]")},
       ${body.imovel_endereco ?? null}, ${json(body.imovel_dados, "{}")},
       ${json(body.banco, "{}")}, ${body.pagamento ?? null}, ${body.observacao ?? null},
+      ${body.garantia || null}, ${body.garantia_detalhe ?? null},
       ${session.id}, ${session.id}
     ) RETURNING *
   `) as Record<string, unknown>[];
