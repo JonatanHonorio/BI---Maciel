@@ -24,7 +24,22 @@ import { cn } from "@/lib/utils";
 import type { Session, Role } from "@/lib/auth";
 import { rotaPermitida, descricaoAcesso } from "@/lib/permissoes";
 
-type Gerente = { id: number; nome: string; unidade: string | null; tipo: "venda" | "locacao" | null };
+type Gerente = {
+  id: number; nome: string; unidade: string | null;
+  unidades: string[] | null; tipo: "venda" | "locacao" | null; role: Role;
+};
+
+/** Rótulo do escopo de quem pode ser simulado, no seletor e no banner. */
+export function escopoDoGerente(g: {
+  unidade: string | null; unidades?: string[] | null;
+  tipo: "venda" | "locacao" | null; role?: Role;
+}): string {
+  const onde = g.unidades?.length ? g.unidades.join(" · ") : (g.unidade ?? "Todas");
+  // Administrativo cobre as duas verticais, então `tipo` é nulo de propósito —
+  // sem este caso o rótulo saía com um travessão solto no fim.
+  if (g.role === "gerente_adm") return `${onde} · Administrativo`;
+  return `${onde} · ${g.tipo === "venda" ? "Vendas" : g.tipo === "locacao" ? "Locação" : "—"}`;
+}
 
 /**
  * Barra lateral do BI.
@@ -125,12 +140,15 @@ export default function Sidebar({ session }: { session: Session }) {
 
   async function verComo(userId: string) {
     if (!userId) return;
-    await fetch("/api/auth/ver-como", {
+    const r = await fetch("/api/auth/ver-como", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: Number(userId) }),
     });
-    window.location.href = "/resumo";
+    // O destino vem do servidor porque depende do papel simulado: quem vira
+    // gerente administrativa não pode abrir o /resumo.
+    const destino = r.ok ? ((await r.json()).destino ?? "/resumo") : "/resumo";
+    window.location.href = destino;
   }
 
   return (
@@ -195,7 +213,7 @@ export default function Sidebar({ session }: { session: Session }) {
           <div className="mt-2.5">
             <label className="mb-1 flex items-center gap-1.5 text-[10px] text-slate-500">
               <Eye className="size-3" />
-              Ver como gerente
+              Ver como
             </label>
             <select
               defaultValue=""
@@ -205,11 +223,24 @@ export default function Sidebar({ session }: { session: Session }) {
               <option value="" disabled>
                 Escolher...
               </option>
-              {gerentes.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.nome} — {g.unidade ?? "Todas"} · {g.tipo === "venda" ? "Vendas" : "Locação"}
-                </option>
-              ))}
+              {/* Agrupado por papel: a lista passou de 13 para 20 nomes com as
+                  administrativas, e sem separação viravam um bloco só. */}
+              {["gerente", "gerente_adm"].map((papel) => {
+                const doPapel = gerentes.filter((g) => g.role === papel);
+                if (!doPapel.length) return null;
+                return (
+                  <optgroup
+                    key={papel}
+                    label={papel === "gerente" ? "Vendas e Locação" : "Administrativo"}
+                  >
+                    {doPapel.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.nome} — {escopoDoGerente(g)}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
             </select>
           </div>
         )}

@@ -37,7 +37,10 @@ export interface Session {
    * resto do app, sem saber de nada disso, escopa os dados certo sozinho).
    * Isto aqui só serve pra UI saber quem é de verdade e mostrar o aviso.
    */
-  verComo?: { nome: string; unidade: string | null; tipo: Tipo | null } | null;
+  verComo?: {
+    nome: string; unidade: string | null; tipo: Tipo | null;
+    role?: Role; unidades?: string[] | null;
+  } | null;
 }
 
 interface ViewAsPayload {
@@ -45,6 +48,14 @@ interface ViewAsPayload {
   unidade: string | null;
   tipo: Tipo | null;
   marketing: boolean;
+  /**
+   * Papel de quem está sendo simulado. Opcional porque cookie assinado antes
+   * de 25/09/2026 não tem o campo — nesse caso vale "gerente", que é o único
+   * papel que existia no "ver como" até então.
+   */
+  role?: Role;
+  /** Unidades de quem cobre mais de uma (a adm da Urbanova cobre três). */
+  unidades?: string[] | null;
 }
 
 export const SESSION_COOKIE = "bi_session";
@@ -93,11 +104,18 @@ function montarSessao(realToken: string | undefined, viewAsToken: string | undef
     id: real.id,
     email: real.email,
     nome: real.nome,
-    role: "gerente",
+    // Papel simulado: "gerente" continua sendo o padrão dos cookies antigos.
+    // Nunca pode virar "admin" — quem monta o payload é a rota de ver-como, e
+    // ela só aceita alvo gerente ou gerente_adm.
+    role: viewAs.role ?? "gerente",
     unidade: viewAs.unidade,
+    unidades: viewAs.unidades ?? null,
     tipo: viewAs.tipo,
     marketing: viewAs.marketing,
-    verComo: { nome: viewAs.nome, unidade: viewAs.unidade, tipo: viewAs.tipo },
+    verComo: {
+      nome: viewAs.nome, unidade: viewAs.unidade, tipo: viewAs.tipo,
+      role: viewAs.role ?? "gerente", unidades: viewAs.unidades ?? null,
+    },
   };
 }
 

@@ -1,6 +1,7 @@
 "use client";
 import { Eye } from "lucide-react";
 import type { Session } from "@/lib/auth";
+import { escopoDoGerente } from "./Sidebar";
 
 export default function VerComoBanner({ verComo }: { verComo: NonNullable<Session["verComo"]> }) {
   async function voltar() {
@@ -10,9 +11,10 @@ export default function VerComoBanner({ verComo }: { verComo: NonNullable<Sessio
     window.location.href = "/resumo";
   }
 
-  const escopo = `${verComo.unidade ?? "Todas as unidades"} · ${
-    verComo.tipo === "venda" ? "Vendas" : verComo.tipo === "locacao" ? "Locação" : ""
-  }`;
+  // Mesmo rótulo do seletor da sidebar — com as administrativas no jogo, o
+  // texto precisa dizer "Administrativo" e listar as três unidades da Rachel,
+  // senão o banner anuncia um escopo que não é o que está em tela.
+  const escopo = escopoDoGerente(verComo);
 
   return (
     <div className="ml-56 flex items-center justify-between gap-3 bg-amber-400 px-6 py-2 text-[13px] font-medium text-amber-950">
