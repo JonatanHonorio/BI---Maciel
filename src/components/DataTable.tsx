@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +26,14 @@ interface DataTableProps {
   data: Record<string, unknown>[];
   searchable?: boolean;
   pageSize?: number;
+  /** Clique na linha. Sem isto a linha continua sendo texto, como sempre foi. */
+  onRowClick?: (row: Record<string, unknown>) => void;
+  /**
+   * Conteúdo extra logo abaixo da linha. Devolver `null` (o caso comum) não
+   * gera nada — é assim que a tabela ganha ação por linha sem que as outras
+   * oito telas que usam este componente mudem de comportamento.
+   */
+  linhaExpandida?: (row: Record<string, unknown>) => ReactNode | null;
 }
 
 const alinhamento = (a?: Column["align"]) =>
@@ -36,6 +44,8 @@ export default function DataTable({
   data,
   searchable = false,
   pageSize = 10,
+  onRowClick,
+  linhaExpandida,
 }: DataTableProps) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -89,28 +99,39 @@ export default function DataTable({
             </tr>
           </thead>
           <tbody>
-            {pageData.map((row, i) => (
-              <tr
-                key={i}
-                className={cn(
-                  "hover:bg-accent/60 transition-colors",
-                  i % 2 === 1 && "bg-muted/30"
-                )}
-              >
-                {columns.map((col) => (
-                  <td
-                    key={col.key}
+            {pageData.map((row, i) => {
+              const extra = linhaExpandida?.(row) ?? null;
+              return (
+                <Fragment key={i}>
+                  <tr
+                    onClick={onRowClick ? () => onRowClick(row) : undefined}
                     className={cn(
-                      "px-3 py-2.5",
-                      alinhamento(col.align),
-                      col.align === "right" && "tabular-nums font-medium"
+                      "hover:bg-accent/60 transition-colors",
+                      i % 2 === 1 && "bg-muted/30",
+                      onRowClick && "cursor-pointer"
                     )}
                   >
-                    {col.format ? col.format(row[col.key]) : String(row[col.key] ?? "-")}
-                  </td>
-                ))}
-              </tr>
-            ))}
+                    {columns.map((col) => (
+                      <td
+                        key={col.key}
+                        className={cn(
+                          "px-3 py-2.5",
+                          alinhamento(col.align),
+                          col.align === "right" && "tabular-nums font-medium"
+                        )}
+                      >
+                        {col.format ? col.format(row[col.key]) : String(row[col.key] ?? "-")}
+                      </td>
+                    ))}
+                  </tr>
+                  {extra && (
+                    <tr className="bg-muted/40">
+                      <td colSpan={columns.length} className="px-3 py-3">{extra}</td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
             {!pageData.length && (
               <tr>
                 <td
