@@ -12,6 +12,8 @@ type Negocio = {
   id: number; data_contrato: string | null; ref: string | null; contrato: string | null;
   endereco: string | null; origem: string | null; valor: number | null; comissao: number | null;
   pagamento: string | null; observacao: string | null; comissao_paga: boolean; rateio: Rateio[];
+  /** Venda cancelada/distratada: a linha fica, os valores saem das contas. */
+  cancelado: boolean; cancelado_motivo: string | null;
   /** Só vêm no consolidado, onde a lista mistura unidades e meses. */
   unidade?: string;
   competencia?: string;
@@ -104,6 +106,8 @@ export default function FechamentoPage() {
   const [erro, setErro] = useState("");
   const [confirmarEnvio, setConfirmarEnvio] = useState(false);
   const [confirmarExclusao, setConfirmarExclusao] = useState<number | null>(null);
+  const [confirmarCancelamento, setConfirmarCancelamento] = useState<number | null>(null);
+  const [motivoCancelamento, setMotivoCancelamento] = useState("");
 
   // Trocar de mês/unidade rápido dispara mais de uma busca ao mesmo tempo, e
   // elas não voltam necessariamente na ordem em que saíram — uma resposta
@@ -189,6 +193,26 @@ export default function FechamentoPage() {
     await chamar(`/api/fechamento/negocios/${negocioId}`, { method: "DELETE" }, () => setConfirmarExclusao(null));
   }
 
+  /**
+   * Cancela (ou reativa) uma venda. Não passa pelo DELETE: o registro fica, só
+   * os valores saem das contas. Funciona com o mês já enviado de propósito —
+   * distrato quase sempre chega depois do fechamento.
+   */
+  async function alternarCancelamento(negocioId: number, cancelar: boolean) {
+    await chamar(
+      `/api/fechamento/negocios/${negocioId}/cancelar`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cancelado: cancelar, motivo: motivoCancelamento }),
+      },
+      () => {
+        setConfirmarCancelamento(null);
+        setMotivoCancelamento("");
+      }
+    );
+  }
+
   if (carregando && !dados) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -210,8 +234,27 @@ export default function FechamentoPage() {
   const periodo = dados.periodo;
   const consolidado = dados.consolidado ?? null;
   const travado = periodo?.status === "enviado";
-  const totalValor = dados.negocios.reduce((s, n) => s + (n.valor ? Number(n.valor) : 0), 0);
-  const totalComissao = dados.negocios.reduce((s, n) => s + (n.comissao ? Number(n.comissao) : 0), 0);
+  // Venda cancelada não entra em nenhum total — é o ponto do cancelamento.
+  const valendo = dados.negocios.filter((n) => !n.cancelado);
+  const canceladas = dados.negocios.length - valendo.length;
+  const totalValor = valendo.reduce((s, n) => s + (n.valor ? Number(n.valor) : 0), 0);
+  const totalComissao = valendo.reduce((s, n) => s + (n.comissao ? Number(n.comissao) : 0), 0);
+
+  /**
+   * Linhas da tabela. O cancelamento é resolvido AQUI, e não na coluna: o
+   * `format` do DataTable recebe só o valor da célula, sem a linha, então não
+   * há como uma coluna saber que o negócio ao lado foi cancelado.
+   */
+  const linhasTabela = (lista: Negocio[]) =>
+    lista.map((n) => ({
+      ...n,
+      contrato: n.contrato || "—",
+      situacao: n.cancelado ? "Cancelada" : "",
+      valor: n.cancelado ? null : n.valor,
+      comissao: n.cancelado ? null : n.comissao,
+      levantamento: nomesPapel(n.rateio, "levantamento"),
+      fechamento: nomesPapel(n.rateio, "fechamento"),
+    }));
 
   return (
     <div className="space-y-4">
@@ -306,7 +349,13 @@ export default function FechamentoPage() {
         <>
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4">
             <div className="flex gap-6 text-sm">
-              <span><span className="text-gray-500">Negócios: </span><span className="font-semibold">{dados.negocios.length}</span></span>
+              <span>
+                <span className="text-gray-500">Negócios: </span>
+                <span className="font-semibold">{valendo.length}</span>
+                {canceladas > 0 && (
+                  <span className="text-gray-400"> · {canceladas} cancelada{canceladas > 1 ? "s" : ""}</span>
+                )}
+              </span>
               <span><span className="text-gray-500">Total: </span><span className="font-semibold">{fmtMoney(totalValor)}</span></span>
               {consolidado.tipo === "venda" && (
                 <span><span className="text-gray-500">Comissão: </span><span className="font-semibold">{fmtMoney(totalComissao)}</span></span>
@@ -356,6 +405,7 @@ export default function FechamentoPage() {
                   : []),
                 { key: "unidade", label: "Unidade" },
                 { key: "ref", label: "Ref" },
+                { key: "contrato", label: "Contrato" },
                 { key: "endereco", label: "Endereço" },
                 { key: "levantamento", label: "Levantamento" },
                 { key: "fechamento", label: "Fechamento" },
@@ -364,12 +414,9 @@ export default function FechamentoPage() {
                   ? [{ key: "comissao", label: "Comissão", align: "right" as const, format: (v: unknown) => (v ? fmtMoney(v as number) : "—") }]
                   : []),
                 { key: "origem", label: "Origem" },
+                { key: "situacao", label: "Situação" },
               ]}
-              data={dados.negocios.map((n) => ({
-                ...n,
-                levantamento: nomesPapel(n.rateio, "levantamento"),
-                fechamento: nomesPapel(n.rateio, "fechamento"),
-              }))}
+              data={linhasTabela(dados.negocios)}
             />
             {/* Sem Adicionar/Enviar/Excel de propósito: as três são do PERÍODO,
                 que é sempre de uma unidade + vertical. Pra mexer, escolhe a
@@ -385,7 +432,13 @@ export default function FechamentoPage() {
         <>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white p-4">
             <div className="flex gap-6 text-sm">
-              <span><span className="text-gray-500">Negócios: </span><span className="font-semibold">{dados.negocios.length}</span></span>
+              <span>
+                <span className="text-gray-500">Negócios: </span>
+                <span className="font-semibold">{valendo.length}</span>
+                {canceladas > 0 && (
+                  <span className="text-gray-400"> · {canceladas} cancelada{canceladas > 1 ? "s" : ""}</span>
+                )}
+              </span>
               <span><span className="text-gray-500">Total: </span><span className="font-semibold">{fmtMoney(totalValor)}</span></span>
               {periodo.tipo === "venda" && (
                 <span><span className="text-gray-500">Comissão: </span><span className="font-semibold">{fmtMoney(totalComissao)}</span></span>
@@ -450,6 +503,7 @@ export default function FechamentoPage() {
               columns={[
                 { key: "data_contrato", label: "Data", format: (v) => (v ? fmtDataISO(v as string) : "—") },
                 { key: "ref", label: "Ref" },
+                { key: "contrato", label: "Contrato" },
                 { key: "endereco", label: "Endereço" },
                 { key: "levantamento", label: "Levantamento" },
                 { key: "fechamento", label: "Fechamento" },
@@ -458,13 +512,60 @@ export default function FechamentoPage() {
                   ? [{ key: "comissao", label: "Comissão", align: "right" as const, format: (v: unknown) => (v ? fmtMoney(v as number) : "—") }]
                   : []),
                 { key: "origem", label: "Origem" },
+                { key: "situacao", label: "Situação" },
               ]}
-              data={dados.negocios.map((n) => ({
-                ...n,
-                levantamento: nomesPapel(n.rateio, "levantamento"),
-                fechamento: nomesPapel(n.rateio, "fechamento"),
-              }))}
+              data={linhasTabela(dados.negocios)}
             />
+            {permissoes.podeComissoes && dados.negocios.length > 0 && (
+              <div className="mt-3 border-t border-gray-100 pt-3">
+                <p className="mb-1.5 text-[11px] text-gray-400">
+                  Venda cancelada ou distratada: o registro fica na lista, os valores saem dos totais,
+                  da comissão e do Excel. Funciona mesmo com o mês já enviado.
+                </p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {dados.negocios.map((n) =>
+                    confirmarCancelamento === n.id ? (
+                      <span key={n.id} className="inline-flex items-center gap-1.5 text-xs text-amber-700">
+                        {n.cancelado ? `Reativar #${n.id}?` : `Cancelar #${n.id}?`}
+                        {!n.cancelado && (
+                          <input
+                            value={motivoCancelamento}
+                            onChange={(e) => setMotivoCancelamento(e.target.value)}
+                            placeholder="motivo (opcional)"
+                            className="rounded border border-amber-300 px-1.5 py-0.5 text-xs"
+                          />
+                        )}
+                        <button
+                          onClick={() => alternarCancelamento(n.id, !n.cancelado)}
+                          className="font-semibold text-red-600 hover:underline"
+                        >
+                          Sim
+                        </button>
+                        <button
+                          onClick={() => { setConfirmarCancelamento(null); setMotivoCancelamento(""); }}
+                          className="text-gray-500 hover:underline"
+                        >
+                          Não
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        key={n.id}
+                        onClick={() => { setConfirmarCancelamento(n.id); setMotivoCancelamento(""); }}
+                        className={
+                          "text-xs hover:underline " +
+                          (n.cancelado ? "text-amber-700 hover:text-amber-900" : "text-gray-400 hover:text-red-600")
+                        }
+                        title={n.cancelado_motivo ?? undefined}
+                      >
+                        {n.cancelado ? "reativar" : "cancelar"} #{n.id} ({n.ref || n.endereco || "sem ref"})
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+
             {!travado && dados.negocios.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-gray-100 pt-3">
                 {dados.negocios.map((n) =>

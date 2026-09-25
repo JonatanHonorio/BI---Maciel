@@ -273,6 +273,9 @@ export async function negociosDaCompetencia(
     WHERE p.competencia BETWEEN ${de} AND ${ate}
       AND (${todasUnidades} OR p.unidade = ANY(${unidades ?? []}::text[]))
       AND (${todosTipos} OR p.tipo = ANY(${tipos ?? []}::text[]))
+      -- Venda cancelada não gera comissão a pagar. A linha continua no
+      -- fechamento, com a marca; aqui, onde se calcula dinheiro, ela sai.
+      AND n.cancelado = false
     GROUP BY n.id, p.unidade, p.tipo, p.competencia
     ORDER BY p.competencia, p.unidade, p.tipo, n.id
   `) as NegocioDoMes[];

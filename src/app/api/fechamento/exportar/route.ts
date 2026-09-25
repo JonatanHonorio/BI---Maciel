@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
   const negocios = (await sql`
     SELECT n.id, n.data_contrato, n.ref, n.contrato, n.endereco, n.origem,
-      n.valor, n.comissao, n.pagamento,
+      n.valor, n.comissao, n.pagamento, n.cancelado,
       COALESCE(
         json_agg(
           json_build_object('corretor_id', rc.corretor_id, 'nome', COALESCE(NULLIF(TRIM(cor.nome_comercial), ''), NULLIF(TRIM(cor.nome), ''), rc.nome_livre),
@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
   `) as {
     id: number; data_contrato: string | null; ref: string | null; contrato: string | null;
     endereco: string | null; origem: string | null; valor: string | null; comissao: string | null;
+    cancelado: boolean;
     pagamento: string | null; rateio: Rateio[];
   }[];
 
@@ -91,9 +92,13 @@ export async function GET(req: NextRequest) {
     { titulo: "Endereço", largura: 34, valor: (n) => n.endereco },
     { titulo: "Levantamento", largura: 24, valor: (n) => nomesPapel(n.rateio, "levantamento") },
     { titulo: "Fechamento", largura: 24, valor: (n) => nomesPapel(n.rateio, "fechamento") },
+    // Venda cancelada entra na planilha com a marca e SEM valor: a linha
+    // continua sendo a prova de que o negócio existiu, mas somar a coluna não
+    // pode devolver dinheiro que a imobiliária não recebeu.
+    { titulo: "Situação", largura: 12, valor: (n) => (n.cancelado ? "CANCELADA" : "") },
     {
       titulo: ehVenda ? "Valor da Venda" : "Valor", largura: 16, dinheiro: true,
-      valor: (n) => (n.valor ? Number(n.valor) : null),
+      valor: (n) => (n.cancelado || !n.valor ? null : Number(n.valor)),
     },
     // Comissão, Pagamento e Status Pagamento saem da locação (pedido do
     // Jonatan em 22/09): locação não tem campo de comissão — o que a
@@ -102,7 +107,7 @@ export async function GET(req: NextRequest) {
     ...(ehVenda
       ? [{
           titulo: "Comissão", largura: 14, dinheiro: true,
-          valor: (n: (typeof negocios)[number]) => (n.comissao ? Number(n.comissao) : null),
+          valor: (n: (typeof negocios)[number]) => (n.cancelado || !n.comissao ? null : Number(n.comissao)),
         }]
       : []),
     { titulo: "Origem", largura: 14, valor: (n) => n.origem },

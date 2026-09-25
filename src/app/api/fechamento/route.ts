@@ -71,7 +71,8 @@ export async function GET(req: NextRequest) {
     const negociosTodos = await sqlTodas`
       SELECT n.id, n.data_contrato, n.ref, n.contrato, n.endereco, n.origem,
         n.valor, n.comissao, n.pagamento, n.observacao,
-        n.comissao_paga, n.comissao_paga_em, p.unidade, p.status AS periodo_status,
+        n.comissao_paga, n.comissao_paga_em, n.cancelado, n.cancelado_motivo,
+        p.unidade, p.status AS periodo_status,
         to_char(p.competencia, 'YYYY-MM') AS competencia,
         COALESCE(
           json_agg(
@@ -140,7 +141,7 @@ export async function GET(req: NextRequest) {
   const negocios = await sql`
     SELECT n.id, n.data_contrato, n.ref, n.contrato, n.endereco, n.origem,
       n.valor, n.comissao, n.pagamento, n.observacao,
-      n.comissao_paga, n.comissao_paga_em,
+      n.comissao_paga, n.comissao_paga_em, n.cancelado, n.cancelado_motivo,
       COALESCE(
         json_agg(
           json_build_object(
