@@ -108,6 +108,7 @@ export default function FechamentoPage() {
   const [confirmarExclusao, setConfirmarExclusao] = useState<number | null>(null);
   const [linhaAberta, setLinhaAberta] = useState<number | null>(null);
   const [motivoCancelamento, setMotivoCancelamento] = useState("");
+  const [correcao, setCorrecao] = useState<{ valor: string; comissao: string } | null>(null);
 
   // Trocar de mês/unidade rápido dispara mais de uma busca ao mesmo tempo, e
   // elas não voltam necessariamente na ordem em que saíram — uma resposta
@@ -198,6 +199,30 @@ export default function FechamentoPage() {
    * os valores saem das contas. Funciona com o mês já enviado de propósito —
    * distrato quase sempre chega depois do fechamento.
    */
+  /**
+   * Corrige valor e comissão sem passar pelo PUT do negócio, que reescreve o
+   * rateio e — por causa do CASCADE — apagaria as baixas já lançadas.
+   *
+   * Como o rateio é percentual, subir a comissão sobe sozinho o quanto cada um
+   * tem a receber; quem já recebeu fica com o que recebeu e a diferença vira
+   * saldo.
+   */
+  async function salvarCorrecao(negocioId: number) {
+    if (!correcao) return;
+    await chamar(
+      `/api/fechamento/negocios/${negocioId}/valores`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          valor: correcao.valor === "" ? null : Number(correcao.valor),
+          comissao: correcao.comissao === "" ? null : Number(correcao.comissao),
+        }),
+      },
+      () => setCorrecao(null)
+    );
+  }
+
   async function alternarCancelamento(negocioId: number, cancelar: boolean) {
     await chamar(
       `/api/fechamento/negocios/${negocioId}/cancelar`,
@@ -282,7 +307,42 @@ export default function FechamentoPage() {
           {n.endereco ? ` · ${n.endereco}` : ""}
         </p>
 
-        {n.cancelado ? (
+        {correcao ? (
+          <div className="flex flex-wrap items-end gap-2">
+            <div>
+              <label className="block text-[10px] uppercase tracking-wide text-gray-500">Valor</label>
+              <input
+                value={correcao.valor}
+                onChange={(e) => setCorrecao({ ...correcao, valor: e.target.value })}
+                inputMode="decimal"
+                className="w-36 rounded border border-gray-300 px-2 py-1.5 text-xs tabular-nums"
+              />
+            </div>
+            {n.comissao !== null && (
+              <div>
+                <label className="block text-[10px] uppercase tracking-wide text-gray-500">Comissão</label>
+                <input
+                  value={correcao.comissao}
+                  onChange={(e) => setCorrecao({ ...correcao, comissao: e.target.value })}
+                  inputMode="decimal"
+                  className="w-36 rounded border border-gray-300 px-2 py-1.5 text-xs tabular-nums"
+                />
+              </div>
+            )}
+            <button
+              onClick={() => salvarCorrecao(n.id)}
+              className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+            >
+              Salvar
+            </button>
+            <button onClick={() => setCorrecao(null)} className="px-2 py-1.5 text-xs text-gray-500 hover:underline">
+              Cancelar
+            </button>
+            <span className="text-[11px] text-gray-400">
+              o rateio é percentual: o que cada um tem a receber acompanha
+            </span>
+          </div>
+        ) : n.cancelado ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
               Cancelada{n.cancelado_motivo ? ` — ${n.cancelado_motivo}` : ""}
@@ -308,8 +368,19 @@ export default function FechamentoPage() {
             >
               <Ban size={13} /> Cancelar venda
             </button>
+            <button
+              onClick={() =>
+                setCorrecao({
+                  valor: n.valor == null ? "" : String(n.valor),
+                  comissao: n.comissao == null ? "" : String(n.comissao),
+                })
+              }
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Corrigir valor/comissão
+            </button>
             <span className="text-[11px] text-gray-400">
-              o registro fica na lista; valor e comissão saem dos totais e do Excel
+              cancelar mantém o registro e tira os valores dos totais
             </span>
           </div>
         )}
@@ -489,6 +560,7 @@ export default function FechamentoPage() {
                 const id = Number(row.id);
                 setLinhaAberta(linhaAberta === id ? null : id);
                 setMotivoCancelamento("");
+                setCorrecao(null);
               }}
               linhaExpandida={painelDaLinha}
             />
@@ -593,6 +665,7 @@ export default function FechamentoPage() {
                 const id = Number(row.id);
                 setLinhaAberta(linhaAberta === id ? null : id);
                 setMotivoCancelamento("");
+                setCorrecao(null);
               }}
               linhaExpandida={painelDaLinha}
             />

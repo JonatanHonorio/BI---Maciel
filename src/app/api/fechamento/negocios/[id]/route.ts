@@ -57,6 +57,27 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   }
 
   const sql = getDb();
+
+  /*
+   * Esta rota reescreve o rateio (DELETE + INSERT abaixo), e
+   * `fechamento_pagamentos` tem FK em CASCADE para as linhas do rateio — ou
+   * seja, editar um negócio que já teve baixa apagaria as baixas EM SILÊNCIO.
+   *
+   * Para corrigir só valor/comissão existe `negocios/[id]/valores`, que não
+   * encosta no rateio e por isso preserva os pagamentos.
+   */
+  const [{ pagamentos }] = (await sql`
+    SELECT count(*)::int AS pagamentos
+    FROM fechamento_pagamentos fp
+    JOIN fechamento_negocio_corretores rc ON rc.id = fp.negocio_corretor_id
+    WHERE rc.negocio_id = ${negocioId}
+  `) as { pagamentos: number }[];
+  if (pagamentos > 0) {
+    return NextResponse.json({
+      error: `este negócio já tem ${pagamentos} baixa(s) de comissão lançada(s) — editá-lo apagaria os pagamentos. Para acertar valor ou comissão, use a correção de valores.`,
+    }, { status: 409 });
+  }
+
   await sql`
     UPDATE fechamento_negocios SET
       data_contrato = ${body.data_contrato}, ref = ${body.ref}, contrato = ${body.contrato},
