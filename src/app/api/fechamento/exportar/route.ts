@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { calcularStatusPagamento, type Papel } from "@/lib/fechamento";
+import { calcularStatusPagamento, escopoUnidade, escopoTipo, type Papel } from "@/lib/fechamento";
 import { pctTexto } from "@/lib/comissao";
-import { podeAcessarPeriodo } from "@/lib/permissoes";
+import { podeAcessarPeriodo, unidadesFechamento, tiposFechamento } from "@/lib/permissoes";
 
 interface Rateio {
   corretor_id: number | null; nome: string; papel: Papel; percentual: number | null;
@@ -22,20 +22,56 @@ export async function GET(req: NextRequest) {
   const session = getSession(req);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const periodoId = Number(req.nextUrl.searchParams.get("periodo_id"));
-  if (!periodoId) return NextResponse.json({ error: "periodo_id obrigatório" }, { status: 400 });
-
+  const q = req.nextUrl.searchParams;
+  const periodoId = Number(q.get("periodo_id"));
   const sql = getDb();
-  const [periodo] = await sql`SELECT * FROM fechamento_periodos WHERE id = ${periodoId}`;
-  if (!periodo) return NextResponse.json({ error: "período não encontrado" }, { status: 404 });
 
-  if (!podeAcessarPeriodo(session, periodo)) {
-    return NextResponse.json({ error: "sem acesso a este período" }, { status: 403 });
+  /*
+   * Duas formas de exportar, e a faixa NÃO é um luxo: na visão consolidada
+   * (várias unidades, vários meses) não existe período, e era exatamente ali
+   * que faltava o botão.
+   *
+   * - `periodo_id`: um mês de uma unidade, como antes.
+   * - `de`/`ate`/`tipo` (+ `unidade` opcional): a mesma faixa da tela.
+   */
+  let periodo: Record<string, unknown> | null = null;
+  let de = "", ate = "", tipoFaixa = "", unidadesEscopo: string[] | null = null;
+
+  if (periodoId) {
+    [periodo] = await sql`SELECT * FROM fechamento_periodos WHERE id = ${periodoId}`;
+    if (!periodo) return NextResponse.json({ error: "período não encontrado" }, { status: 404 });
+    if (!podeAcessarPeriodo(session, periodo)) {
+      return NextResponse.json({ error: "sem acesso a este período" }, { status: 403 });
+    }
+  } else {
+    de = q.get("de") || "";
+    ate = q.get("ate") || de;
+    for (const d of [de, ate]) {
+      if (!/^\d{4}-\d{2}-01$/.test(d)) {
+        return NextResponse.json({ error: "informe periodo_id ou de/ate" }, { status: 400 });
+      }
+    }
+    // O escopo sai das MESMAS funções da tela — a exportação não pode alcançar
+    // unidade que a pessoa não vê no quadro.
+    const tipos = escopoTipo(tiposFechamento(session), q.get("tipo"));
+    if (!tipos || tipos.length !== 1) {
+      return NextResponse.json({ error: "escolha Vendas ou Locação para exportar" }, { status: 400 });
+    }
+    tipoFaixa = tipos[0];
+    const pedida = q.get("unidade");
+    unidadesEscopo = escopoUnidade(
+      unidadesFechamento(session),
+      pedida && pedida !== "__todas" ? pedida : null
+    );
   }
+
+  const porPeriodo = periodo !== null;
+  const todasUnidades = unidadesEscopo === null;
 
   const negocios = (await sql`
     SELECT n.id, n.data_contrato, n.ref, n.contrato, n.endereco, n.origem,
       n.valor, n.comissao, n.pagamento, n.cancelado,
+      p.unidade AS p_unidade, to_char(p.competencia, 'MM/YYYY') AS p_competencia,
       COALESCE(
         json_agg(
           json_build_object('corretor_id', rc.corretor_id, 'nome', COALESCE(NULLIF(TRIM(cor.nome_comercial), ''), NULLIF(TRIM(cor.nome), ''), rc.nome_livre),
@@ -44,19 +80,24 @@ export async function GET(req: NextRequest) {
         ) FILTER (WHERE rc.id IS NOT NULL), '[]'
       ) AS rateio
     FROM fechamento_negocios n
+    JOIN fechamento_periodos p ON p.id = n.periodo_id
     LEFT JOIN fechamento_negocio_corretores rc ON rc.negocio_id = n.id
     LEFT JOIN corretores cor ON cor.id = rc.corretor_id
     LEFT JOIN LATERAL (
       SELECT json_agg(json_build_object('valor', fp.valor)) AS pagamentos
       FROM fechamento_pagamentos fp WHERE fp.negocio_corretor_id = rc.id
     ) pg ON true
-    WHERE n.periodo_id = ${periodoId}
-    GROUP BY n.id
-    ORDER BY n.id
+    WHERE (${porPeriodo} AND n.periodo_id = ${periodoId || 0})
+       OR (NOT ${porPeriodo}
+           AND p.competencia BETWEEN ${de || "1900-01-01"} AND ${ate || "1900-01-01"}
+           AND p.tipo = ${tipoFaixa || ""}
+           AND (${todasUnidades} OR p.unidade = ANY(${unidadesEscopo ?? []}::text[])))
+    GROUP BY n.id, p.unidade, p.competencia
+    ORDER BY p.competencia, p.unidade, n.id
   `) as {
     id: number; data_contrato: string | null; ref: string | null; contrato: string | null;
     endereco: string | null; origem: string | null; valor: string | null; comissao: string | null;
-    cancelado: boolean;
+    cancelado: boolean; p_unidade: string; p_competencia: string;
     pagamento: string | null; rateio: Rateio[];
   }[];
 
@@ -66,7 +107,7 @@ export async function GET(req: NextRequest) {
       .map((r) => (r.percentual != null ? `${r.nome} (${pctTexto(Number(r.percentual))})` : r.nome))
       .join(", ");
 
-  const ehVenda = periodo.tipo === "venda";
+  const ehVenda = (porPeriodo ? periodo!.tipo : tipoFaixa) === "venda";
 
   /**
    * Uma lista só descreve a coluna inteira — título, largura, formato e de
@@ -86,7 +127,10 @@ export async function GET(req: NextRequest) {
   const colunas: Coluna[] = [
     { titulo: "QTDE", largura: 6, valor: (_n, i) => i + 1 },
     { titulo: "Data Contrato", largura: 13, valor: (n) => n.data_contrato },
-    { titulo: "Unidade", largura: 14, valor: () => periodo.unidade },
+    // Numa faixa de vários meses a competência deixa de ser o cabeçalho da
+    // planilha e precisa ir linha a linha.
+    ...(porPeriodo ? [] : [{ titulo: "Competência", largura: 12, valor: (n: (typeof negocios)[number]) => n.p_competencia }]),
+    { titulo: "Unidade", largura: 14, valor: (n) => (porPeriodo ? String(periodo!.unidade) : n.p_unidade) },
     { titulo: "Ref", largura: 10, valor: (n) => n.ref },
     { titulo: "Contrato", largura: 10, valor: (n) => n.contrato },
     { titulo: "Endereço", largura: 34, valor: (n) => n.endereco },
@@ -120,7 +164,9 @@ export async function GET(req: NextRequest) {
   ];
 
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet(`${ehVenda ? "Vendas" : "Locação"} - ${periodo.unidade}`);
+  const ws = wb.addWorksheet(
+    `${ehVenda ? "Vendas" : "Locação"} - ${porPeriodo ? periodo!.unidade : "consolidado"}`
+  );
   ws.addRow(colunas.map((c) => c.titulo));
   ws.getRow(1).font = { bold: true };
   ws.views = [{ state: "frozen", ySplit: 1 }];
@@ -138,11 +184,18 @@ export async function GET(req: NextRequest) {
   });
 
   const buffer = await wb.xlsx.writeBuffer();
-  // periodo.competencia vem do driver como Date — formatar antes de usar no nome
-  // do arquivo (senão vira "Tue Sep 01 2026 00:00:00 GMT-0300 (...)").
-  const comp = new Date(periodo.competencia);
-  const competenciaFmt = `${comp.getFullYear()}-${String(comp.getMonth() + 1).padStart(2, "0")}`;
-  const nomeArquivo = `fechamento_${periodo.tipo}_${periodo.unidade}_${competenciaFmt}.xlsx`
+  let nomeArquivo: string;
+  if (porPeriodo) {
+    // periodo.competencia vem do driver como Date — formatar antes de usar no
+    // nome do arquivo (senão vira "Tue Sep 01 2026 00:00:00 GMT-0300 (...)").
+    const comp = new Date(periodo!.competencia as string);
+    const competenciaFmt = `${comp.getFullYear()}-${String(comp.getMonth() + 1).padStart(2, "0")}`;
+    nomeArquivo = `fechamento_${periodo!.tipo}_${periodo!.unidade}_${competenciaFmt}.xlsx`;
+  } else {
+    const quais = unidadesEscopo === null ? "todas" : unidadesEscopo.join("-");
+    nomeArquivo = `fechamento_${tipoFaixa}_${quais}_${de.slice(0, 7)}_a_${ate.slice(0, 7)}.xlsx`;
+  }
+  nomeArquivo = nomeArquivo
     .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w.\-]+/g, "_");
 
   return new NextResponse(Buffer.from(buffer), {

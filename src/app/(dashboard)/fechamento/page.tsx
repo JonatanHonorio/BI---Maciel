@@ -256,6 +256,61 @@ export default function FechamentoPage() {
       fechamento: nomesPapel(n.rateio, "fechamento"),
     }));
 
+  /**
+   * Lista de cancelar/reativar. Montada uma vez e usada nas DUAS visões: a
+   * consolidada é onde se enxerga a empresa inteira, e foi justamente onde o
+   * Jonatan foi procurar o botão (26/09).
+   */
+  const blocoCancelamento = permissoes.podeComissoes && dados.negocios.length > 0 && (
+    <div className="mt-3 border-t border-gray-100 pt-3">
+      <p className="mb-1.5 text-[11px] text-gray-400">
+        Venda cancelada ou distratada: o registro fica na lista, os valores saem dos totais,
+        da comissão e do Excel. Funciona mesmo com o mês já enviado.
+      </p>
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {dados.negocios.map((n) =>
+          confirmarCancelamento === n.id ? (
+            <span key={n.id} className="inline-flex items-center gap-1.5 text-xs text-amber-700">
+              {n.cancelado ? `Reativar #${n.id}?` : `Cancelar #${n.id}?`}
+              {!n.cancelado && (
+                <input
+                  value={motivoCancelamento}
+                  onChange={(e) => setMotivoCancelamento(e.target.value)}
+                  placeholder="motivo (opcional)"
+                  className="rounded border border-amber-300 px-1.5 py-0.5 text-xs"
+                />
+              )}
+              <button
+                onClick={() => alternarCancelamento(n.id, !n.cancelado)}
+                className="font-semibold text-red-600 hover:underline"
+              >
+                Sim
+              </button>
+              <button
+                onClick={() => { setConfirmarCancelamento(null); setMotivoCancelamento(""); }}
+                className="text-gray-500 hover:underline"
+              >
+                Não
+              </button>
+            </span>
+          ) : (
+            <button
+              key={n.id}
+              onClick={() => { setConfirmarCancelamento(n.id); setMotivoCancelamento(""); }}
+              className={
+                "text-xs hover:underline " +
+                (n.cancelado ? "text-amber-700 hover:text-amber-900" : "text-gray-400 hover:text-red-600")
+              }
+              title={n.cancelado_motivo ?? undefined}
+            >
+              {n.cancelado ? "reativar" : "cancelar"} #{n.id} ({n.ref || n.endereco || "sem ref"})
+            </button>
+          )
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -361,6 +416,13 @@ export default function FechamentoPage() {
                 <span><span className="text-gray-500">Comissão: </span><span className="font-semibold">{fmtMoney(totalComissao)}</span></span>
               )}
             </div>
+            <a
+              href={`/api/fechamento/exportar?de=${consolidado.de}&ate=${consolidado.ate}&tipo=${consolidado.tipo}${consolidado.unidade ? `&unidade=${encodeURIComponent(consolidado.unidade)}` : ""}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <Download size={14} /> Excel
+            </a>
+
             {/* Quais unidades já fecharam. Sem isso, um total baixo parece erro
                 quando na verdade é unidade que ainda não lançou.
                 Numa faixa de vários meses seriam 8 unidades × N meses de
@@ -418,11 +480,13 @@ export default function FechamentoPage() {
               ]}
               data={linhasTabela(dados.negocios)}
             />
-            {/* Sem Adicionar/Enviar/Excel de propósito: as três são do PERÍODO,
-                que é sempre de uma unidade + vertical. Pra mexer, escolhe a
-                unidade no seletor. */}
+            {blocoCancelamento}
+
+            {/* Adicionar e Enviar continuam fora: as duas são do PERÍODO, que é
+                sempre uma unidade + um mês. O Excel não — ele exporta o que
+                está na tela, e a faixa consolidada é onde mais se quer isso. */}
             <p className="mt-3 border-t border-gray-100 pt-3 text-xs text-gray-400">
-              Para lançar, enviar ou exportar, escolha uma unidade no seletor acima.
+              Para lançar um negócio ou enviar o fechamento, escolha uma unidade no seletor acima.
             </p>
           </div>
         </>
@@ -516,55 +580,7 @@ export default function FechamentoPage() {
               ]}
               data={linhasTabela(dados.negocios)}
             />
-            {permissoes.podeComissoes && dados.negocios.length > 0 && (
-              <div className="mt-3 border-t border-gray-100 pt-3">
-                <p className="mb-1.5 text-[11px] text-gray-400">
-                  Venda cancelada ou distratada: o registro fica na lista, os valores saem dos totais,
-                  da comissão e do Excel. Funciona mesmo com o mês já enviado.
-                </p>
-                <div className="flex flex-wrap gap-x-4 gap-y-1">
-                  {dados.negocios.map((n) =>
-                    confirmarCancelamento === n.id ? (
-                      <span key={n.id} className="inline-flex items-center gap-1.5 text-xs text-amber-700">
-                        {n.cancelado ? `Reativar #${n.id}?` : `Cancelar #${n.id}?`}
-                        {!n.cancelado && (
-                          <input
-                            value={motivoCancelamento}
-                            onChange={(e) => setMotivoCancelamento(e.target.value)}
-                            placeholder="motivo (opcional)"
-                            className="rounded border border-amber-300 px-1.5 py-0.5 text-xs"
-                          />
-                        )}
-                        <button
-                          onClick={() => alternarCancelamento(n.id, !n.cancelado)}
-                          className="font-semibold text-red-600 hover:underline"
-                        >
-                          Sim
-                        </button>
-                        <button
-                          onClick={() => { setConfirmarCancelamento(null); setMotivoCancelamento(""); }}
-                          className="text-gray-500 hover:underline"
-                        >
-                          Não
-                        </button>
-                      </span>
-                    ) : (
-                      <button
-                        key={n.id}
-                        onClick={() => { setConfirmarCancelamento(n.id); setMotivoCancelamento(""); }}
-                        className={
-                          "text-xs hover:underline " +
-                          (n.cancelado ? "text-amber-700 hover:text-amber-900" : "text-gray-400 hover:text-red-600")
-                        }
-                        title={n.cancelado_motivo ?? undefined}
-                      >
-                        {n.cancelado ? "reativar" : "cancelar"} #{n.id} ({n.ref || n.endereco || "sem ref"})
-                      </button>
-                    )
-                  )}
-                </div>
-              </div>
-            )}
+            {blocoCancelamento}
 
             {!travado && dados.negocios.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-gray-100 pt-3">
