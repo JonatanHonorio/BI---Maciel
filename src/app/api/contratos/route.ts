@@ -53,8 +53,29 @@ export async function GET(req: NextRequest) {
       AND (${unidadeFiltro}::text IS NULL OR c.unidade = ${unidadeFiltro}::text)
       AND (${tipoFiltro}::text IS NULL OR c.tipo = ${tipoFiltro}::text)
       AND (${corretor}::text IS NULL OR c.corretor_nome ILIKE '%' || ${corretor}::text || '%')
-    ORDER BY c.fase, c.atualizado_em DESC
+    ORDER BY c.fase,
+      -- No recebimento a ordem é a da fila (senha crescente); nas outras fases,
+      -- o que mexeu por último vem primeiro.
+      CASE WHEN c.fase = 1 THEN c.senha END ASC,
+      c.atualizado_em DESC
   `) as Record<string, unknown>[];
+
+  /*
+   * Posição na fila do recebimento — calculada sobre TODOS os contratos em
+   * espera, de propósito ignorando o escopo de quem perguntou.
+   *
+   * É o ponto do pedido: a gerente quer saber se está chegando a vez dela, e
+   * ela só enxerga a própria unidade. Numerar dentro do que ela vê diria "você
+   * é a 2ª" quando há oito contratos de outras unidades na frente — uma
+   * resposta pior que nenhuma.
+   */
+  const fila = (await sql`
+    SELECT id,
+      row_number() OVER (ORDER BY senha)::int AS posicao,
+      count(*) OVER ()::int AS total
+    FROM contratos WHERE fase = 1 AND arquivado = false
+  `) as { id: number; posicao: number; total: number }[];
+  const posicaoPorId = new Map(fila.map((f) => [Number(f.id), f]));
 
   /*
    * Opções do seletor de corretor: saem de TODOS os contratos no escopo da
@@ -71,7 +92,14 @@ export async function GET(req: NextRequest) {
 
   const verBanco = podeVerBanco(session);
   return NextResponse.json({
-    contratos: linhas.map((c) => limparContrato(c, verBanco)),
+    contratos: linhas.map((c) => {
+      const naFila = posicaoPorId.get(Number(c.id));
+      return {
+        ...limparContrato(c, verBanco),
+        fila_posicao: naFila?.posicao ?? null,
+        fila_total: naFila?.total ?? null,
+      };
+    }),
     // `unidades` é o escopo de quem pediu; `todasUnidades` é a lista oficial
     // para o seletor do formulário — o componente é client e não pode importar
     // @/lib/fechamento, que usa fs.

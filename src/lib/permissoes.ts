@@ -53,7 +53,12 @@ export function podeReabrir(s: Session): boolean {
 
 /** Rotas liberadas, quando o perfil só enxerga parte do BI. `null` = tudo. */
 function rotasPermitidas(s: Session): string[] | null {
-  if (s.role === "gerente_adm") return ["/fechamento", "/api/fechamento"];
+  // A gerente administrativa acompanha também os contratos da própria unidade
+  // (26/09/2026) — ela vê o quadro, mas não cria nem edita card: quem opera é
+  // a Ana, e isso é decidido em @/lib/contratos, não aqui.
+  if (s.role === "gerente_adm") {
+    return ["/fechamento", "/api/fechamento", "/contratos", "/api/contratos"];
+  }
   if (s.role === "contratos") return ["/contratos", "/api/contratos"];
   return null;
 }

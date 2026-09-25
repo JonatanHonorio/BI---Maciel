@@ -5,6 +5,7 @@ import { enviarEmailContrato } from "./mailer";
 interface ContratoAviso {
   id: number;
   ref: string;
+  senha: number | null;
   tipo: string;
   unidade: string;
   corretor_nome: string | null;
@@ -58,6 +59,9 @@ export async function avisarGerenteDoContrato(
 
   for (const d of destinos) {
     await enviarEmailContrato(d.email, d.nome, {
+      // A senha vai junto porque é por ela que o gerente acompanha a fila —
+      // a referência identifica o imóvel, a senha diz a vez.
+      senha: contrato.senha,
       ref: contrato.ref,
       fase: nomeFase(fase),
       endereco: contrato.imovel_endereco,

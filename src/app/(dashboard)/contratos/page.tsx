@@ -13,6 +13,11 @@ type Contrato = {
   banco: { contas?: ContaBancaria[] } | null; banco_oculto?: boolean;
   pagamento: string | null; observacao: string | null;
   arquivado: boolean; criado_em: string; atualizado_em: string;
+  /** Senha de chegada, dada quando a Ana cria o card. */
+  senha: number | null;
+  /** Posição na fila do recebimento, sobre a fila INTEIRA — nulo fora da fase 1. */
+  fila_posicao: number | null;
+  fila_total: number | null;
 };
 type Evento = {
   id: number; de: number | null; para: number | null;
@@ -53,6 +58,9 @@ const diaHora = (iso: string) => {
 /** Dias parados na fase atual — é o que faz um contrato esquecido saltar aos olhos. */
 const diasParado = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
 
+/** Senha com três dígitos — "007" lê como fila, "7" lê como contagem solta. */
+const fmtSenha = (n: number | null) => (n == null ? "—" : String(n).padStart(3, "0"));
+
 function CartaoContrato({ c, onAbrir }: { c: Contrato; onAbrir: (c: Contrato) => void }) {
   const dias = diasParado(c.atualizado_em);
   return (
@@ -61,11 +69,23 @@ function CartaoContrato({ c, onAbrir }: { c: Contrato; onAbrir: (c: Contrato) =>
       className="w-full text-left bg-white border border-gray-200 rounded-lg p-3 hover:border-blue-400 hover:shadow-sm transition"
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="font-semibold text-sm text-gray-800">{c.ref}</span>
+        <span className="flex items-center gap-2 font-semibold text-sm text-gray-800">
+          {/* Chip, não texto solto na frente da referência: os dois são números
+              e, encostados, liam como um número só ("00270002"). */}
+          <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-gray-500">
+            {fmtSenha(c.senha)}
+          </span>
+          {c.ref}
+        </span>
         <span className={`text-[10px] px-1.5 py-0.5 rounded ${c.tipo === "venda" ? "bg-emerald-50 text-emerald-700" : "bg-sky-50 text-sky-700"}`}>
           {c.tipo === "venda" ? "Venda" : "Locação"}
         </span>
       </div>
+      {c.fila_posicao != null && (
+        <p className={`mt-1 text-[11px] font-medium ${c.fila_posicao === 1 ? "text-emerald-700" : "text-gray-500"}`}>
+          {c.fila_posicao === 1 ? "é o próximo da fila" : `${c.fila_posicao}º de ${c.fila_total} na fila`}
+        </p>
+      )}
       {c.imovel_endereco && (
         <p className="text-xs text-gray-600 mt-1 line-clamp-2">{c.imovel_endereco}</p>
       )}
@@ -325,6 +345,13 @@ export default function ContratosPage() {
                 {f.curto}
                 <span className="float-right opacity-70">{lista.length}</span>
               </div>
+              {f.id === 1 && lista.length > 0 && lista[0].fila_total != null && lista[0].fila_total > lista.length && (
+                // A gerente vê só a própria unidade; sem esta linha ela contaria
+                // os cards da tela e acharia que a fila é menor do que é.
+                <p className="bg-gray-50 px-3 pt-2 text-[10px] text-gray-500">
+                  {lista[0].fila_total} na fila, contando as outras unidades
+                </p>
+              )}
               <div className="bg-gray-50 rounded-b-lg p-2 space-y-2 min-h-[120px]">
                 {lista.map((c) => (
                   <CartaoContrato key={c.id} c={c} onAbrir={abrirCard} />
@@ -348,11 +375,14 @@ export default function ContratosPage() {
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-gray-800">
-                  {editando ? (editando.id ? `Editar ${editando.ref}` : "Novo contrato") : `Contrato ${aberto!.ref}`}
+                  {editando
+                    ? editando.id ? `Editar ${editando.ref}` : "Novo contrato"
+                    : `Senha ${fmtSenha(aberto!.senha)} · Contrato ${aberto!.ref}`}
                 </h2>
                 {aberto && !editando && (
                   <p className="text-xs text-gray-500 mt-0.5">
                     {nomeFase(aberto.fase)} · {aberto.unidade} · {aberto.tipo === "venda" ? "Venda" : "Locação"}
+                    {aberto.fila_posicao != null && ` · ${aberto.fila_posicao}º de ${aberto.fila_total} na fila`}
                   </p>
                 )}
               </div>

@@ -35,6 +35,7 @@ export async function enviarEmailRedefinirSenha(destino: string, nome: string, l
 }
 
 interface AvisoContrato {
+  senha: number | null;
   ref: string;
   fase: string;
   tipo: string;
@@ -54,6 +55,7 @@ interface AvisoContrato {
  */
 export async function enviarEmailContrato(destino: string, nome: string, a: AvisoContrato) {
   const linhas = [
+    `Senha: ${a.senha == null ? "—" : String(a.senha).padStart(3, "0")}`,
     `Referência: ${a.ref}`,
     `Tipo: ${a.tipo}`,
     a.endereco ? `Imóvel: ${a.endereco}` : null,
@@ -66,7 +68,7 @@ export async function enviarEmailContrato(destino: string, nome: string, a: Avis
   await getTransporter().sendMail({
     from: `"BI Maciel" <${process.env.SMTP_USER}>`,
     to: destino,
-    subject: `Contrato ${a.ref} — ${a.fase}`,
+    subject: `Contrato ${a.ref} (senha ${a.senha == null ? "—" : String(a.senha).padStart(3, "0")}) — ${a.fase}`,
     text: `Olá, ${nome}.\n\n${linhas.join("\n")}\n\nAbrir no BI: ${a.link}\n`,
     html: `
       <p>Olá, ${nome}.</p>

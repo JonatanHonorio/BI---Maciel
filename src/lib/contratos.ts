@@ -42,6 +42,9 @@ export function podeEditarContrato(s: Session): boolean {
 /**
  * Unidades que a pessoa enxerga. `null` = todas.
  *
+ * A gerente administrativa cai no caso do meio (`s.unidades`), que é o que dá
+ * à Rachel as três unidades dela — o mesmo dado que o fechamento já usa.
+ *
  * ATENÇÃO — é de propósito que isto NÃO se comporta como `unidadesFechamento`.
  * Lá, unidade nula vira `[]` (nenhuma), porque fechamento é escrita e a Daniela
  * não lança fechamento de unidade alguma. Aqui o Jonatan pediu o oposto
@@ -54,7 +57,12 @@ export function unidadesContrato(s: Session): string[] | null {
   return s.unidade ? [s.unidade] : null;
 }
 
-/** Verticais que a pessoa enxerga. `null` = as duas. */
+/**
+ * Verticais que a pessoa enxerga. `null` = as duas.
+ *
+ * A gerente administrativa tem `tipo` nulo no cadastro justamente porque cuida
+ * das duas verticais da unidade — cai no `null` sem precisar de caso próprio.
+ */
 export function tiposContrato(s: Session): Tipo[] | null {
   if (s.role === "admin" || s.role === "contratos") return null;
   return s.tipo ? [s.tipo] : null;
@@ -89,6 +97,9 @@ export function podeVerBanco(s: Session): boolean {
  */
 export function motivoBloqueioMover(s: Session, de: number, para: number): string | null {
   if (podeEditarContrato(s)) return null;
+  // A gerente administrativa acompanha e comenta, mas não confere: a fase 5 é
+  // "conferência pelos gerentes e diretoria", e ela não é nenhum dos dois.
+  if (s.role === "gerente_adm") return "o acompanhamento administrativo não move o card";
   if (de !== FASE_CONFERENCIA) {
     return "só o setor de contratos move o card fora da conferência";
   }
