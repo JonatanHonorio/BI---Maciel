@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Loader2, Search } from "lucide-react";
+import { Plus, Trash2, Loader2, Search, UserPlus } from "lucide-react";
 
 /**
  * Formulário do card de contrato.
@@ -12,6 +12,8 @@ import { Plus, Trash2, Loader2, Search } from "lucide-react";
  */
 
 export interface Pessoa {
+  /** Id do cadastro no Kurole, quando a ficha veio de lá. */
+  cliente_id?: number | null;
   nome: string; cpf?: string; rg?: string; rg_emissor?: string;
   data_nascimento?: string | null; nacionalidade?: string; profissao?: string;
   estado_civil?: string; email?: string; celular?: string;
@@ -67,17 +69,49 @@ const campo =
   "w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500";
 
 function BlocoPessoas({
-  titulo, pessoas, onChange, vazioTexto,
+  titulo, pessoas, onChange, vazioTexto, buscarPorId,
 }: {
   titulo: string;
   pessoas: Pessoa[];
   onChange: (p: Pessoa[]) => void;
   vazioTexto: string;
+  /** Quando existe, o bloco ganha o campo "ID do cliente" do Kurole. */
+  buscarPorId?: (id: string) => Promise<{ pessoa: Pessoa; erro?: string }>;
 }) {
+  const [idCliente, setIdCliente] = useState("");
+  const [buscandoId, setBuscandoId] = useState(false);
+  const [avisoId, setAvisoId] = useState<string | null>(null);
+
   const alterar = (i: number, chave: keyof Pessoa, valor: string) => {
     const copia = pessoas.map((p, idx) => (idx === i ? { ...p, [chave]: valor } : p));
     onChange(copia);
   };
+
+  /**
+   * Acrescenta a pessoa, nunca substitui a lista: contrato com dois
+   * compradores é digitar um id, depois o outro.
+   */
+  async function puxar() {
+    const id = idCliente.trim();
+    if (!id || !buscarPorId) return;
+    setBuscandoId(true);
+    setAvisoId(null);
+    try {
+      const r = await buscarPorId(id);
+      if (r.erro) {
+        setAvisoId(r.erro);
+        return;
+      }
+      if (pessoas.some((p) => p.cliente_id && p.cliente_id === r.pessoa.cliente_id)) {
+        setAvisoId(`${r.pessoa.nome} já está na lista.`);
+        return;
+      }
+      onChange([...pessoas, r.pessoa]);
+      setIdCliente("");
+    } finally {
+      setBuscandoId(false);
+    }
+  }
 
   return (
     <section className="border border-gray-200 rounded-xl p-4">
@@ -88,9 +122,43 @@ function BlocoPessoas({
           onClick={() => onChange([...pessoas, { nome: "" }])}
           className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
         >
-          <Plus size={13} /> Adicionar
+          <Plus size={13} /> Adicionar em branco
         </button>
       </div>
+
+      {buscarPorId && (
+        <div className="flex items-end gap-2 mb-3">
+          <div className="w-44">
+            <label className={rotulo}>ID do cliente no Kurole</label>
+            <input
+              className={campo}
+              value={idCliente}
+              onChange={(e) => setIdCliente(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  puxar();
+                }
+              }}
+              onBlur={puxar}
+              placeholder="ex.: 48231"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={puxar}
+            disabled={buscandoId || !idCliente.trim()}
+            className="flex items-center gap-1.5 border border-gray-300 text-sm px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-40"
+          >
+            {buscandoId ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+            Puxar do Kurole
+          </button>
+        </div>
+      )}
+
+      {avisoId && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">{avisoId}</p>
+      )}
 
       {pessoas.length === 0 && <p className="text-xs text-gray-400">{vazioTexto}</p>}
 
@@ -254,6 +322,22 @@ export default function ContratoForm({
     }
   }, [valor, onChange]);
 
+  /**
+   * Ficha do cliente pelo id do Kurole. Usada pelo comprador/locatário e
+   * também pelo vendedor — dá para acrescentar um proprietário que não está
+   * ligado ao imóvel no cadastro, o que acontece em imóvel de espólio e em
+   * venda que já trocou de dono sem o Kurole saber.
+   */
+  const buscarCliente = useCallback(async (id: string): Promise<{ pessoa: Pessoa; erro?: string }> => {
+    const r = await fetch(`/api/contratos/cliente?id=${encodeURIComponent(id)}`);
+    if (!r.ok) {
+      const msg = r.status === 404 ? "Nenhum cliente com esse ID no Kurole." : "Não deu para buscar o cliente.";
+      return { pessoa: { nome: "" }, erro: msg };
+    }
+    const d = await r.json();
+    return { pessoa: d.pessoa as Pessoa };
+  }, []);
+
   const escolherCorretor = (texto: string) => {
     const achado = corretores.find((c) => c.nome === texto);
     onChange({
@@ -353,13 +437,15 @@ export default function ContratoForm({
         pessoas={valor.vendedor}
         onChange={(p) => mudar("vendedor", p)}
         vazioTexto="Digite a referência para puxar do Kurole, ou adicione na mão."
+        buscarPorId={buscarCliente}
       />
 
       <BlocoPessoas
-        titulo="Dados do comprador"
+        titulo={valor.tipo === "locacao" ? "Dados do locatário" : "Dados do comprador"}
         pessoas={valor.comprador}
         onChange={(p) => mudar("comprador", p)}
-        vazioTexto="Nenhum comprador ainda."
+        vazioTexto="Digite o ID do cliente no Kurole para puxar a ficha."
+        buscarPorId={buscarCliente}
       />
 
       {verBanco && <BlocoBancario contas={contas} onChange={(c) => mudar("banco", { contas: c })} />}

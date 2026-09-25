@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { podeEditarContrato, podeVerBanco } from "@/lib/contratos";
 import { montarEndereco, parte, type ImovelEndereco } from "@/lib/imovel-endereco";
+import { proprietariosDoImovel, pessoaDoCliente, contaDoCliente, temConta } from "@/lib/cliente-contrato";
 
 /**
  * Preenchimento do card pela referência do imóvel.
@@ -15,17 +16,6 @@ import { montarEndereco, parte, type ImovelEndereco } from "@/lib/imovel-enderec
  * Só quem opera o quadro chama isto: é consulta de CPF/RG/conta bancária por
  * referência, não pode ficar aberta a qualquer sessão logada.
  */
-interface ClienteRow {
-  id: number; nome: string | null; cpf: string | null; rg: string | null;
-  rg_emissor: string | null; data_nascimento: string | null;
-  nacionalidade: string | null; profissao: string | null; estado_civil: string | null;
-  email: string | null; celular: string | null; telefone: string | null;
-  endereco: string | null; numero: string | null; complemento: string | null;
-  bairro: string | null; cidade: string | null; estado: string | null; cep: string | null;
-  banco: string | null; agencia: string | null; conta: string | null;
-  percentual: string | null;
-}
-
 export async function GET(req: NextRequest) {
   const session = getSession(req);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -47,18 +37,7 @@ export async function GET(req: NextRequest) {
   `;
   if (!imovel) return NextResponse.json({ error: "imóvel não encontrado" }, { status: 404 });
 
-  const proprietarios = (await sql`
-    SELECT cl.id, cl.nome, cl.cpf, cl.rg, cl.rg_emissor, cl.data_nascimento,
-           cl.nacionalidade, cl.profissao, ec.nome AS estado_civil,
-           cl.email, cl.celular, cl.telefone,
-           cl.endereco, cl.numero, cl.complemento, cl.bairro, cl.cidade, cl.estado, cl.cep,
-           cl.banco, cl.agencia, cl.conta, p.percentual
-    FROM imovel_proprietarios p
-    JOIN clientes cl ON cl.id = p.cliente_id
-    LEFT JOIN estados_civis ec ON ec.id = cl.estado_civil_id
-    WHERE p.imovel_id = ${id}
-    ORDER BY p.percentual DESC NULLS LAST, cl.nome
-  `) as ClienteRow[];
+  const proprietarios = await proprietariosDoImovel(sql, id);
 
   const verBanco = podeVerBanco(session);
   const [edificio] = imovel.edificio_id
@@ -85,28 +64,10 @@ export async function GET(req: NextRequest) {
     },
     // Cada proprietário vira uma linha do bloco "vendedor". Imóvel de casal
     // volta com dois, e o percentual de cada um vem junto.
-    vendedor: proprietarios.map((p) => ({
-      cliente_id: p.id,
-      nome: p.nome ?? "",
-      cpf: parte(p.cpf), rg: parte(p.rg), rg_emissor: parte(p.rg_emissor),
-      data_nascimento: p.data_nascimento ?? null,
-      nacionalidade: parte(p.nacionalidade), profissao: parte(p.profissao),
-      estado_civil: p.estado_civil ?? "",
-      email: parte(p.email), celular: parte(p.celular), telefone: parte(p.telefone),
-      endereco: [parte(p.endereco), parte(p.numero), parte(p.complemento)].filter(Boolean).join(", "),
-      bairro: parte(p.bairro), cidade: parte(p.cidade), estado: parte(p.estado), cep: parte(p.cep),
-      percentual: p.percentual != null ? Number(p.percentual) : null,
-    })),
+    vendedor: proprietarios.map(pessoaDoCliente),
     // O bloco bancário vem separado do vendedor para poder ser omitido inteiro
     // de quem não pode vê-lo, sem mexer no resto da ficha.
-    banco: verBanco
-      ? proprietarios
-          .filter((p) => parte(p.banco) || parte(p.agencia) || parte(p.conta))
-          .map((p) => ({
-            cliente_id: p.id, titular: p.nome ?? "",
-            banco: parte(p.banco), agencia: parte(p.agencia), conta: parte(p.conta),
-          }))
-      : null,
+    banco: verBanco ? proprietarios.filter(temConta).map(contaDoCliente) : null,
     sem_proprietario: proprietarios.length === 0,
   });
 }
