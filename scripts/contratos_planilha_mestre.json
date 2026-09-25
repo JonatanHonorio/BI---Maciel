@@ -1,0 +1,898 @@
+[
+ {
+  "id": 40,
+  "comp": "2025-12",
+  "unidade": "Urbanova",
+  "ref": "61769",
+  "valor": "833333.33",
+  "contrato": "234"
+ },
+ {
+  "id": 41,
+  "comp": "2025-12",
+  "unidade": "Urbanova",
+  "ref": "58753",
+  "valor": "250000.00",
+  "contrato": "225"
+ },
+ {
+  "id": 46,
+  "comp": "2025-12",
+  "unidade": "Diretoria",
+  "ref": "53726",
+  "valor": "1000000.00",
+  "contrato": "219"
+ },
+ {
+  "id": 105,
+  "comp": "2025-12",
+  "unidade": "Dutra",
+  "ref": "62147",
+  "valor": "150000.00",
+  "contrato": "221"
+ },
+ {
+  "id": 106,
+  "comp": "2025-12",
+  "unidade": "Dutra",
+  "ref": "59055",
+  "valor": "420000.00",
+  "contrato": "218"
+ },
+ {
+  "id": 107,
+  "comp": "2025-12",
+  "unidade": "Dutra",
+  "ref": "13086",
+  "valor": "280000.00",
+  "contrato": "223"
+ },
+ {
+  "id": 108,
+  "comp": "2025-12",
+  "unidade": "Dutra",
+  "ref": "56672",
+  "valor": "320000.00",
+  "contrato": "222"
+ },
+ {
+  "id": 113,
+  "comp": "2025-12",
+  "unidade": "Aquarius",
+  "ref": "24318",
+  "valor": "155000.00",
+  "contrato": "226"
+ },
+ {
+  "id": 121,
+  "comp": "2026-01",
+  "unidade": "Urbanova",
+  "ref": "34731",
+  "valor": "162000.00",
+  "contrato": "238"
+ },
+ {
+  "id": 131,
+  "comp": "2026-01",
+  "unidade": "Aquarius",
+  "ref": "62671",
+  "valor": "1300000.00",
+  "contrato": "233"
+ },
+ {
+  "id": 132,
+  "comp": "2026-01",
+  "unidade": "Aquarius",
+  "ref": "55610",
+  "valor": "355000.00",
+  "contrato": "242"
+ },
+ {
+  "id": 133,
+  "comp": "2026-01",
+  "unidade": "Aquarius",
+  "ref": "62078",
+  "valor": "283333.33",
+  "contrato": "246"
+ },
+ {
+  "id": 134,
+  "comp": "2026-01",
+  "unidade": "Aquarius",
+  "ref": "62612",
+  "valor": "585000.00",
+  "contrato": "244"
+ },
+ {
+  "id": 135,
+  "comp": "2026-01",
+  "unidade": "Aquarius",
+  "ref": "62393",
+  "valor": "150000.00",
+  "contrato": "245"
+ },
+ {
+  "id": 136,
+  "comp": "2026-01",
+  "unidade": "Aquarius",
+  "ref": "55964",
+  "valor": "590000.00",
+  "contrato": "247"
+ },
+ {
+  "id": 151,
+  "comp": "2026-01",
+  "unidade": "Satélite",
+  "ref": "58185",
+  "valor": "333333.33",
+  "contrato": "252"
+ },
+ {
+  "id": 152,
+  "comp": "2026-01",
+  "unidade": "Dutra",
+  "ref": "61706",
+  "valor": "390000.00",
+  "contrato": "224"
+ },
+ {
+  "id": 153,
+  "comp": "2026-01",
+  "unidade": "Dutra",
+  "ref": "60844",
+  "valor": "290000.00",
+  "contrato": "235"
+ },
+ {
+  "id": 193,
+  "comp": "2026-02",
+  "unidade": "Satélite",
+  "ref": "62762",
+  "valor": "380000.00",
+  "contrato": "248"
+ },
+ {
+  "id": 194,
+  "comp": "2026-02",
+  "unidade": "Satélite",
+  "ref": "43788",
+  "valor": "125000.00",
+  "contrato": "269"
+ },
+ {
+  "id": 195,
+  "comp": "2026-02",
+  "unidade": "Satélite",
+  "ref": "59230",
+  "valor": "310000.00",
+  "contrato": "249"
+ },
+ {
+  "id": 196,
+  "comp": "2026-02",
+  "unidade": "Satélite",
+  "ref": "6048",
+  "valor": "333333.33",
+  "contrato": "254"
+ },
+ {
+  "id": 197,
+  "comp": "2026-02",
+  "unidade": "Satélite",
+  "ref": "62844",
+  "valor": "182500.00",
+  "contrato": "255"
+ },
+ {
+  "id": 198,
+  "comp": "2026-02",
+  "unidade": "Satélite",
+  "ref": "62802",
+  "valor": "490000.00",
+  "contrato": "257"
+ },
+ {
+  "id": 200,
+  "comp": "2026-02",
+  "unidade": "Satélite",
+  "ref": "61457",
+  "valor": "190000.00",
+  "contrato": "260"
+ },
+ {
+  "id": 201,
+  "comp": "2026-02",
+  "unidade": "Satélite",
+  "ref": "59736",
+  "valor": "490000.00",
+  "contrato": "262"
+ },
+ {
+  "id": 202,
+  "comp": "2026-02",
+  "unidade": "Aquarius",
+  "ref": "60709",
+  "valor": "300000.00",
+  "contrato": "263"
+ },
+ {
+  "id": 203,
+  "comp": "2026-02",
+  "unidade": "Aquarius",
+  "ref": "59464",
+  "valor": "550000.00",
+  "contrato": "264"
+ },
+ {
+  "id": 204,
+  "comp": "2026-02",
+  "unidade": "Aquarius",
+  "ref": "61783",
+  "valor": "395000.00",
+  "contrato": "265"
+ },
+ {
+  "id": 205,
+  "comp": "2026-02",
+  "unidade": "Aquarius",
+  "ref": "51189",
+  "valor": "250000.00",
+  "contrato": "266"
+ },
+ {
+  "id": 206,
+  "comp": "2026-02",
+  "unidade": "Aquarius",
+  "ref": "311",
+  "valor": "500000.00",
+  "contrato": "267"
+ },
+ {
+  "id": 207,
+  "comp": "2026-02",
+  "unidade": "Urbanova",
+  "ref": "328",
+  "valor": "320833.33",
+  "contrato": "253"
+ },
+ {
+  "id": 217,
+  "comp": "2026-02",
+  "unidade": "Dutra",
+  "ref": "62863",
+  "valor": "215000.00",
+  "contrato": "256"
+ },
+ {
+  "id": 218,
+  "comp": "2026-02",
+  "unidade": "Dutra",
+  "ref": "58493",
+  "valor": "350000.00",
+  "contrato": "250"
+ },
+ {
+  "id": 219,
+  "comp": "2026-02",
+  "unidade": "Dutra",
+  "ref": "60861",
+  "valor": "635000.00",
+  "contrato": "259"
+ },
+ {
+  "id": 226,
+  "comp": "2026-03",
+  "unidade": "Satélite",
+  "ref": "53287",
+  "valor": "938275.00",
+  "contrato": "271"
+ },
+ {
+  "id": 227,
+  "comp": "2026-03",
+  "unidade": "Satélite",
+  "ref": "63369",
+  "valor": "218391.67",
+  "contrato": "271"
+ },
+ {
+  "id": 228,
+  "comp": "2026-03",
+  "unidade": "Satélite",
+  "ref": "62695",
+  "valor": "310000.00",
+  "contrato": "258"
+ },
+ {
+  "id": 231,
+  "comp": "2026-03",
+  "unidade": "Satélite",
+  "ref": "63251",
+  "valor": "610000.00",
+  "contrato": "276"
+ },
+ {
+  "id": 232,
+  "comp": "2026-03",
+  "unidade": "Satélite",
+  "ref": "63244",
+  "valor": "500000.00",
+  "contrato": "272"
+ },
+ {
+  "id": 233,
+  "comp": "2026-03",
+  "unidade": "Satélite",
+  "ref": "62999",
+  "valor": "316666.67",
+  "contrato": "275"
+ },
+ {
+  "id": 234,
+  "comp": "2026-03",
+  "unidade": "Satélite",
+  "ref": "63565",
+  "valor": "166666.67",
+  "contrato": "281"
+ },
+ {
+  "id": 236,
+  "comp": "2026-03",
+  "unidade": "Urbanova",
+  "ref": "63214",
+  "valor": "660000.00",
+  "contrato": "285"
+ },
+ {
+  "id": 237,
+  "comp": "2026-03",
+  "unidade": "Urbanova",
+  "ref": "62364",
+  "valor": "2500000.00",
+  "contrato": "286"
+ },
+ {
+  "id": 240,
+  "comp": "2026-03",
+  "unidade": "Aquarius",
+  "ref": "52526",
+  "valor": "390000.00",
+  "contrato": "278"
+ },
+ {
+  "id": 241,
+  "comp": "2026-03",
+  "unidade": "Aquarius",
+  "ref": "49558",
+  "valor": "416666.67",
+  "contrato": "277"
+ },
+ {
+  "id": 242,
+  "comp": "2026-03",
+  "unidade": "Aquarius",
+  "ref": "63498",
+  "valor": "500000.00",
+  "contrato": "279"
+ },
+ {
+  "id": 243,
+  "comp": "2026-03",
+  "unidade": "Aquarius",
+  "ref": "63682",
+  "valor": "333333.33",
+  "contrato": "287"
+ },
+ {
+  "id": 244,
+  "comp": "2026-03",
+  "unidade": "Aquarius",
+  "ref": "56122",
+  "valor": "280000.00",
+  "contrato": "289"
+ },
+ {
+  "id": 245,
+  "comp": "2026-03",
+  "unidade": "Aquarius",
+  "ref": "47388",
+  "valor": "560000.00",
+  "contrato": "291"
+ },
+ {
+  "id": 246,
+  "comp": "2026-03",
+  "unidade": "Aquarius",
+  "ref": "63449",
+  "valor": "330000.00",
+  "contrato": "292"
+ },
+ {
+  "id": 247,
+  "comp": "2026-03",
+  "unidade": "Aquarius",
+  "ref": "63430",
+  "valor": "350000.00",
+  "contrato": "293"
+ },
+ {
+  "id": 263,
+  "comp": "2026-03",
+  "unidade": "Dutra",
+  "ref": "60326",
+  "valor": "190000.00",
+  "contrato": "268"
+ },
+ {
+  "id": 264,
+  "comp": "2026-03",
+  "unidade": "Dutra",
+  "ref": "63280",
+  "valor": "250000.00",
+  "contrato": "270"
+ },
+ {
+  "id": 265,
+  "comp": "2026-03",
+  "unidade": "Dutra",
+  "ref": "63080",
+  "valor": "460000.00",
+  "contrato": "274"
+ },
+ {
+  "id": 267,
+  "comp": "2026-04",
+  "unidade": "Satélite",
+  "ref": "57663",
+  "valor": "333333.33",
+  "contrato": "280"
+ },
+ {
+  "id": 268,
+  "comp": "2026-04",
+  "unidade": "Satélite",
+  "ref": "62778",
+  "valor": "250000.00",
+  "contrato": "290"
+ },
+ {
+  "id": 269,
+  "comp": "2026-04",
+  "unidade": "Satélite",
+  "ref": "56966",
+  "valor": "224000.00",
+  "contrato": "299"
+ },
+ {
+  "id": 270,
+  "comp": "2026-04",
+  "unidade": "Satélite",
+  "ref": "63608",
+  "valor": "730000.00",
+  "contrato": "297"
+ },
+ {
+  "id": 271,
+  "comp": "2026-04",
+  "unidade": "Satélite",
+  "ref": "62692",
+  "valor": "233333.33",
+  "contrato": "300"
+ },
+ {
+  "id": 272,
+  "comp": "2026-04",
+  "unidade": "Satélite",
+  "ref": "62280",
+  "valor": "235000.00",
+  "contrato": "302"
+ },
+ {
+  "id": 273,
+  "comp": "2026-04",
+  "unidade": "Satélite",
+  "ref": "57283",
+  "valor": "150000.00",
+  "contrato": "309"
+ },
+ {
+  "id": 274,
+  "comp": "2026-04",
+  "unidade": "Satélite",
+  "ref": "47948",
+  "valor": "400000.00",
+  "contrato": "325"
+ },
+ {
+  "id": 275,
+  "comp": "2026-04",
+  "unidade": "Satélite",
+  "ref": "63669",
+  "valor": "290000.00",
+  "contrato": "314"
+ },
+ {
+  "id": 277,
+  "comp": "2026-04",
+  "unidade": "Satélite",
+  "ref": "46724",
+  "valor": "250000.00",
+  "contrato": "322"
+ },
+ {
+  "id": 278,
+  "comp": "2026-04",
+  "unidade": "Satélite",
+  "ref": "59565",
+  "valor": "333333.33",
+  "contrato": "320"
+ },
+ {
+  "id": 283,
+  "comp": "2026-04",
+  "unidade": "Urbanova",
+  "ref": "63580",
+  "valor": "316666.67",
+  "contrato": "330"
+ },
+ {
+  "id": 284,
+  "comp": "2026-04",
+  "unidade": "Urbanova",
+  "ref": "55696",
+  "valor": "145000.00",
+  "contrato": "317"
+ },
+ {
+  "id": 286,
+  "comp": "2026-04",
+  "unidade": "Urbanova",
+  "ref": "36885",
+  "valor": "115000.00",
+  "contrato": "324"
+ },
+ {
+  "id": 287,
+  "comp": "2026-04",
+  "unidade": "Urbanova",
+  "ref": "62450",
+  "valor": "295000.00",
+  "contrato": "331"
+ },
+ {
+  "id": 302,
+  "comp": "2026-04",
+  "unidade": "Aquarius",
+  "ref": "63536",
+  "valor": "375000.00",
+  "contrato": "305"
+ },
+ {
+  "id": 303,
+  "comp": "2026-04",
+  "unidade": "Aquarius",
+  "ref": "47411",
+  "valor": "200000.00",
+  "contrato": "306"
+ },
+ {
+  "id": 304,
+  "comp": "2026-04",
+  "unidade": "Aquarius",
+  "ref": "63428",
+  "valor": "150000.00",
+  "contrato": "310"
+ },
+ {
+  "id": 305,
+  "comp": "2026-04",
+  "unidade": "Aquarius",
+  "ref": "63236",
+  "valor": "304166.67",
+  "contrato": "311"
+ },
+ {
+  "id": 306,
+  "comp": "2026-04",
+  "unidade": "Aquarius",
+  "ref": "63639",
+  "valor": "366666.67",
+  "contrato": "315"
+ },
+ {
+  "id": 307,
+  "comp": "2026-04",
+  "unidade": "Aquarius",
+  "ref": "63614",
+  "valor": "360000.00",
+  "contrato": "316"
+ },
+ {
+  "id": 308,
+  "comp": "2026-04",
+  "unidade": "Aquarius",
+  "ref": "63429",
+  "valor": "160000.00",
+  "contrato": "326"
+ },
+ {
+  "id": 309,
+  "comp": "2026-04",
+  "unidade": "Aquarius",
+  "ref": "63976",
+  "valor": "333333.33",
+  "contrato": "327"
+ },
+ {
+  "id": 310,
+  "comp": "2026-04",
+  "unidade": "Aquarius",
+  "ref": "63072",
+  "valor": "751666.67",
+  "contrato": "328"
+ },
+ {
+  "id": 311,
+  "comp": "2026-04",
+  "unidade": "Dutra",
+  "ref": "46030",
+  "valor": "233333.33",
+  "contrato": "284"
+ },
+ {
+  "id": 312,
+  "comp": "2026-04",
+  "unidade": "Dutra",
+  "ref": "62077",
+  "valor": "270000.00",
+  "contrato": "282"
+ },
+ {
+  "id": 313,
+  "comp": "2026-04",
+  "unidade": "Dutra",
+  "ref": "47043",
+  "valor": "320000.00",
+  "contrato": "295"
+ },
+ {
+  "id": 314,
+  "comp": "2026-04",
+  "unidade": "Dutra",
+  "ref": "63432",
+  "valor": "370000.00",
+  "contrato": "313"
+ },
+ {
+  "id": 315,
+  "comp": "2026-04",
+  "unidade": "Dutra",
+  "ref": "63525",
+  "valor": "110000.00",
+  "contrato": "323"
+ },
+ {
+  "id": 343,
+  "comp": "2026-05",
+  "unidade": "Aquarius",
+  "ref": "42468",
+  "valor": "305000.00",
+  "contrato": "333"
+ },
+ {
+  "id": 344,
+  "comp": "2026-05",
+  "unidade": "Aquarius",
+  "ref": "63153",
+  "valor": "333333.33",
+  "contrato": "363"
+ },
+ {
+  "id": 345,
+  "comp": "2026-05",
+  "unidade": "Aquarius",
+  "ref": "64114",
+  "valor": "416666.67",
+  "contrato": "350"
+ },
+ {
+  "id": 346,
+  "comp": "2026-05",
+  "unidade": "Aquarius",
+  "ref": "63704",
+  "valor": "500000.00",
+  "contrato": "351"
+ },
+ {
+  "id": 350,
+  "comp": "2026-05",
+  "unidade": "Urbanova",
+  "ref": "62140",
+  "valor": "416666.67",
+  "contrato": "335"
+ },
+ {
+  "id": 351,
+  "comp": "2026-05",
+  "unidade": "Urbanova",
+  "ref": "64231",
+  "valor": "550000.00",
+  "contrato": "344"
+ },
+ {
+  "id": 354,
+  "comp": "2026-05",
+  "unidade": "Urbanova",
+  "ref": "63220",
+  "valor": "582139.83",
+  "contrato": "353"
+ },
+ {
+  "id": 355,
+  "comp": "2026-05",
+  "unidade": "Satélite",
+  "ref": "22404",
+  "valor": "250000.00",
+  "contrato": "332"
+ },
+ {
+  "id": 356,
+  "comp": "2026-05",
+  "unidade": "Satélite",
+  "ref": "56787",
+  "valor": "310000.00",
+  "contrato": "261"
+ },
+ {
+  "id": 357,
+  "comp": "2026-05",
+  "unidade": "Satélite",
+  "ref": "64223",
+  "valor": "440000.00",
+  "contrato": "343"
+ },
+ {
+  "id": 360,
+  "comp": "2026-05",
+  "unidade": "Satélite",
+  "ref": "2460",
+  "valor": "200000.00",
+  "contrato": "348"
+ },
+ {
+  "id": 361,
+  "comp": "2026-05",
+  "unidade": "Satélite",
+  "ref": "60127",
+  "valor": "416666.67",
+  "contrato": "354"
+ },
+ {
+  "id": 362,
+  "comp": "2026-05",
+  "unidade": "Dutra",
+  "ref": "11895",
+  "valor": "470000.00",
+  "contrato": "329"
+ },
+ {
+  "id": 363,
+  "comp": "2026-05",
+  "unidade": "Dutra",
+  "ref": "46182",
+  "valor": "320000.00",
+  "contrato": "117"
+ },
+ {
+  "id": 364,
+  "comp": "2026-05",
+  "unidade": "Dutra",
+  "ref": "64246",
+  "valor": "191000.00",
+  "contrato": "336"
+ },
+ {
+  "id": 365,
+  "comp": "2026-05",
+  "unidade": "Dutra",
+  "ref": "64270",
+  "valor": "166666.67",
+  "contrato": "340"
+ },
+ {
+  "id": 366,
+  "comp": "2026-05",
+  "unidade": "Dutra",
+  "ref": "60281",
+  "valor": "230000.00",
+  "contrato": "347"
+ },
+ {
+  "id": 367,
+  "comp": "2026-06",
+  "unidade": "Satélite",
+  "ref": "62069",
+  "valor": "500000.00",
+  "contrato": "355"
+ },
+ {
+  "id": 368,
+  "comp": "2026-06",
+  "unidade": "Satélite",
+  "ref": "64471",
+  "valor": "266666.67",
+  "contrato": "361"
+ },
+ {
+  "id": 369,
+  "comp": "2026-06",
+  "unidade": "Satélite",
+  "ref": "63726",
+  "valor": "530000.00",
+  "contrato": "357"
+ },
+ {
+  "id": 370,
+  "comp": "2026-06",
+  "unidade": "Satélite",
+  "ref": "62178",
+  "valor": "500000.00",
+  "contrato": "359"
+ },
+ {
+  "id": 371,
+  "comp": "2026-06",
+  "unidade": "Satélite",
+  "ref": "53888",
+  "valor": "580000.00",
+  "contrato": "346"
+ },
+ {
+  "id": 372,
+  "comp": "2026-06",
+  "unidade": "Satélite",
+  "ref": "59545",
+  "valor": "333333.33",
+  "contrato": "364"
+ },
+ {
+  "id": 374,
+  "comp": "2026-06",
+  "unidade": "Urbanova",
+  "ref": "63521",
+  "valor": "800000.00",
+  "contrato": "372"
+ },
+ {
+  "id": 375,
+  "comp": "2026-06",
+  "unidade": "Urbanova",
+  "ref": "9933",
+  "valor": "200000.00",
+  "contrato": "365"
+ },
+ {
+  "id": 393,
+  "comp": "2026-06",
+  "unidade": "Dutra",
+  "ref": "46027",
+  "valor": "330000.00",
+  "contrato": "358"
+ },
+ {
+  "id": 394,
+  "comp": "2026-06",
+  "unidade": "Aquarius",
+  "ref": "64364",
+  "valor": "350000.00",
+  "contrato": "362"
+ },
+ {
+  "id": 395,
+  "comp": "2026-06",
+  "unidade": "Aquarius",
+  "ref": "64854",
+  "valor": "300000.00",
+  "contrato": "375"
+ }
+]
