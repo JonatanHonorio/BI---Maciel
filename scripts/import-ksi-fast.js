@@ -26,6 +26,9 @@ const TABLES_TO_IMPORT = [
   "midia", "temperatura", "pre_aten", "edificio",
   "ordem_atendimento_responsaveis", "imoveis_cadastrador",
   "atualizacoes", "imoveis_alt_temp",
+  // Proprietario do imovel + dado civil/bancario do cliente: entraram em
+  // 25/09/2026 para o Kanban de contratos preencher o vendedor pela referencia.
+  "clientes_imoveis", "estado_civil",
 ];
 
 let tableColumns = {};
@@ -94,7 +97,24 @@ function mapRow(table, columns, v) {
   if (table === "usuarios") {
     return [sn(v,c("id")), sv(v,c("nome"))||"", sv(v,c("nome_comercial")), sv(v,c("email")), sv(v,c("celular")), sn(v,c("id_departamento")), sn(v,c("funcao")), sn(v,c("ativo")), sn(v,c("empresa")), sd(v,c("data_admissao")), sd(v,c("data_demissao"))];
   } else if (table === "clientes") {
-    return [sn(v,c("id")), sv(v,c("nome"))||"", sv(v,c("email")), sv(v,c("celular")), sv(v,c("fone")), sv(v,c("cidade")), sv(v,c("estado")), sv(v,c("bairro")), sn(v,c("sexo"))];
+    /*
+     * Alem do contato, os campos que o contrato exige: documento, dado civil,
+     * endereco completo e conta bancaria. Entraram em 25/09/2026 — sem eles a
+     * Ana redigitaria, da tela do Kurole, o que o Kurole ja sabe.
+     *
+     * Sao dados pessoais de verdade. Quem le isso e SO a rota de contratos, e
+     * a conta bancaria sai mascarada para quem nao for a Ana ou a diretoria.
+     */
+    return [sn(v,c("id")), sv(v,c("nome"))||"", sv(v,c("email")), sv(v,c("celular")), sv(v,c("fone")), sv(v,c("cidade")), sv(v,c("estado")), sv(v,c("bairro")), sn(v,c("sexo")),
+            sv(v,c("cpf")), sv(v,c("rg")), sv(v,c("rg_emissor")), sd(v,c("data_nascimento")), sv(v,c("nacionalidade")), sv(v,c("profissao")), sn(v,c("id_estado_civil")), sv(v,c("endereco")), sv(v,c("numero")), sv(v,c("complemento")), sv(v,c("cep")), sv(v,c("banco")), sv(v,c("agencia")), sv(v,c("conta"))];
+  } else if (table === "clientes_imoveis") {
+    // Proprietario do imovel, com percentual (imovel de casal vem em duas
+    // linhas). E a fonte do bloco "dados do vendedor" no card de contrato.
+    return [sn(v,c("id")), sn(v,c("id_imovel")), sn(v,c("id_cliente")), sn(v,c("percentual"))];
+  } else if (table === "estado_civil") {
+    // A coluna do rotulo se chama `descricao` aqui (nao `nome`, como nas
+    // outras tabelas de apoio do Kurole).
+    return [sn(v,c("id")), sv(v,c("descricao"))||""];
   } else if (table === "imoveis") {
     return [sn(v,c("id")), sv(v,c("codigo")), sv(v,c("titulo")), sv(v,c("tipo_mae")), sv(v,c("tipo_imovel")), sv(v,c("locacao_venda")), sv(v,c("endereco")), sv(v,c("numero")), sv(v,c("complemento")), sv(v,c("compl_blocos")), sv(v,c("unidade")), sv(v,c("quadra")), sv(v,c("lote")), sv(v,c("cep")), sv(v,c("bairro_nome")), sv(v,c("cidade")), sv(v,c("estado")), sn(v,c("dormitorios")), sn(v,c("suites")), sn(v,c("banheiros")), sn(v,c("a_util")), sn(v,c("a_total")), sn(v,c("valor")), sn(v,c("valor_aluguel")), sn(v,c("id_edi_cond")), sd(v,c("data")), sd(v,c("data_atualizacao")), (sv(v,c("observacoes"))||"").substring(0,10000), (sv(v,c("dado_proprietario"))||"").substring(0,5000), (sv(v,c("v_dado_proprietario"))||"").substring(0,5000), (sv(v,c("descricao"))||"").substring(0,10000), (sv(v,c("observacoes_locacao"))||"").substring(0,10000), sn(v,c("id_usuario")), sn(v,c("situacao_codigo_venda")), sn(v,c("situacao_codigo_locacao"))];
   } else if (table === "ordem_atendimento") {
@@ -155,7 +175,11 @@ function mapRow(table, columns, v) {
 
 const QUERIES = {
   usuarios: { cols: 11, sql: (n) => `INSERT INTO corretores (id,nome,nome_comercial,email,celular,departamento_id,funcao,ativo,empresa,data_admissao,data_demissao) VALUES ${n} ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,nome_comercial=EXCLUDED.nome_comercial,ativo=EXCLUDED.ativo` },
-  clientes: { cols: 9, sql: (n) => `INSERT INTO clientes (id,nome,email,celular,telefone,cidade,estado,bairro,sexo) VALUES ${n} ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,email=EXCLUDED.email,celular=EXCLUDED.celular` },
+  clientes: { cols: 23, sql: (n) => `INSERT INTO clientes (id,nome,email,celular,telefone,cidade,estado,bairro,sexo,cpf,rg,rg_emissor,data_nascimento,nacionalidade,profissao,estado_civil_id,endereco,numero,complemento,cep,banco,agencia,conta) VALUES ${n} ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,email=EXCLUDED.email,celular=EXCLUDED.celular,telefone=EXCLUDED.telefone,cidade=EXCLUDED.cidade,estado=EXCLUDED.estado,bairro=EXCLUDED.bairro,cpf=EXCLUDED.cpf,rg=EXCLUDED.rg,rg_emissor=EXCLUDED.rg_emissor,data_nascimento=EXCLUDED.data_nascimento,nacionalidade=EXCLUDED.nacionalidade,profissao=EXCLUDED.profissao,estado_civil_id=EXCLUDED.estado_civil_id,endereco=EXCLUDED.endereco,numero=EXCLUDED.numero,complemento=EXCLUDED.complemento,cep=EXCLUDED.cep,banco=EXCLUDED.banco,agencia=EXCLUDED.agencia,conta=EXCLUDED.conta` },
+  // Proprietario troca (venda muda o dono), entao o DO UPDATE reescreve —
+  // DO NOTHING deixaria o card preencher o vendedor antigo depois da venda.
+  clientes_imoveis: { cols: 4, sql: (n) => `INSERT INTO imovel_proprietarios (id,imovel_id,cliente_id,percentual) VALUES ${n} ON CONFLICT (id) DO UPDATE SET imovel_id=EXCLUDED.imovel_id,cliente_id=EXCLUDED.cliente_id,percentual=EXCLUDED.percentual` },
+  estado_civil: { cols: 2, sql: (n) => `INSERT INTO estados_civis (id,nome) VALUES ${n} ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome` },
   // Coluna que não estiver no DO UPDATE SET nunca é reescrita: as linhas antigas
   // ficam congeladas com o texto que entrou na primeira importação. Foi assim que
   // endereco/bairro/cidade continuaram corrompidos em latin1 mesmo depois do

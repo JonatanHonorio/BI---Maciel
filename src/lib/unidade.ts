@@ -128,3 +128,56 @@ export async function corretoresDaUnidade(
   }
   return ids;
 }
+
+export interface CorretorLotado {
+  id: number;
+  nome: string;
+  unidade: string;
+  tipo: Tipo | null;
+}
+
+/**
+ * Todos os corretores ativos com a lotação já corrigida — unidade E vertical.
+ *
+ * É o que o card de contrato usa: a Ana escolhe quem vendeu e a unidade sai
+ * sozinha do cadastro, porque é a unidade que decide qual gerente enxerga o
+ * contrato. Digitada à mão, uma unidade errada esconderia o card do gerente
+ * certo sem nenhum erro na tela.
+ *
+ * Diferente de `corretoresParaRateio`, aqui vem a base ativa inteira: qualquer
+ * corretor pode fechar um negócio, inclusive de outra vertical.
+ */
+export async function corretoresComLotacao(sql: SQL): Promise<CorretorLotado[]> {
+  const excluidos = correcoesManuais().corretores_excluidos ?? {};
+  const correcoes = correcoesManuais().unidade_por_corretor;
+
+  const rows = (await sql`
+    SELECT id, departamento_id,
+      COALESCE(NULLIF(TRIM(nome_comercial), ''), NULLIF(TRIM(nome), '')) AS nome
+    FROM corretores WHERE ativo = 1
+  `) as { id: number; departamento_id: number | null; nome: string | null }[];
+
+  const saida: CorretorLotado[] = [];
+  for (const r of rows) {
+    if (excluidos[String(r.id)] || !r.nome) continue;
+
+    const nomeDep = r.departamento_id !== null ? departamentos[String(r.departamento_id)] : undefined;
+    let sep = separarDepartamento(nomeDep);
+    const correcao = correcoes[String(r.id)];
+    if (sep && correcao) {
+      if (sep.unidade === correcao.de) sep = { ...sep, unidade: correcao.para };
+      if (correcao.para_tipo && sep.tipo === correcao.de_tipo) sep = { ...sep, tipo: correcao.para_tipo };
+    }
+
+    saida.push({
+      id: r.id,
+      nome: r.nome,
+      // Quem não está num departamento "Vendas X"/"Locação X" (Diretoria,
+      // Lançamento, Administrativo) entra com o nome do próprio setor e sem
+      // vertical — a Ana escolhe a unidade na mão nesses casos.
+      unidade: sep ? sep.unidade : unidadeDoDepartamento(r.departamento_id),
+      tipo: sep ? sep.tipo : null,
+    });
+  }
+  return saida.sort((a, b) => a.nome.localeCompare(b.nome));
+}

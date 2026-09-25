@@ -8,8 +8,12 @@ import type { Tipo } from "./unidade";
  * verticais da própria unidade. Precisa ser uma string diferente de "gerente"
  * — o predicado de "ver como" é `role === "gerente" && unidade === null`, e
  * com a role de gerente elas ganhariam "ver como" de diretora sem querer.
+ *
+ * `contratos` = setor de contratos (a Ana, 25/09/2026): só o Kanban de
+ * contratos, em todas as unidades e nas duas verticais. Pelo mesmo motivo
+ * acima não pode ser "gerente" sem unidade, que daria "ver como" a ela.
  */
-export type Role = "admin" | "gerente" | "gerente_adm";
+export type Role = "admin" | "gerente" | "gerente_adm" | "contratos";
 
 export interface Session {
   id: number;

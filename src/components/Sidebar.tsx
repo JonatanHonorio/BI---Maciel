@@ -18,6 +18,7 @@ import {
   Eye,
   FileText,
   Wallet,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Session, Role } from "@/lib/auth";
@@ -68,6 +69,10 @@ const grupos: Grupo[] = [
       { href: "/lais", label: "Lais Visitas", icon: Bot },
       { href: "/fechamento", label: "Fechamento", icon: FileText },
       { href: "/fechamento/comissoes", label: "Comissões", icon: Wallet, papeis: ["admin", "gerente_adm"] },
+      // Sem `papeis`: quem vê o quadro é decidido por rotaPermitida + escopo da
+      // API. Gerente e diretora entram; a gerente administrativa não, porque
+      // /contratos não está na lista de rotas dela.
+      { href: "/contratos", label: "Contratos", icon: ClipboardCheck },
     ],
   },
   {

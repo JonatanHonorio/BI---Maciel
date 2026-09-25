@@ -53,7 +53,9 @@ export function podeReabrir(s: Session): boolean {
 
 /** Rotas liberadas, quando o perfil só enxerga parte do BI. `null` = tudo. */
 function rotasPermitidas(s: Session): string[] | null {
-  return s.role === "gerente_adm" ? ["/fechamento", "/api/fechamento"] : null;
+  if (s.role === "gerente_adm") return ["/fechamento", "/api/fechamento"];
+  if (s.role === "contratos") return ["/contratos", "/api/contratos"];
+  return null;
 }
 
 export function rotaPermitida(s: Session, pathname: string): boolean {
@@ -64,13 +66,16 @@ export function rotaPermitida(s: Session, pathname: string): boolean {
 
 /** Pra onde mandar a pessoa depois do login (e quando ela bate numa rota proibida). */
 export function rotaInicial(s: Session): string {
-  return s.role === "gerente_adm" ? "/fechamento" : "/resumo";
+  if (s.role === "gerente_adm") return "/fechamento";
+  if (s.role === "contratos") return "/contratos";
+  return "/resumo";
 }
 
 /** Rótulo do rodapé da sidebar. */
 export function descricaoAcesso(s: Session): string {
   if (s.role === "admin") return "Acesso total";
   if (s.role === "gerente_adm") return "Administrativo";
+  if (s.role === "contratos") return "Contratos";
   if (s.tipo === "venda") return "Vendas";
   if (s.tipo === "locacao") return "Locação";
   return "";

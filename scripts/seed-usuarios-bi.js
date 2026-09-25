@@ -21,6 +21,10 @@ const DIRETORA_VENDAS = { role: "gerente", unidade: null, tipo: "venda", marketi
 // `unidades` é a lista completa — preenchidas as duas até nas de unidade única,
 // pra ter uma forma só de ler o dado.
 const ADM = { role: "gerente_adm", tipo: null, marketing: false };
+// Setor de contratos (25/09/2026): só o Kanban de contratos, mas de TODAS as
+// unidades e nas duas verticais — por isso unidade/tipo nulos. Quem escopa o
+// que ela vê é a própria role, em src/lib/contratos.ts.
+const CONTRATOS = { role: "contratos", unidade: null, tipo: null, marketing: false };
 
 const usuarios = [
   // Acesso total — igual ao Jonatan
@@ -60,6 +64,9 @@ const usuarios = [
   { email: "adm.dutra@imobiliariamaciel.com.br", nome: "Evelyn", unidade: "Dutra", unidades: ["Dutra"], ...ADM },
   // A Rachel lança também Diretoria e Lançamento, que não têm gerente próprio.
   { email: "adm.urbanova@imobiliariamaciel.com.br", nome: "Rachel", unidade: "Urbanova", unidades: ["Urbanova", "Diretoria", "Lançamento"], ...ADM },
+
+  // Setor de contratos. Único acesso no domínio gmail.com além do Jonatan.
+  { email: "dep.contratomaciel@gmail.com", nome: "Ana Mendes", ...CONTRATOS },
 ];
 
 (async () => {
