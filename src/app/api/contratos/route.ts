@@ -18,7 +18,27 @@ export async function GET(req: NextRequest) {
   const sql = getDb();
   const unidades = unidadesContrato(session);
   const tipos = tiposContrato(session);
-  const arquivados = req.nextUrl.searchParams.get("arquivados") === "1";
+  const q = req.nextUrl.searchParams;
+  const arquivados = q.get("arquivados") === "1";
+
+  /*
+   * Filtros da tela (pedido da Ana em 25/09/2026): período, fase, unidade,
+   * corretor e vertical.
+   *
+   * Ficam no SQL e NÃO substituem o escopo — são um `AND` depois dele. Filtrar
+   * na tela seria mais simples, mas com o quadro crescendo mandaria a base
+   * inteira de contratos para o navegador de todo gerente.
+   *
+   * Cada filtro só entra quando vem preenchido: `${x}::tipo IS NULL OR ...` é
+   * o jeito de ter um WHERE opcional sem montar string de SQL na mão.
+   */
+  const soData = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  const desde = soData(q.get("desde"));
+  const ate = soData(q.get("ate"));
+  const fase = Number(q.get("fase")) || null;
+  const unidadeFiltro = q.get("unidade") || null;
+  const tipoFiltro = q.get("tipo") === "venda" || q.get("tipo") === "locacao" ? q.get("tipo") : null;
+  const corretor = q.get("corretor")?.trim() || null;
 
   const linhas = (await sql`
     SELECT c.*, u.nome AS criado_por_nome
@@ -27,8 +47,27 @@ export async function GET(req: NextRequest) {
     WHERE c.arquivado = ${arquivados}
       AND (${unidades}::text[] IS NULL OR c.unidade = ANY(${unidades}::text[]))
       AND (${tipos}::text[] IS NULL OR c.tipo = ANY(${tipos}::text[]))
+      AND (${desde}::date IS NULL OR c.criado_em >= ${desde}::date)
+      AND (${ate}::date IS NULL OR c.criado_em < ${ate}::date + 1)
+      AND (${fase}::int IS NULL OR c.fase = ${fase}::int)
+      AND (${unidadeFiltro}::text IS NULL OR c.unidade = ${unidadeFiltro}::text)
+      AND (${tipoFiltro}::text IS NULL OR c.tipo = ${tipoFiltro}::text)
+      AND (${corretor}::text IS NULL OR c.corretor_nome ILIKE '%' || ${corretor}::text || '%')
     ORDER BY c.fase, c.atualizado_em DESC
   `) as Record<string, unknown>[];
+
+  /*
+   * Opções do seletor de corretor: saem de TODOS os contratos no escopo da
+   * pessoa, não dos filtrados. Tiradas da lista filtrada, escolher um corretor
+   * esvaziaria o próprio seletor e não haveria como trocar de escolha.
+   */
+  const corretores = (await sql`
+    SELECT DISTINCT corretor_nome FROM contratos
+    WHERE corretor_nome <> '' AND arquivado = ${arquivados}
+      AND (${unidades}::text[] IS NULL OR unidade = ANY(${unidades}::text[]))
+      AND (${tipos}::text[] IS NULL OR tipo = ANY(${tipos}::text[]))
+    ORDER BY corretor_nome
+  `) as { corretor_nome: string }[];
 
   const verBanco = podeVerBanco(session);
   return NextResponse.json({
@@ -38,6 +77,7 @@ export async function GET(req: NextRequest) {
     // @/lib/fechamento, que usa fs.
     permissoes: { editar: podeEditarContrato(session), verBanco, unidades, tipos },
     todasUnidades: UNIDADES_FECHAMENTO,
+    corretoresNoQuadro: corretores.map((c) => c.corretor_nome),
   });
 }
 

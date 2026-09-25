@@ -20,6 +20,25 @@ type Evento = {
 };
 type Permissoes = { editar: boolean; verBanco: boolean; unidades: string[] | null; tipos: string[] | null };
 
+/**
+ * Filtros da Ana (25/09/2026): período, fase, unidade, corretor e vertical.
+ * Viajam para a API e viram WHERE — a tela nunca recebe o que foi filtrado.
+ */
+type Filtros = {
+  desde: string; ate: string; fase: string;
+  unidade: string; corretor: string; tipo: string;
+};
+
+const SEM_FILTRO: Filtros = { desde: "", ate: "", fase: "", unidade: "", corretor: "", tipo: "" };
+
+const querystring = (f: Filtros) => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) if (v) p.set(k, v);
+  return p.toString();
+};
+
+const temFiltro = (f: Filtros) => Object.values(f).some(Boolean);
+
 const CORES_FASE = [
   "bg-slate-100 text-slate-700", "bg-blue-100 text-blue-700", "bg-amber-100 text-amber-800",
   "bg-indigo-100 text-indigo-700", "bg-purple-100 text-purple-700",
@@ -75,21 +94,25 @@ export default function ContratosPage() {
   const [comentario, setComentario] = useState("");
   const [erro, setErro] = useState<string | null>(null);
 
+  const [corretoresNoQuadro, setCorretoresNoQuadro] = useState<string[]>([]);
+  const [filtros, setFiltros] = useState<Filtros>(SEM_FILTRO);
+
   // Mesma trava de corrida das telas de fechamento: resposta antiga chegando
   // depois da nova pintava o mês errado (22/09/2026).
   const buscaAtual = useRef(0);
 
-  const carregar = useCallback(async () => {
+  const carregar = useCallback(async (f: Filtros = SEM_FILTRO) => {
     const minhaBusca = ++buscaAtual.current;
     setCarregando(true);
     try {
-      const rc = await fetch("/api/contratos");
+      const rc = await fetch(`/api/contratos?${querystring(f)}`);
       if (minhaBusca !== buscaAtual.current) return [];
       if (rc.ok) {
         const d = await rc.json();
         setContratos(d.contratos ?? []);
         setPermissoes(d.permissoes ?? null);
         setTodasUnidades(d.todasUnidades ?? []);
+        setCorretoresNoQuadro(d.corretoresNoQuadro ?? []);
         return (d.contratos ?? []) as Contrato[];
       }
       return [];
@@ -97,6 +120,16 @@ export default function ContratosPage() {
       if (minhaBusca === buscaAtual.current) setCarregando(false);
     }
   }, []);
+
+  /** Aplica um filtro e recarrega — a lista sempre vem do servidor. */
+  const mudarFiltro = useCallback(
+    (parcial: Partial<Filtros>) => {
+      const novo = { ...filtros, ...parcial };
+      setFiltros(novo);
+      carregar(novo);
+    },
+    [filtros, carregar]
+  );
 
   const abrirCard = useCallback(async (c: Contrato) => {
     setAberto(c);
@@ -146,7 +179,7 @@ export default function ContratosPage() {
       }
       setEditando(null);
       setAberto(null);
-      await carregar();
+      await carregar(filtros);
     } finally {
       setSalvando(false);
     }
@@ -166,7 +199,7 @@ export default function ContratosPage() {
         return;
       }
       setComentario("");
-      await carregar();
+      await carregar(filtros);
       const atualizado = (await r.json()).contrato as Contrato;
       abrirCard(atualizado);
     } finally {
@@ -207,7 +240,7 @@ export default function ContratosPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-800">Contratos</h1>
           <p className="text-xs text-gray-500 mt-0.5">
-            {contratos.length} em andamento
+            {contratos.length} {temFiltro(filtros) ? "no filtro" : "em andamento"}
             {permissoes?.unidades && ` · ${permissoes.unidades.join(", ")}`}
           </p>
         </div>
@@ -220,6 +253,63 @@ export default function ContratosPage() {
             className="flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700"
           >
             <Plus size={16} /> Novo contrato
+          </button>
+        )}
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-3 flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-[11px] uppercase tracking-wide text-gray-500 mb-1">Criado de</label>
+          <input type="date" value={filtros.desde} onChange={(e) => mudarFiltro({ desde: e.target.value })}
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+        </div>
+        <div>
+          <label className="block text-[11px] uppercase tracking-wide text-gray-500 mb-1">até</label>
+          <input type="date" value={filtros.ate} onChange={(e) => mudarFiltro({ ate: e.target.value })}
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+        </div>
+        <div>
+          <label className="block text-[11px] uppercase tracking-wide text-gray-500 mb-1">Fase</label>
+          <select value={filtros.fase} onChange={(e) => mudarFiltro({ fase: e.target.value })}
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            <option value="">todas</option>
+            {FASES.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[11px] uppercase tracking-wide text-gray-500 mb-1">Unidade</label>
+          <select value={filtros.unidade} onChange={(e) => mudarFiltro({ unidade: e.target.value })}
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            <option value="">todas</option>
+            {(permissoes?.unidades ?? todasUnidades).map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[11px] uppercase tracking-wide text-gray-500 mb-1">Setor</label>
+          <select value={filtros.tipo} onChange={(e) => mudarFiltro({ tipo: e.target.value })}
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            <option value="">venda e locação</option>
+            <option value="venda">Venda</option>
+            <option value="locacao">Locação</option>
+          </select>
+        </div>
+        <div className="min-w-[180px]">
+          <label className="block text-[11px] uppercase tracking-wide text-gray-500 mb-1">Corretor</label>
+          {/* input + datalist, e não select: a Ana digita parte do nome e a
+              API casa por ILIKE, então serve tanto pra escolher da lista
+              quanto pra procurar alguém que não está mais no quadro. */}
+          <input list="corretores-no-quadro" value={filtros.corretor}
+            onChange={(e) => mudarFiltro({ corretor: e.target.value })}
+            placeholder="todos"
+            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+          <datalist id="corretores-no-quadro">
+            {corretoresNoQuadro.map((n) => <option key={n} value={n} />)}
+          </datalist>
+        </div>
+        {temFiltro(filtros) && (
+          <button onClick={() => { setFiltros(SEM_FILTRO); carregar(SEM_FILTRO); }}
+            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg px-3 py-1.5">
+            <X size={14} /> Limpar
           </button>
         )}
       </div>
@@ -340,7 +430,7 @@ export default function ContratosPage() {
                             body: JSON.stringify({ arquivado: true }),
                           });
                           setAberto(null);
-                          carregar();
+                          carregar(filtros);
                         }}
                         className="flex items-center gap-1.5 text-sm text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-50"
                       >
