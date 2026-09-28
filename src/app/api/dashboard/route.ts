@@ -23,6 +23,27 @@ export async function GET(req: NextRequest) {
   const corretorIds = await corretoresDaUnidade(sql, session.unidade, session.tipo);
   const semRestricao = corretorIds === null;
 
+  /*
+   * CONVERSÃO tem escopo próprio, mais largo que o do resto da tela: a UNIDADE
+   * inteira, sem separar a vertical do corretor.
+   *
+   * Motivo (28/09/2026, conferido com o Jonatan no caso Satélite/Locação):
+   * corretor de vendas fecha locação e vice-versa — é regra da casa, não
+   * exceção. Escopando pelo departamento do corretor, três locações fechadas
+   * por gente de Vendas do Satélite (R$ 6.512) sumiam do número do gerente de
+   * Locação, e o BI mostrava R$ 29.950 contra os R$ 34.862 que o Kurole dava
+   * na mesma janela. O contrato é da unidade, quem fechou não muda isso.
+   *
+   * O que continua separando venda de locação é o TIPO DO CONTRATO
+   * (`locacao_venda`), aplicado logo abaixo — o gerente de locação não passa a
+   * ver as vendas da unidade.
+   *
+   * Leads, propostas e produtividade seguem com o escopo do departamento: lá a
+   * pergunta é o que o time DELE fez, não o que aconteceu na unidade.
+   */
+  const corretorIdsUnidade = await corretoresDaUnidade(sql, session.unidade, null);
+  const tipoContrato = session.tipo === "venda" ? "V" : session.tipo === "locacao" ? "L" : null;
+
   // `responsavel_atual` = corretor mais recente por lead (mesma regra do resto do BI —
   // ver comentário em lead_responsaveis no schema.sql). É por aí que "leads" é escopado,
   // nunca por leads.corretor_id (aponta pra caixa da unidade, não pra pessoa).
@@ -56,9 +77,10 @@ export async function GET(req: NextRequest) {
       COUNT(*) FILTER (WHERE locacao_venda = 'L') as locacoes
     FROM conversoes c
     WHERE c.data_assinatura >= ${since} AND c.data_assinatura <= ${until}
-      AND (${corretorIds}::int[] IS NULL OR EXISTS (
+      AND (${tipoContrato}::text IS NULL OR c.locacao_venda = ${tipoContrato})
+      AND (${corretorIdsUnidade}::int[] IS NULL OR EXISTS (
         SELECT 1 FROM conversao_corretores cc
-        WHERE cc.conversao_id = c.id AND cc.corretor_id = ANY(${corretorIds}::int[])
+        WHERE cc.conversao_id = c.id AND cc.corretor_id = ANY(${corretorIdsUnidade}::int[])
       ))`;
 
   // Marketing é bloco à parte: quem não tem acesso a tráfego nem consulta o gasto.
@@ -112,7 +134,8 @@ export async function GET(req: NextRequest) {
     JOIN conversao_corretores cc ON cc.conversao_id = c.id
     JOIN corretores cor ON cor.id = cc.corretor_id
     WHERE c.data_assinatura >= ${since} AND c.data_assinatura <= ${until}
-      AND (${corretorIds}::int[] IS NULL OR cc.corretor_id = ANY(${corretorIds}::int[]))`;
+      AND (${tipoContrato}::text IS NULL OR c.locacao_venda = ${tipoContrato})
+      AND (${corretorIdsUnidade}::int[] IS NULL OR cc.corretor_id = ANY(${corretorIdsUnidade}::int[]))`;
 
   // Agrupa por unidade "corrigida": parte da empresa cadastrada no Kurole,
   // mas aplica correcoes_manuais.json (mesma correção usada em

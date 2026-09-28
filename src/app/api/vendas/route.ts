@@ -10,9 +10,15 @@ export async function GET(req: NextRequest) {
 
   const sql = getDb();
   const { since, until } = parseDateRange(req.nextUrl.searchParams);
-  const corretorIds = await corretoresDaUnidade(sql, session.unidade, session.tipo);
-  // `locacao_venda` já é o filtro correto de tipo quando a sessão tem um tipo
-  // fixo (venda/locação) — evita depender só do corretor pra separar.
+  /*
+   * Escopo da UNIDADE inteira, sem separar a vertical do corretor: corretor de
+   * vendas fecha locação e vice-versa, e o contrato é da unidade (decidido com
+   * o Jonatan em 28/09/2026 — ver o comentário longo em /api/dashboard).
+   *
+   * Quem separa venda de locação é o TIPO DO CONTRATO, no `tipoLV` abaixo, e
+   * não o departamento de quem fechou.
+   */
+  const corretorIds = await corretoresDaUnidade(sql, session.unidade, null);
   const tipoLV = session.tipo === "venda" ? "V" : session.tipo === "locacao" ? "L" : null;
 
   const escopo = sql`(${corretorIds}::int[] IS NULL OR EXISTS (
