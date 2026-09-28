@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { parseDateRange } from "@/lib/date-utils";
 import { getSession } from "@/lib/auth";
 import { corretoresDaUnidade, unidadeDoCorretor, IDS_DIRETORIA } from "@/lib/unidade";
 
@@ -9,7 +8,8 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const sql = getDb();
-  const { since, until } = parseDateRange(req.nextUrl.searchParams);
+  // Sem faixa de datas: estoque é foto do momento. O `since/until` que havia
+  // aqui só servia aos gráficos de visita no site, que saíram por falta de dado.
   const corretorIds = await corretoresDaUnidade(sql, session.unidade, session.tipo);
   // A diretoria (admin) enxerga as próprias captações; só os gerentes não veem.
   const idsExcluirDiretoria = session.role === "admin" ? [] : IDS_DIRETORIA;
@@ -20,41 +20,56 @@ export async function GET(req: NextRequest) {
     SELECT imovel_id FROM imovel_captadores WHERE corretor_id = ANY(${corretorIds}::int[])
   ))`;
 
-  const maisVisitados = await sql`
-    SELECT i.id, i.codigo, i.titulo, i.tipo_imovel, i.bairro, i.cidade,
-      i.valor, i.locacao_venda, i.dormitorios, COUNT(v.*) as visitas
-    FROM imovel_visitas v
-    JOIN imoveis i ON i.id = v.imovel_id
-    WHERE v.data >= ${since} AND v.data <= ${until}::date + 1 AND ${doTime}
-    GROUP BY i.id ORDER BY visitas DESC LIMIT 20`;
+  /*
+   * DISPONÍVEL no Kurole: situacao_codigo 1 na ponta que interessa
+   * (confirmado em 15/09/2026 contra a planilha que o Jonatan mandava pros
+   * gerentes). Vale para o estoque inteiro desta tela desde 28/09, a pedido
+   * dele — antes os cards contavam a base toda, e 35.655 imóveis incluíam
+   * vendido, alugado e reservado: quase 2/3 do número era estoque que não
+   * está mais à venda.
+   */
+  const disponivel = sql`(
+    (i.locacao_venda LIKE '%V%' AND i.situacao_codigo_venda = 1) OR
+    (i.locacao_venda LIKE '%L%' AND i.situacao_codigo_locacao = 1)
+  )`;
 
+
+  /*
+   * "Mais visitados no site" e "visitas por dia" saíram em 28/09/2026: a
+   * tabela `imovel_visitas` está VAZIA — a importação do KSI nunca a trouxe,
+   * então os dois nasceram e morreram sem número. Gráfico vazio na tela
+   * parece falha do BI, e o Jonatan pediu para tirar em vez de fingir.
+   *
+   * Para trazer de volta: importar `imoveis_visitas_site` (ou equivalente) no
+   * import-ksi-fast.js e recolocar as consultas.
+   */
   const porTipo = await sql`
     SELECT COALESCE(tipo_imovel, 'Outros') as tipo, COUNT(*) as total,
       AVG(valor) as valor_medio
-    FROM imoveis i WHERE valor > 0 AND ${doTime}
+    FROM imoveis i WHERE valor > 0 AND ${doTime} AND ${disponivel}
     GROUP BY COALESCE(tipo_imovel, 'Outros') ORDER BY total DESC LIMIT 15`;
 
   const porBairro = await sql`
     SELECT COALESCE(bairro, 'N/A') as bairro, COUNT(*) as total,
       AVG(valor) FILTER (WHERE locacao_venda IN ('V', 'VE', 'LV', 'LVE')) as valor_medio_venda,
       AVG(valor) FILTER (WHERE locacao_venda IN ('L', 'LE', 'LV', 'LVE')) as valor_medio_locacao
-    FROM imoveis i WHERE valor > 0 AND ${doTime}
+    FROM imoveis i WHERE valor > 0 AND ${doTime} AND ${disponivel}
     GROUP BY COALESCE(bairro, 'N/A') ORDER BY total DESC LIMIT 20`;
 
+  /*
+   * Cada contador confere a disponibilidade da SUA ponta, não a do imóvel.
+   * Imóvel anunciado para os dois ("LV") pode estar disponível só para venda —
+   * contá-lo em Locação porque o imóvel "é de locação também" punha 733
+   * imóveis já alugados dentro do estoque de locação.
+   */
   const estoque = await sql`
     SELECT
       COUNT(*) as total,
-      COUNT(*) FILTER (WHERE locacao_venda IN ('V', 'VE', 'LV', 'LVE')) as venda,
-      COUNT(*) FILTER (WHERE locacao_venda IN ('L', 'LE', 'LV', 'LVE')) as locacao,
+      COUNT(*) FILTER (WHERE i.locacao_venda LIKE '%V%' AND i.situacao_codigo_venda = 1) as venda,
+      COUNT(*) FILTER (WHERE i.locacao_venda LIKE '%L%' AND i.situacao_codigo_locacao = 1) as locacao,
       AVG(valor) FILTER (WHERE valor > 0) as valor_medio
-    FROM imoveis i WHERE ${doTime}`;
+    FROM imoveis i WHERE ${doTime} AND ${disponivel}`;
 
-  const visitasPorDia = await sql`
-    SELECT v.data::date as dia, COUNT(*) as total
-    FROM imovel_visitas v
-    JOIN imoveis i ON i.id = v.imovel_id
-    WHERE v.data >= ${since} AND v.data <= ${until}::date + 1 AND ${doTime}
-    GROUP BY dia ORDER BY dia`;
 
   // Imóveis parados: sem atualização de cadastro há mais de 90 dias E ainda
   // com status "Disponível" no Kurole (situacao_codigo_venda/locacao = 1 —
@@ -65,10 +80,6 @@ export async function GET(req: NextRequest) {
   // não depende de export manual do Kurole como a skill `unidade-captacao`.
   // Sem data de atualização não entra — não dá pra afirmar que está
   // desatualizado sem saber quando foi a última vez.
-  const disponivel = sql`(
-    (i.locacao_venda LIKE '%V%' AND i.situacao_codigo_venda = 1) OR
-    (i.locacao_venda LIKE '%L%' AND i.situacao_codigo_locacao = 1)
-  )`;
 
   const desatualizadosRaw = await sql`
     WITH captador_principal AS (
@@ -142,11 +153,9 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
-    mais_visitados: maisVisitados,
     por_tipo: porTipo,
     por_bairro: porBairro,
     estoque: estoque[0],
-    visitas_por_dia: visitasPorDia,
     desatualizados: {
       total: totalGeralDesatualizados,
       por_unidade: [...porUnidadeDesatualizados.entries()].map(([unidade, total]) => ({ unidade, total })).sort((a, b) => b.total - a.total),
