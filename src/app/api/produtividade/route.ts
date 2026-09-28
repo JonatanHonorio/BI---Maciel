@@ -67,7 +67,8 @@ export async function GET(req: NextRequest) {
       FROM imovel_captadores c
       JOIN corretores u ON u.id = c.corretor_id
       JOIN imoveis i ON i.id = c.imovel_id
-      WHERE c.data >= ${since} AND c.data <= ${ate} AND c.corretor_id > 0
+      WHERE c.removido_em IS NULL
+        AND c.data >= ${since} AND c.data <= ${ate} AND c.corretor_id > 0
         AND i.data_cadastro >= ${since} AND i.data_cadastro <= ${ate}
         AND (${corretorIds}::int[] IS NULL OR c.corretor_id = ANY(${corretorIds}::int[]))
       GROUP BY c.corretor_id, u.nome_comercial, u.nome, u.email, u.id, u.departamento_id
@@ -111,7 +112,8 @@ export async function GET(req: NextRequest) {
       LEFT JOIN imovel_atualizacoes a
         ON a.imovel_id = c.imovel_id AND a.corretor_id = c.corretor_id
        AND a.data >= c.data - interval '7 days' AND a.data <= c.data + interval '7 days'
-      WHERE c.data >= ${since} AND c.data <= ${ate} AND c.corretor_id > 0
+      WHERE c.removido_em IS NULL
+        AND c.data >= ${since} AND c.data <= ${ate} AND c.corretor_id > 0
         AND i.data_cadastro < ${since}
         AND (${corretorIds}::int[] IS NULL OR c.corretor_id = ANY(${corretorIds}::int[]))
       GROUP BY u.nome_comercial, u.nome, u.email, u.id, u.departamento_id, c.data::date
@@ -122,7 +124,8 @@ export async function GET(req: NextRequest) {
     sql`
       SELECT count(DISTINCT c.imovel_id) AS n
       FROM imovel_captadores c JOIN imoveis i ON i.id = c.imovel_id
-      WHERE c.data >= ${since} AND c.data <= ${ate} AND c.corretor_id > 0
+      WHERE c.removido_em IS NULL
+        AND c.data >= ${since} AND c.data <= ${ate} AND c.corretor_id > 0
         AND i.data_cadastro >= ${since} AND i.data_cadastro <= ${ate}
         AND (${corretorIds}::int[] IS NULL OR c.corretor_id = ANY(${corretorIds}::int[]))` as unknown as Promise<{ n: string }[]>,
 

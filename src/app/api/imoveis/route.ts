@@ -16,8 +16,12 @@ export async function GET(req: NextRequest) {
 
   // Imóvel não tem unidade própria no schema — o escopo é "captado pelo time
   // dele" (imovel_captadores), único vínculo que existe entre imóvel e corretor.
-  const doTime = sql`(${corretorIds}::int[] IS NULL OR i.id IN (
-    SELECT imovel_id FROM imovel_captadores WHERE corretor_id = ANY(${corretorIds}::int[])
+  // `removido_em IS NULL` entra junto do escopo: imovel apagado no Kurole sai
+  // da tela inteira de uma vez, em vez de precisar ser lembrado consulta a
+  // consulta. Idem para o captador, que tambem some quando a linha e apagada.
+  const doTime = sql`i.removido_em IS NULL AND (${corretorIds}::int[] IS NULL OR i.id IN (
+    SELECT imovel_id FROM imovel_captadores
+    WHERE removido_em IS NULL AND corretor_id = ANY(${corretorIds}::int[])
   ))`;
 
   /*

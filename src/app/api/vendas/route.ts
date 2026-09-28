@@ -21,7 +21,9 @@ export async function GET(req: NextRequest) {
   const corretorIds = await corretoresDaUnidade(sql, session.unidade, null);
   const tipoLV = session.tipo === "venda" ? "V" : session.tipo === "locacao" ? "L" : null;
 
-  const escopo = sql`(${corretorIds}::int[] IS NULL OR EXISTS (
+  // `removido_em IS NULL` junto do escopo: contrato apagado no Kurole sai de
+  // toda a tela de uma vez, sem precisar lembrar consulta por consulta.
+  const escopo = sql`c.removido_em IS NULL AND (${corretorIds}::int[] IS NULL OR EXISTS (
     SELECT 1 FROM conversao_corretores cc
     WHERE cc.conversao_id = c.id AND cc.corretor_id = ANY(${corretorIds}::int[])
   )) AND (${tipoLV}::text IS NULL OR c.locacao_venda = ${tipoLV})`;

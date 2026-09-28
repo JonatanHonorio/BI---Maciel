@@ -31,6 +31,24 @@ const TABLES_TO_IMPORT = [
   "clientes_imoveis", "estado_civil",
 ];
 
+/*
+ * Tabelas que vem INTEIRAS no dump: o que nao aparece nelas foi APAGADO no
+ * Kurole, e o BI marca com `removido_em`. Antes nada era removido daqui, e
+ * registro excluido la sobrevivia para sempre — foi o que criou um contrato
+ * fantasma no funil do Satelite (12 no BI contra 11 no Kurole).
+ *
+ * `atualizacoes` e `ordem_atendimento_releases` NAO entram: sao importadas
+ * com corte de 12 meses, entao "nao veio no dump" ali quer dizer "e antigo",
+ * nao "foi apagado". Marca-las esvaziaria meia base a cada importacao.
+ */
+const TABELAS_COMPLETAS = {
+  conversao: "conversoes",
+  conversao_aten: "conversao_corretores",
+  imoveis: "imoveis",
+  imoveis_cadastrador: "imovel_captadores",
+};
+const idsVistos = {};
+
 let tableColumns = {};
 let currentTable = null;
 let currentColumns = [];
@@ -270,9 +288,14 @@ async function flushBatch(table) {
 async function addToBatch(table, columns, rows) {
   if (!batches[table]) batches[table] = [];
 
+  const completa = TABELAS_COMPLETAS[table];
+  if (completa && !idsVistos[table]) idsVistos[table] = new Set();
+
   for (const v of rows) {
     const mapped = mapRow(table, columns, v);
     if (mapped) {
+      // mapped[0] e sempre o id — e o que diz quem AINDA existe no Kurole.
+      if (completa) idsVistos[table].add(Number(mapped[0]));
       batches[table].push(mapped);
       if (batches[table].length >= BATCH_SIZE) {
         await flushBatch(table);
@@ -442,10 +465,48 @@ async function processFile(filePath) {
   }
   console.log(`   ⚠️ Erros ignorados: ${errors}`);
 
+  await marcarRemovidos();
+
   try {
     await client.query(`INSERT INTO importacoes (tipo,arquivo,registros,status) VALUES ($1,$2,$3,$4)`,
       ['ksi', filePath, Object.values(stats).reduce((a, b) => a + b, 0), 'ok']);
   } catch (e) {}
+}
+
+/**
+ * Marca o que sumiu do Kurole e desmarca o que voltou.
+ *
+ * TRAVA DE SEGURANCA: se o dump trouxe menos de 90% das linhas que o BI tem,
+ * alguma coisa deu errado (arquivo truncado, parse quebrado, tabela que mudou
+ * de nome) — e marcar em massa apagaria a base da tela. Nesse caso o passo e
+ * pulado com aviso, e a importacao dos dados continua valendo.
+ */
+async function marcarRemovidos() {
+  console.log("\n🧹 Conferindo o que sumiu do Kurole:");
+  for (const [tabelaDump, tabelaBI] of Object.entries(TABELAS_COMPLETAS)) {
+    const ids = idsVistos[tabelaDump];
+    if (!ids || ids.size === 0) {
+      console.log(`   ${tabelaBI}: dump nao trouxe nada — pulado`);
+      continue;
+    }
+    const { rows: [{ n: totalBI }] } = await client.query(`SELECT count(*)::int n FROM ${tabelaBI}`);
+    if (ids.size < totalBI * 0.9) {
+      console.log(`   ⚠️ ${tabelaBI}: dump trouxe ${ids.size} de ${totalBI} no BI (<90%) — NAO marquei, dump suspeito`);
+      continue;
+    }
+
+    const lista = [...ids];
+    const marcou = await client.query(
+      `UPDATE ${tabelaBI} SET removido_em = NOW()
+       WHERE removido_em IS NULL AND NOT (id = ANY($1::int[]))`, [lista]);
+    // Voltou a aparecer: o Kurole pode restaurar um registro, e a marca sai.
+    const voltou = await client.query(
+      `UPDATE ${tabelaBI} SET removido_em = NULL
+       WHERE removido_em IS NOT NULL AND id = ANY($1::int[])`, [lista]);
+    const { rows: [{ n: removidos }] } = await client.query(
+      `SELECT count(*)::int n FROM ${tabelaBI} WHERE removido_em IS NOT NULL`);
+    console.log(`   ${tabelaBI}: +${marcou.rowCount} removido(s), -${voltou.rowCount} de volta, ${removidos} marcado(s) no total`);
+  }
 }
 
 async function main() {

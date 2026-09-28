@@ -76,7 +76,10 @@ export async function GET(req: NextRequest) {
       COUNT(*) FILTER (WHERE locacao_venda = 'V') as vendas,
       COUNT(*) FILTER (WHERE locacao_venda = 'L') as locacoes
     FROM conversoes c
-    WHERE c.data_assinatura >= ${since} AND c.data_assinatura <= ${until}
+    -- Contrato apagado no Kurole nao conta: a marca removido_em entrou em
+    -- 28/09/2026 e e o que fecha o BI com o funil de la.
+    WHERE c.removido_em IS NULL
+      AND c.data_assinatura >= ${since} AND c.data_assinatura <= ${until}
       AND (${tipoContrato}::text IS NULL OR c.locacao_venda = ${tipoContrato})
       AND (${corretorIdsUnidade}::int[] IS NULL OR EXISTS (
         SELECT 1 FROM conversao_corretores cc
@@ -133,7 +136,8 @@ export async function GET(req: NextRequest) {
     FROM conversoes c
     JOIN conversao_corretores cc ON cc.conversao_id = c.id
     JOIN corretores cor ON cor.id = cc.corretor_id
-    WHERE c.data_assinatura >= ${since} AND c.data_assinatura <= ${until}
+    WHERE c.removido_em IS NULL
+      AND c.data_assinatura >= ${since} AND c.data_assinatura <= ${until}
       AND (${tipoContrato}::text IS NULL OR c.locacao_venda = ${tipoContrato})
       AND (${corretorIdsUnidade}::int[] IS NULL OR cc.corretor_id = ANY(${corretorIdsUnidade}::int[]))`;
 
