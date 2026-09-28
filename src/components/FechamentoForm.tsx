@@ -306,14 +306,40 @@ export default function FechamentoForm({
       // A referência vem junto: é a chave do imóvel, e a adm digitaria de novo.
       if (dados.ref && !ref.trim()) setRef(dados.ref);
       aplicarDadosDoImovel(dados);
-      if (dados.comissionados?.length) {
-        const quem = dados.comissionados
-          .map((c: { nome: string; percentual: number | null }) =>
-            c.percentual != null ? `${c.nome} (${c.percentual}%)` : c.nome)
-          .join(", ");
-        // Só informa. O rateio do fechamento é montado aqui e segue as regras
-        // da casa, que não são as do Kurole — sobrescrever seria pior.
-        setAviso(`Comissão no Kurole: ${quem}`);
+
+      // Data do contrato: a assinatura é a data que o fechamento usa.
+      if (dados.data_assinatura && !dataContrato) {
+        setDataContrato(String(dados.data_assinatura).slice(0, 10));
+      }
+
+      /*
+       * O que a imobiliária recebe. Em venda o campo se chama Comissão; em
+       * locação, Valor da Prestação de Serviço — mesmo número, nome diferente.
+       */
+      if (dados.comissao_valor != null && dados.comissao_valor > 0) {
+        if (tipo === "venda" && !comissao.trim()) setComissao(String(dados.comissao_valor));
+        if (tipo === "locacao" && !valorLocacao.trim()) setValorLocacao(String(dados.comissao_valor));
+      }
+
+      /*
+       * Quem fechou. O Kurole diz a PESSOA certa — conferido contra o que as
+       * adms já tinham digitado à mão — mas o percentual de lá é a divisão
+       * entre eles (100% para um só), não a fatia da comissão. Então o nome
+       * vem de lá e o percentual sai da regra da casa, igual ao Levantamento.
+       */
+      const semFechamento = fechamento.every((f) => !f.corretor_id && !f.texto.trim());
+      if (dados.comissionados?.length && semFechamento) {
+        const n = dados.comissionados.length;
+        setFechamento(
+          dados.comissionados.map((c: { corretor_id: number; nome: string; percentual: number | null }) => {
+            const fatia = c.percentual != null && c.percentual > 0 ? c.percentual / 100 : 1 / n;
+            return {
+              corretor_id: c.corretor_id,
+              texto: c.nome,
+              percentual: String(Number((regra.fechamento * fatia * 100).toFixed(4))),
+            };
+          })
+        );
       }
     } catch {
       // Busca é conveniência: falhou, a pessoa preenche na mão.
