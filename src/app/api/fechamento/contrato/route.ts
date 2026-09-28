@@ -94,12 +94,13 @@ export async function GET(req: NextRequest) {
     valor: conv.valor != null ? Number(conv.valor) : null,
     taxa: conv.taxa != null ? Number(conv.taxa) : null,
     /*
-     * `taxa_valor` do Kurole: o que a imobiliária recebe (valor × taxa). É a
-     * Comissão em venda e o Valor da Prestação de Serviço em locação — o
-     * mesmo campo com dois nomes no fechamento.
+     * `taxa_valor` do Kurole = valor × taxa. Serve para VENDA, onde é a
+     * comissão — o contrato 239 traz 26.100,00, exatamente o que a adm digitou
+     * na ref 2949.
      *
-     * Confere com o trabalho manual: o contrato 239 traz 26.100,00, exatamente
-     * a comissão que a adm digitou na ref 2949.
+     * Em LOCAÇÃO não serve: ali `taxa_valor` é a taxa ADMINISTRATIVA mensal, e
+     * o que entra no fechamento é a TAXA DE LOCAÇÃO, que é o `valor` acima.
+     * Quem escolhe entre os dois é o formulário, que sabe a vertical.
      */
     comissao_valor: conv.comissao_valor != null ? Number(conv.comissao_valor) : null,
     data_assinatura: conv.data_assinatura,

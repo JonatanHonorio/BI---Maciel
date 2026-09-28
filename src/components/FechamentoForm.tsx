@@ -313,12 +313,27 @@ export default function FechamentoForm({
       }
 
       /*
-       * O que a imobiliária recebe. Em venda o campo se chama Comissão; em
-       * locação, Valor da Prestação de Serviço — mesmo número, nome diferente.
+       * O que a imobiliária recebe — e o campo MUDA com a vertical:
+       *
+       * - venda: a Comissão é `taxa_valor` (valor × taxa). O contrato 239 traz
+       *   26.100,00, exatamente o que a adm digitou na ref 2949.
+       * - locação: a Prestação de Serviço é a TAXA DE LOCAÇÃO, que é o próprio
+       *   `valor` da conversão. NÃO é `taxa_valor`, que ali é a taxa
+       *   ADMINISTRATIVA, cobrada todo mês.
+       *
+       * A Suzana pegou isso no CT 4324 (28/09): o BI trouxe R$ 400 (10% de
+       * administração) quando o certo era R$ 4.000 de taxa de locação. Conferido
+       * contra três lançamentos manuais — refs 61956, 60444 e 56880 — e nos três
+       * o que a adm digitou é o `valor`, nunca a taxa.
+       *
+       * É a mesma regra que o resto do fechamento já usa para saber o que a
+       * imobiliária recebe: venda olha a comissão, locação olha o valor.
        */
-      if (dados.comissao_valor != null && dados.comissao_valor > 0) {
-        if (tipo === "venda" && !comissao.trim()) setComissao(String(dados.comissao_valor));
-        if (tipo === "locacao" && !valorLocacao.trim()) setValorLocacao(String(dados.comissao_valor));
+      if (tipo === "venda" && dados.comissao_valor > 0 && !comissao.trim()) {
+        setComissao(String(dados.comissao_valor));
+      }
+      if (tipo === "locacao" && dados.valor > 0 && !valorLocacao.trim()) {
+        setValorLocacao(String(dados.valor));
       }
 
       /*
