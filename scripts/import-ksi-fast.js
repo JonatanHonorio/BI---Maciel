@@ -174,7 +174,15 @@ function mapRow(table, columns, v) {
 }
 
 const QUERIES = {
-  usuarios: { cols: 11, sql: (n) => `INSERT INTO corretores (id,nome,nome_comercial,email,celular,departamento_id,funcao,ativo,empresa,data_admissao,data_demissao) VALUES ${n} ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,nome_comercial=EXCLUDED.nome_comercial,ativo=EXCLUDED.ativo` },
+  // DEPARTAMENTO_ID entrou no DO UPDATE em 28/09/2026, e a falta dele era um
+  // bug silencioso: coluna fora desta lista NUNCA e reescrita, entao corretor
+  // que mudava de departamento no Kurole ficava congelado no BI com a lotacao
+  // da PRIMEIRA importacao. Foi o que aconteceu com o Pedro Felix — corrigido
+  // no Kurole para Locacao Satelite e ainda aparecendo como Locacao Urbanova
+  // aqui. Pior: as correcoes de scripts/correcoes_manuais.json foram escritas
+  // para morrer sozinhas quando o dump trouxesse o dado certo, e sem isto elas
+  // nunca morriam.
+  usuarios: { cols: 11, sql: (n) => `INSERT INTO corretores (id,nome,nome_comercial,email,celular,departamento_id,funcao,ativo,empresa,data_admissao,data_demissao) VALUES ${n} ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,nome_comercial=EXCLUDED.nome_comercial,ativo=EXCLUDED.ativo,departamento_id=EXCLUDED.departamento_id,funcao=EXCLUDED.funcao,empresa=EXCLUDED.empresa,email=EXCLUDED.email,celular=EXCLUDED.celular,data_admissao=EXCLUDED.data_admissao,data_demissao=EXCLUDED.data_demissao` },
   clientes: { cols: 23, sql: (n) => `INSERT INTO clientes (id,nome,email,celular,telefone,cidade,estado,bairro,sexo,cpf,rg,rg_emissor,data_nascimento,nacionalidade,profissao,estado_civil_id,endereco,numero,complemento,cep,banco,agencia,conta) VALUES ${n} ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,email=EXCLUDED.email,celular=EXCLUDED.celular,telefone=EXCLUDED.telefone,cidade=EXCLUDED.cidade,estado=EXCLUDED.estado,bairro=EXCLUDED.bairro,cpf=EXCLUDED.cpf,rg=EXCLUDED.rg,rg_emissor=EXCLUDED.rg_emissor,data_nascimento=EXCLUDED.data_nascimento,nacionalidade=EXCLUDED.nacionalidade,profissao=EXCLUDED.profissao,estado_civil_id=EXCLUDED.estado_civil_id,endereco=EXCLUDED.endereco,numero=EXCLUDED.numero,complemento=EXCLUDED.complemento,cep=EXCLUDED.cep,banco=EXCLUDED.banco,agencia=EXCLUDED.agencia,conta=EXCLUDED.conta` },
   // Proprietario troca (venda muda o dono), entao o DO UPDATE reescreve —
   // DO NOTHING deixaria o card preencher o vendedor antigo depois da venda.
