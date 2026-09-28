@@ -158,7 +158,10 @@ function mapRow(table, columns, v) {
   } else if (table === "saidadeproposta") {
     return [sn(v,c("id")), sn(v,c("id_imovel")), sn(v,c("id_cliente")), sn(v,c("id_usuario")), sn(v,c("id_ordem_atendimento")), sv(v,c("locacao_venda")), sn(v,c("valor")), sn(v,c("valor_proposto")), sd(v,c("data"))];
   } else if (table === "conversao") {
-    return [sn(v,c("id")), sn(v,c("id_imovel")), sn(v,c("id_midia")), sv(v,c("locacao_venda")), sn(v,c("valor")), sn(v,c("taxa")), sd(v,c("data_inicio")), sd(v,c("data_assinatura")), sd(v,c("data_efetivacao")), sv(v,c("finalidade"))];
+    // CtrCod = NUMERO DO CONTRATO do Kurole (o da tela de funil), nao o id da
+    // conversao: a conversao 10703 e o contrato 4415. Venda e locacao tem
+    // sequencias separadas, entao a chave unica e numero + vertical.
+    return [sn(v,c("id")), sn(v,c("id_imovel")), sn(v,c("id_midia")), sv(v,c("locacao_venda")), sn(v,c("valor")), sn(v,c("taxa")), sd(v,c("data_inicio")), sd(v,c("data_assinatura")), sd(v,c("data_efetivacao")), sv(v,c("finalidade")), sn(v,c("CtrCod")), sn(v,c("id_unidade"))];
   } else if (table === "conversao_aten") {
     return [sn(v,c("id")), sn(v,c("id_conversao")), sn(v,c("id_usuario")), sn(v,c("percentual"))];
   } else if (table === "midia") {
@@ -202,7 +205,11 @@ const QUERIES = {
   ordem_atendimento_responsaveis: { cols: 5, sql: (n) => `INSERT INTO lead_responsaveis (id,lead_id,corretor_id,data,atribuido_por_id) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
   ordem_atendimento_utm: { cols: 8, sql: (n) => `INSERT INTO lead_utms (id,lead_id,utm_source,utm_medium,utm_campaign,utm_term,utm_content,data) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
   saidadeproposta: { cols: 9, sql: (n) => `INSERT INTO propostas (id,imovel_id,cliente_id,corretor_id,lead_id,locacao_venda,valor_pedido,valor_proposto,data) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
-  conversao: { cols: 10, sql: (n) => `INSERT INTO conversoes (id,imovel_id,midia_id,locacao_venda,valor,taxa,data_inicio,data_assinatura,data_efetivacao,finalidade) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
+  // DO UPDATE, e nao DO NOTHING: com DO NOTHING as linhas que ja existiam
+  // nunca receberiam as colunas novas (contrato_numero/unidade_id) — a mesma
+  // armadilha de coluna congelada que escondeu o departamento do corretor.
+  // Valor, taxa e datas tambem mudam no Kurole e precisam acompanhar.
+  conversao: { cols: 12, sql: (n) => `INSERT INTO conversoes (id,imovel_id,midia_id,locacao_venda,valor,taxa,data_inicio,data_assinatura,data_efetivacao,finalidade,contrato_numero,unidade_id) VALUES ${n} ON CONFLICT (id) DO UPDATE SET imovel_id=EXCLUDED.imovel_id,locacao_venda=EXCLUDED.locacao_venda,valor=EXCLUDED.valor,taxa=EXCLUDED.taxa,data_inicio=EXCLUDED.data_inicio,data_assinatura=EXCLUDED.data_assinatura,data_efetivacao=EXCLUDED.data_efetivacao,contrato_numero=EXCLUDED.contrato_numero,unidade_id=EXCLUDED.unidade_id` },
   conversao_aten: { cols: 4, sql: (n) => `INSERT INTO conversao_corretores (id,conversao_id,corretor_id,percentual) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
   midia: { cols: 3, sql: (n) => `INSERT INTO midias (id,nome,ativo) VALUES ${n} ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome` },
   temperatura: { cols: 4, sql: (n) => `INSERT INTO temperaturas (id,nome,cor,ordem) VALUES ${n} ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome,cor=EXCLUDED.cor` },

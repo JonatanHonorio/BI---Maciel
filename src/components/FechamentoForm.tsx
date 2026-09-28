@@ -233,7 +233,22 @@ export default function FechamentoForm({
       }
       if (!r.ok) return;
       const dados = await r.json();
+      aplicarDadosDoImovel(dados);
+    } catch {
+      // Busca é conveniência: falhou, a pessoa preenche na mão.
+    }
+  }
 
+  /**
+   * Preenche endereço e Levantamento com o que veio do Kurole. Serve às DUAS
+   * buscas — pela referência e pelo número do contrato — porque o que se faz
+   * com o resultado é idêntico; só a chave de entrada muda.
+   */
+  function aplicarDadosDoImovel(dados: {
+    endereco?: string | null;
+    captadores?: { corretor_id: number; nome: string; percentual: number | null }[];
+    captadores_fora?: number;
+  }) {
       if (dados.endereco && !endereco.trim()) setEndereco(dados.endereco);
 
       // Também conta como preenchido o que foi só DIGITADO. Olhando apenas
@@ -262,8 +277,43 @@ export default function FechamentoForm({
           })
         );
       }
-      if (dados.captadores_fora > 0 && !dados.captadores?.length) {
+      if ((dados.captadores_fora ?? 0) > 0 && !dados.captadores?.length) {
         setAviso("O captador deste imóvel não está na lista de rateio — escolha na mão.");
+      }
+  }
+
+  /**
+   * Busca pelo NÚMERO DO CONTRATO (pedido da Suzana em 28/09/2026): ela digita
+   * o CT e vêm a referência, o endereço e o captador.
+   *
+   * O número sozinho é ambíguo — venda e locação têm sequências separadas e o
+   * mesmo número existe nas duas. Aqui não há dúvida porque o fechamento é
+   * sempre de uma vertical, e o `tipo` do período entra na busca.
+   */
+  async function buscarPorContrato() {
+    if (!contrato.trim()) return;
+    setAviso("");
+    try {
+      const r = await fetch(
+        `/api/fechamento/contrato?numero=${encodeURIComponent(contrato)}&tipo=${tipo}`
+      );
+      if (r.status === 404) {
+        setAviso(`Contrato ${contrato} não encontrado em ${tipo === "venda" ? "vendas" : "locação"} — confira o número.`);
+        return;
+      }
+      if (!r.ok) return;
+      const dados = await r.json();
+      // A referência vem junto: é a chave do imóvel, e a adm digitaria de novo.
+      if (dados.ref && !ref.trim()) setRef(dados.ref);
+      aplicarDadosDoImovel(dados);
+      if (dados.comissionados?.length) {
+        const quem = dados.comissionados
+          .map((c: { nome: string; percentual: number | null }) =>
+            c.percentual != null ? `${c.nome} (${c.percentual}%)` : c.nome)
+          .join(", ");
+        // Só informa. O rateio do fechamento é montado aqui e segue as regras
+        // da casa, que não são as do Kurole — sobrescrever seria pior.
+        setAviso(`Comissão no Kurole: ${quem}`);
       }
     } catch {
       // Busca é conveniência: falhou, a pessoa preenche na mão.
@@ -388,7 +438,13 @@ export default function FechamentoForm({
         </div>
         <div>
           <label className={labelCls}>Contrato</label>
-          <input value={contrato} onChange={(e) => setContrato(e.target.value)} className={inputCls} />
+          <input
+            value={contrato}
+            onChange={(e) => setContrato(e.target.value)}
+            onBlur={buscarPorContrato}
+            placeholder="nº do CT"
+            className={inputCls}
+          />
         </div>
         <div>
           <label className={labelCls}>Origem</label>
