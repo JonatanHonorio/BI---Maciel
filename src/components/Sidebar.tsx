@@ -73,9 +73,9 @@ const grupos: Grupo[] = [
     titulo: "Equipe",
     links: [
       { href: "/produtividade", label: "Produtividade", icon: Gauge },
-      // Sem `papeis`: a API do ranking já prende o gerente de unidade à
-      // unidade dele, e adm/contratos nem chegam na rota.
-      { href: "/ranking", label: "Ranking", icon: Medal },
+      // Só a diretoria e a Suzana (todos `admin`) — pedido do Jonatan em
+      // 30/09/2026. A trava de verdade está em rotaPermitida; aqui é só o menu.
+      { href: "/ranking", label: "Ranking", icon: Medal, papeis: ["admin"] },
       { href: "/corretores", label: "Corretores", icon: Users, oculto: true },
       { href: "/funil", label: "Funil Comercial", icon: Filter, oculto: true },
     ],

@@ -63,10 +63,21 @@ function rotasPermitidas(s: Session): string[] | null {
   return null;
 }
 
+/**
+ * Rotas que SÓ a diretoria abre — lista de negação, ao contrário da de cima.
+ *
+ * O ranking (30/09/2026) compara corretor com corretor e unidade com unidade;
+ * o Jonatan pediu que ficasse com a diretoria e a Suzana, que são os `admin`.
+ * Gerente não vê nem o ranking da própria unidade.
+ */
+const ROTAS_DIRETORIA = ["/ranking", "/api/ranking"];
+
 export function rotaPermitida(s: Session, pathname: string): boolean {
-  const rotas = rotasPermitidas(s);
   // Compara o caminho inteiro pra "/fechamentos" não passar por "/fechamento".
-  return rotas === null || rotas.some((r) => pathname === r || pathname.startsWith(r + "/"));
+  const combina = (r: string) => pathname === r || pathname.startsWith(r + "/");
+  if (s.role !== "admin" && ROTAS_DIRETORIA.some(combina)) return false;
+  const rotas = rotasPermitidas(s);
+  return rotas === null || rotas.some(combina);
 }
 
 /** Pra onde mandar a pessoa depois do login (e quando ela bate numa rota proibida). */

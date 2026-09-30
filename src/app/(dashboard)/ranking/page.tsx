@@ -23,8 +23,6 @@ interface Unidade { unidade: string; gerente: string | null; negocios: number; v
 interface Dados {
   filtro: { de: string; ate: string; unidade: string | null; tipo: "venda" | "locacao" };
   faixa: { primeira: string | null; ultima: string | null };
-  escolheUnidade: boolean;
-  escolheTipo: boolean;
   unidades: string[];
   vendedores: Linha[];
   captadores: Linha[];
@@ -104,20 +102,16 @@ export default function RankingPage() {
           <span className="text-gray-400">até</span>
           <input type="month" value={paraMes(ate)} onChange={(e) => e.target.value && setAte(paraISO(e.target.value))}
             className="border border-gray-300 rounded-lg px-3 py-1.5" />
-          {data.escolheUnidade && (
-            <select value={unidade} onChange={(e) => setUnidade(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5">
-              <option value="">Todas as unidades</option>
-              {data.unidades.map((u) => <option key={u} value={u}>{u}</option>)}
-            </select>
-          )}
-          {data.escolheTipo && (
-            <select value={tipo} onChange={(e) => setTipo(e.target.value as "venda" | "locacao")}
-              className="border border-gray-300 rounded-lg px-3 py-1.5">
-              <option value="venda">Vendas</option>
-              <option value="locacao">Locação</option>
-            </select>
-          )}
+          <select value={unidade} onChange={(e) => setUnidade(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5">
+            <option value="">Todas as unidades</option>
+            {data.unidades.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+          <select value={tipo} onChange={(e) => setTipo(e.target.value as "venda" | "locacao")}
+            className="border border-gray-300 rounded-lg px-3 py-1.5">
+            <option value="venda">Vendas</option>
+            <option value="locacao">Locação</option>
+          </select>
         </div>
       </div>
 

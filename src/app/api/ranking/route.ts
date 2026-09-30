@@ -7,29 +7,25 @@ import { rankingPorPapel, rankingUnidades, type FiltroRanking } from "@/lib/rank
  * Ranking do fechamento. As categorias são as quatro primeiras pedidas pelo
  * Jonatan em 28/09/2026; o resto vem da diretoria.
  *
- * ESCOPO DE LEITURA: gerente com unidade só vê a própria. Gerente SEM unidade
- * (a Daniela, diretora de vendas) e admin veem a empresa inteira — aqui
- * "unidade nula = todas" é intencional e seguro, ao contrário do que vale no
- * fechamento, porque esta rota não escreve nada. Quem tem vertical fixa fica
- * preso a ela.
+ * QUEM VÊ: só `admin` — a diretoria e a Suzana (decidido em 30/09/2026).
+ * Gerente não vê nem o ranking da própria unidade: o ranking compara pessoa
+ * com pessoa e unidade com unidade, e isso é conversa da diretoria.
  *
- * `gerente_adm` e `contratos` nem chegam: o proxy barra /api/ranking, que não
- * está na lista de rotas desses perfis.
+ * O proxy já barra pela lista ROTAS_DIRETORIA; a checagem aqui é a segunda
+ * tranca, para a rota não depender só do middleware.
  */
 export async function GET(req: NextRequest) {
   const session = getSession(req);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
+  if (session.role !== "admin") {
+    return NextResponse.json({ error: "sem acesso" }, { status: 403 });
+  }
+
   const q = req.nextUrl.searchParams;
-  const admin = session.role === "admin";
-
-  const tipoPedido = q.get("tipo") === "locacao" ? "locacao" : "venda";
-  const tipo = !admin && session.tipo ? session.tipo : tipoPedido;
-
-  // Gerente de unidade não escolhe: a unidade dele vale mesmo que mande outra
-  // na query. Admin e diretoria escolhem, e vazio significa todas.
-  const unidadePedida = q.get("unidade")?.trim() || null;
-  const unidade = !admin && session.unidade ? session.unidade : unidadePedida;
+  const tipo = q.get("tipo") === "locacao" ? "locacao" : "venda";
+  // Unidade vazia = todas.
+  const unidade = q.get("unidade")?.trim() || null;
 
   const sql = getDb();
 
@@ -61,10 +57,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     filtro,
     faixa,
-    // A tela some com o seletor de unidade de quem não escolhe — o gerente de
-    // unidade veria uma lista que não muda nada.
-    escolheUnidade: admin || !session.unidade,
-    escolheTipo: admin || !session.tipo,
     unidades: opcoes.map((u) => u.unidade),
     vendedores,
     captadores,
