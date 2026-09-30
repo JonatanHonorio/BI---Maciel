@@ -13,6 +13,7 @@ import {
   Target,
   Bot,
   Trophy,
+  Medal,
   Gauge,
   LogOut,
   Eye,
@@ -72,6 +73,9 @@ const grupos: Grupo[] = [
     titulo: "Equipe",
     links: [
       { href: "/produtividade", label: "Produtividade", icon: Gauge },
+      // Sem `papeis`: a API do ranking já prende o gerente de unidade à
+      // unidade dele, e adm/contratos nem chegam na rota.
+      { href: "/ranking", label: "Ranking", icon: Medal },
       { href: "/corretores", label: "Corretores", icon: Users, oculto: true },
       { href: "/funil", label: "Funil Comercial", icon: Filter, oculto: true },
     ],

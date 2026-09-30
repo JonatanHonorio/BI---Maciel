@@ -39,8 +39,12 @@ function redistribuir(lista: LinhaRateio[], totalDoBloco: number | null): LinhaR
   return lista.map((l) => (temDestinatario(l) ? { ...l, percentual: cada } : l));
 }
 
+// Gêmea de ORIGENS_FECHAMENTO em @/lib/fechamento (que não pode ser
+// importado aqui: puxa `fs`). "Composição" = venda em parceria com outra
+// imobiliária, pedida pelo Jonatan em 30/09/2026.
 const ORIGENS = [
-  "Cliente de Carteira", "Plantão de Vendas", "Canal Pro", "Indicação", "Site",
+  "Cliente de Carteira", "Plantão de Vendas", "Canal Pro", "Indicação",
+  "Composição", "Site",
   "Placa", "OLX", "ZAP", "VivaReal", "ImovelWeb", "Fachada da Imobiliária",
   "V4", "Facebook", "Instagram", "Panfletos", "Status/Story",
 ];

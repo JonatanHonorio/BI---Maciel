@@ -7,8 +7,18 @@ export const UNIDADES_FECHAMENTO = [
   "Diretoria", "Lançamento",
 ] as const;
 
+/**
+ * ⚠️ Esta lista tem uma GÊMEA em `ORIGENS` no FechamentoForm — o formulário é
+ * client component e não pode importar daqui, porque este módulo puxa `fs`
+ * via @/lib/unidade. Mexeu numa, mexa na outra.
+ *
+ * "Composição" (30/09/2026) é a venda feita em parceria com outra
+ * imobiliária: o negócio é da casa, mas a comissão é repartida com quem
+ * trouxe a outra ponta.
+ */
 export const ORIGENS_FECHAMENTO = [
-  "Cliente de Carteira", "Plantão de Vendas", "Canal Pro", "Indicação", "Site",
+  "Cliente de Carteira", "Plantão de Vendas", "Canal Pro", "Indicação",
+  "Composição", "Site",
   "Placa", "OLX", "ZAP", "VivaReal", "ImovelWeb", "Fachada da Imobiliária",
   "V4", "Facebook", "Instagram", "Panfletos", "Status/Story",
 ] as const;
