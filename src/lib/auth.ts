@@ -32,6 +32,16 @@ export interface Session {
   tipo: Tipo | null;
   marketing: boolean;
   /**
+   * Permissão avulsa de ver o ranking, no mesmo molde de `marketing`
+   * (30/09/2026). Existe para a Daniela: diretora de vendas, mas `gerente` no
+   * BI — virar admin lhe daria reabrir fechamento e mexer em comissão.
+   *
+   * Opcional porque cookie assinado antes deste deploy não tem o campo; sem
+   * ele a pessoa fica SEM a permissão, que é o lado seguro. Admin não depende
+   * disto, entra pelo papel.
+   */
+  ranking?: boolean;
+  /**
    * Preenchido só quando um admin está "vendo como" um gerente — nesse caso
    * role/unidade/tipo/marketing acima JÁ são os do gerente (é assim que o
    * resto do app, sem saber de nada disso, escopa os dados certo sozinho).

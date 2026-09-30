@@ -73,9 +73,9 @@ const grupos: Grupo[] = [
     titulo: "Equipe",
     links: [
       { href: "/produtividade", label: "Produtividade", icon: Gauge },
-      // Só a diretoria e a Suzana (todos `admin`) — pedido do Jonatan em
-      // 30/09/2026. A trava de verdade está em rotaPermitida; aqui é só o menu.
-      { href: "/ranking", label: "Ranking", icon: Medal, papeis: ["admin"] },
+      // Sem `papeis`: quem vê é decidido por rotaPermitida, que já entende
+      // tanto o papel admin quanto a permissão avulsa da Daniela.
+      { href: "/ranking", label: "Ranking", icon: Medal },
       { href: "/corretores", label: "Corretores", icon: Users, oculto: true },
       { href: "/funil", label: "Funil Comercial", icon: Filter, oculto: true },
     ],

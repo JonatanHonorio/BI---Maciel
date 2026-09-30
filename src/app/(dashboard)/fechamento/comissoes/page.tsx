@@ -18,7 +18,8 @@ type Negocio = {
   id: number; ref: string | null; endereco: string | null; valor: number | null; comissao: number | null;
   unidade: string; tipo: "venda" | "locacao"; competencia: string; rateio: Rateio[];
   recebimentos: Recebimento[];
-  valor_devido_total: number; valor_pago_total: number; ficou_pra_imobiliaria: number;
+  valor_devido_total: number; valor_pago_total: number; valor_pendente: number;
+  ficou_pra_imobiliaria: number;
   status_pagamento: StatusPagamento;
 };
 
@@ -201,6 +202,10 @@ export default function ComissoesPage() {
     .filter((n) => filtroDestinatario === "todos" || n.rateio.some((r) => r.nome === filtroDestinatario));
   const totalDevido = filtrados.reduce((s, n) => s + n.valor_devido_total, 0);
   const totalPago = filtrados.reduce((s, n) => s + n.valor_pago_total, 0);
+  // Somando o pendente de cada negócio, e não devido - pago: negócio quitado
+  // vem com zero, e o resto de arredondamento não vira "R$ 0,02 pendente" num
+  // mês em que tudo foi pago.
+  const totalPendente = filtrados.reduce((s, n) => s + n.valor_pendente, 0);
   const totalFicou = filtrados.reduce((s, n) => s + n.ficou_pra_imobiliaria, 0);
 
   return (
@@ -314,7 +319,7 @@ export default function ComissoesPage() {
         <span><span className="text-gray-500">Negócios: </span><span className="font-semibold">{filtrados.length}</span></span>
         <span><span className="text-gray-500">Devido: </span><span className="font-semibold">{fmtMoney(totalDevido)}</span></span>
         <span><span className="text-gray-500">Pago: </span><span className="font-semibold text-emerald-700">{fmtMoney(totalPago)}</span></span>
-        <span><span className="text-gray-500">Pendente: </span><span className="font-semibold text-amber-600">{fmtMoney(totalDevido - totalPago)}</span></span>
+        <span><span className="text-gray-500">Pendente: </span><span className="font-semibold text-amber-600">{fmtMoney(totalPendente)}</span></span>
         <span><span className="text-gray-500">Ficou pra Imobiliária: </span><span className="font-semibold">{fmtMoney(totalFicou)}</span></span>
       </div>
 

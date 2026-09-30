@@ -12,10 +12,11 @@ require("dotenv").config({ path: ".env.local" });
 const { Pool } = require("pg");
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-const ADMIN = { role: "admin", unidade: null, tipo: null, marketing: true };
+const ADMIN = { role: "admin", unidade: null, tipo: null, marketing: true, ranking: true };
 const GERENTE_VENDA = { role: "gerente", tipo: "venda", marketing: false };
 const GERENTE_LOCACAO = { role: "gerente", tipo: "locacao", marketing: false };
-const DIRETORA_VENDAS = { role: "gerente", unidade: null, tipo: "venda", marketing: false };
+// `ranking: true` é a exceção da Daniela: diretora de vendas sem ser admin.
+const DIRETORA_VENDAS = { role: "gerente", unidade: null, tipo: "venda", marketing: false, ranking: true };
 // Gerente administrativa: só /fechamento e /fechamento/comissoes, nas DUAS
 // verticais da própria unidade (por isso tipo null). `unidade` é a principal e
 // `unidades` é a lista completa — preenchidas as duas até nas de unidade única,
@@ -72,13 +73,13 @@ const usuarios = [
 (async () => {
   for (const u of usuarios) {
     await pool.query(
-      `INSERT INTO usuarios_bi (email, nome, role, unidade, unidades, tipo, marketing, ativo)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+      `INSERT INTO usuarios_bi (email, nome, role, unidade, unidades, tipo, marketing, ranking, ativo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
        ON CONFLICT (email) DO UPDATE SET
          nome = EXCLUDED.nome, role = EXCLUDED.role, unidade = EXCLUDED.unidade,
          unidades = EXCLUDED.unidades, tipo = EXCLUDED.tipo,
-         marketing = EXCLUDED.marketing, ativo = true`,
-      [u.email, u.nome, u.role, u.unidade ?? null, u.unidades ?? null, u.tipo ?? null, u.marketing]
+         marketing = EXCLUDED.marketing, ranking = EXCLUDED.ranking, ativo = true`,
+      [u.email, u.nome, u.role, u.unidade ?? null, u.unidades ?? null, u.tipo ?? null, u.marketing, u.ranking === true]
     );
     console.log(`ok: ${u.email} (${u.role}${u.unidade ? ", " + u.unidade : ""}${u.tipo ? ", " + u.tipo : ""})`);
   }

@@ -5,6 +5,7 @@ import {
   competenciaAtual, calcularStatusPagamento, negociosDaCompetencia,
   escopoUnidade, escopoTipo, UNIDADES_FECHAMENTO,
 } from "@/lib/fechamento";
+import { pendenteAPagar } from "@/lib/comissao";
 import { podeLancarComissao, unidadesFechamento, tiposFechamento } from "@/lib/permissoes";
 
 /**
@@ -37,12 +38,14 @@ export async function GET(req: NextRequest) {
 
   const comNegociosComputados = negocios.map((n) => {
     const pool = n.tipo === "venda" ? n.comissao : n.valor;
-    const { rateio, valorDevidoTotal, valorPagoTotal, ficouParaImobiliaria, status } = calcularStatusPagamento(pool, n.rateio);
+    const { rateio, valorDevidoTotal, valorPagoTotal, valorPendente, ficouParaImobiliaria, status } =
+      calcularStatusPagamento(pool, n.rateio);
     return {
       ...n,
       rateio: rateio.map(({ linha, valorDevido, valorPago }) => ({ ...linha, valorDevido, valorPago })),
       valor_devido_total: valorDevidoTotal,
       valor_pago_total: valorPagoTotal,
+      valor_pendente: valorPendente,
       ficou_pra_imobiliaria: ficouParaImobiliaria,
       status_pagamento: status,
     };
@@ -82,7 +85,7 @@ export async function GET(req: NextRequest) {
     .map((d) => ({
       corretor_id: d.corretor_id, nome: d.nome, papeis: [...d.papeis],
       negocios: d.negocios, devido: d.devido, pago: d.pago,
-      pendente: d.devido - d.pago,
+      pendente: pendenteAPagar(d.devido, d.pago),
     }))
     .sort((a, b) => b.pendente - a.pendente || a.nome.localeCompare(b.nome));
 

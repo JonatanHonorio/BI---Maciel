@@ -69,13 +69,21 @@ function rotasPermitidas(s: Session): string[] | null {
  * O ranking (30/09/2026) compara corretor com corretor e unidade com unidade;
  * o Jonatan pediu que ficasse com a diretoria e a Suzana, que são os `admin`.
  * Gerente não vê nem o ranking da própria unidade.
+ *
+ * A exceção é a coluna `ranking` de usuarios_bi, uma permissão avulsa: a
+ * Daniela é diretora de vendas e enxerga o ranking sem ser admin.
  */
 const ROTAS_DIRETORIA = ["/ranking", "/api/ranking"];
+
+/** Diretoria para efeito de ranking: admin, ou quem tem a permissão avulsa. */
+export function podeVerRanking(s: Session): boolean {
+  return s.role === "admin" || s.ranking === true;
+}
 
 export function rotaPermitida(s: Session, pathname: string): boolean {
   // Compara o caminho inteiro pra "/fechamentos" não passar por "/fechamento".
   const combina = (r: string) => pathname === r || pathname.startsWith(r + "/");
-  if (s.role !== "admin" && ROTAS_DIRETORIA.some(combina)) return false;
+  if (!podeVerRanking(s) && ROTAS_DIRETORIA.some(combina)) return false;
   const rotas = rotasPermitidas(s);
   return rotas === null || rotas.some(combina);
 }

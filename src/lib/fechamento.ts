@@ -307,6 +307,8 @@ export interface StatusPagamentoNegocio<T extends RateioPagamento> {
   rateio: RateioComputado<T>[];
   valorDevidoTotal: number;
   valorPagoTotal: number;
+  /** O que falta pagar. Zero quando o negócio está quitado. */
+  valorPendente: number;
   ficouParaImobiliaria: number;
   status: "pendente" | "parcial" | "pago";
 }
@@ -333,10 +335,25 @@ export function calcularStatusPagamento<T extends RateioPagamento>(
     valorPagoTotal += valorPago;
     return { linha, valorDevido, valorPago };
   });
+  /*
+   * Tolerância de arredondamento (30/09/2026). A comparação era exata e
+   * deixava negócio inteiramente pago preso em "Parcial" por FRAÇÃO de
+   * centavo: na ref 58298 da Aquarius, as três linhas da Diretoria devem
+   * R$ 215,784 + R$ 71,928 + R$ 35,964, a adm pagou os centavos redondos
+   * (215,78 + 71,93 + 35,96) e sobraram seis DÉCIMOS de centavo — a tela
+   * mostrava "R$ 3.920,07 / R$ 3.920,08".
+   *
+   * O resto não tem como ser pago: não existe fração de centavo em
+   * transferência. Um centavo por linha cobre o pior caso (cada linha erra no
+   * máximo meio centavo para cima ou para baixo) e é pequeno demais para
+   * esconder parcela em aberto de verdade, que é sempre de reais.
+   */
+  const linhasComDevido = linhas.filter((l) => l.valorDevido != null).length;
+  const tolerancia = Math.max(0.01, linhasComDevido * 0.01);
   const status: StatusPagamentoNegocio<T>["status"] =
     valorPagoTotal <= 0
       ? "pendente"
-      : valorDevidoTotal > 0 && valorPagoTotal >= valorDevidoTotal
+      : valorDevidoTotal > 0 && valorPagoTotal >= valorDevidoTotal - tolerancia
         ? "pago"
         : "parcial";
   return {
@@ -344,6 +361,9 @@ export function calcularStatusPagamento<T extends RateioPagamento>(
     rateio: linhas,
     valorDevidoTotal,
     valorPagoTotal,
+    // Sai daqui, e não de uma subtração na tela, pra "Pago" e "Pendente"
+    // nunca se contradizerem: negócio quitado não deve nada.
+    valorPendente: status === "pago" ? 0 : Math.max(0, valorDevidoTotal - valorPagoTotal),
     ficouParaImobiliaria: poolNum - valorDevidoTotal,
     status,
   };

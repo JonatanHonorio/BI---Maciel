@@ -140,6 +140,21 @@ export function temBlocoLancamento(tipo: Tipo): boolean {
   return REGRAS[tipo].lancamento !== false;
 }
 
+/**
+ * Quanto ainda falta pagar, com o resto de arredondamento zerado
+ * (30/09/2026).
+ *
+ * O devido de cada linha é percentual × comissão e quase nunca cai num
+ * centavo redondo — a Diretoria 3 de um negócio de R$ 7.192,80 deve
+ * R$ 35,964. A adm paga R$ 35,96, e a diferença de quatro décimos de centavo
+ * ficava eternamente "a pagar". Não existe fração de centavo em
+ * transferência: abaixo de um centavo, está quitado.
+ */
+export function pendenteAPagar(devido: number, pago: number): number {
+  const falta = devido - pago;
+  return falta < 0.01 ? 0 : falta;
+}
+
 export interface LinhaRateioCalc {
   papel: string;
   percentual: number | null;

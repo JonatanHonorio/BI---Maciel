@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { podeVerRanking } from "@/lib/permissoes";
 import { rankingPorPapel, rankingUnidades, type FiltroRanking } from "@/lib/ranking";
 
 /**
  * Ranking do fechamento. As categorias são as quatro primeiras pedidas pelo
  * Jonatan em 28/09/2026; o resto vem da diretoria.
  *
- * QUEM VÊ: só `admin` — a diretoria e a Suzana (decidido em 30/09/2026).
- * Gerente não vê nem o ranking da própria unidade: o ranking compara pessoa
- * com pessoa e unidade com unidade, e isso é conversa da diretoria.
+ * QUEM VÊ: a diretoria e a Suzana (os `admin`), mais quem tenha a permissão
+ * avulsa `ranking` — hoje só a Daniela, diretora de vendas. Gerente não vê
+ * nem o ranking da própria unidade: o ranking compara pessoa com pessoa e
+ * unidade com unidade, e isso é conversa da diretoria.
  *
  * O proxy já barra pela lista ROTAS_DIRETORIA; a checagem aqui é a segunda
  * tranca, para a rota não depender só do middleware.
@@ -18,7 +20,7 @@ export async function GET(req: NextRequest) {
   const session = getSession(req);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  if (session.role !== "admin") {
+  if (!podeVerRanking(session)) {
     return NextResponse.json({ error: "sem acesso" }, { status: 403 });
   }
 
