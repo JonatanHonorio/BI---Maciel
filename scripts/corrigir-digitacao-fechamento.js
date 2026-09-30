@@ -71,6 +71,12 @@ const NOMES = [
   ["Thomaz", 303], ["Vanessa Gomes", 709], ["Victoria", 815],
   // O ponto no lugar do espaço denuncia o copiar/colar de um login.
   ["Zeze.Maciel", 83],
+  // Confirmados pelo Jonatan em 30/09/2026, e os dois continuam na empresa —
+  // por isso precisavam entrar no ranking. Nenhum dos dois casa por sobrenome:
+  // no cadastro não existe "Tokio" nem "Katie", que são como os chamam na
+  // casa. Só o Jonatan poderia dizer, e disse.
+  ["Karine Katie", 165],   // Karine Bashiyo
+  ["Ricardo Tokio", 169],  // Ricardo Silva
 ];
 
 (async () => {
