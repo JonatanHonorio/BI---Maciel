@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { PERMITE_NOME_LIVRE_NO_RATEIO } from "@/lib/flags";
+import { camposFaltando, erroCamposFaltando } from "@/lib/negocio-obrigatorio";
 import { REGRAS, resumoRateio, pctTexto, temBlocoLancamento, type Tipo } from "@/lib/comissao";
 
 type Corretor = { id: number; nome: string };
@@ -405,6 +406,23 @@ export default function FechamentoForm({
     }
 
     const valor = tipo === "venda" ? valorCalculado : (valorLocacao ? Number(valorLocacao) : null);
+
+    // Campo em branco não dava erro em lugar nenhum: sumia do relatório e da
+    // conferência com a planilha da diretoria. A mesma checagem roda na API,
+    // que é quem de fato tranca.
+    const faltam = camposFaltando(
+      {
+        data_contrato: dataContrato, ref, endereco, origem, valor,
+        comissao: comissao ? Number(comissao) : null,
+        pagamento, rateio,
+      },
+      tipo
+    );
+    if (faltam.length > 0) {
+      setErro(erroCamposFaltando(faltam));
+      return;
+    }
+
     setSalvando(true);
     try {
       const r = await fetch("/api/fechamento/negocios", {

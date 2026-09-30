@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { normalizaLinhaRateio, type Papel, type RateioEntrada } from "@/lib/fechamento";
 import { PERMITE_NOME_LIVRE_NO_RATEIO } from "@/lib/flags";
 import { podeAcessarPeriodo } from "@/lib/permissoes";
+import { camposFaltando, erroCamposFaltando } from "@/lib/negocio-obrigatorio";
 
 interface RateioInput extends RateioEntrada {
   papel: Papel;
@@ -61,6 +62,17 @@ export async function POST(req: NextRequest) {
 
   if (periodo.status !== "aberto" && session.role !== "admin") {
     return NextResponse.json({ error: "período já foi enviado — peça pro admin reabrir" }, { status: 409 });
+  }
+
+  /*
+   * A trava dos campos obrigatórios fica aqui, e não só no formulário, porque
+   * é aqui que ela vale: a tela é a primeira barreira, esta é a que garante.
+   * A vertical vem do PERÍODO, não do corpo da requisição — forma de pagamento
+   * só é exigida em venda.
+   */
+  const faltam = camposFaltando(body, periodo.tipo);
+  if (faltam.length > 0) {
+    return NextResponse.json({ error: erroCamposFaltando(faltam) }, { status: 400 });
   }
 
   const [negocio] = await sql`

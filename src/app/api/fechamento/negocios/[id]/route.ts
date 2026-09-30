@@ -4,6 +4,7 @@ import { getSession, type Session } from "@/lib/auth";
 import { normalizaLinhaRateio, type Papel, type RateioEntrada } from "@/lib/fechamento";
 import { PERMITE_NOME_LIVRE_NO_RATEIO } from "@/lib/flags";
 import { podeAcessarPeriodo } from "@/lib/permissoes";
+import { camposFaltando, erroCamposFaltando, type TipoNegocio } from "@/lib/negocio-obrigatorio";
 
 interface RateioInput extends RateioEntrada {
   papel: Papel;
@@ -15,7 +16,15 @@ interface RateioInput extends RateioEntrada {
  * o período for da própria unidade/tipo do gerente — sem isso, um gerente
  * poderia mandar um periodo_id de outra unidade/tipo direto na requisição.
  */
-async function periodoEditavel(sql: ReturnType<typeof getDb>, negocioId: number, session: Session) {
+type Editavel =
+  | { ok: false; status: 404 | 403 | 409 }
+  | { ok: true; tipo: TipoNegocio };
+
+// Tipo declarado à mão: sem ele o TypeScript funde os dois lados da união e
+// `check.tipo` vira `TipoNegocio | undefined` mesmo depois do `if (!check.ok)`.
+async function periodoEditavel(
+  sql: ReturnType<typeof getDb>, negocioId: number, session: Session
+): Promise<Editavel> {
   const [row] = await sql`
     SELECT p.status, p.unidade, p.tipo FROM fechamento_negocios n
     JOIN fechamento_periodos p ON p.id = n.periodo_id
@@ -24,7 +33,8 @@ async function periodoEditavel(sql: ReturnType<typeof getDb>, negocioId: number,
   if (!row) return { ok: false, status: 404 as const };
   if (!podeAcessarPeriodo(session, row)) return { ok: false, status: 403 as const };
   if (row.status !== "aberto" && session.role !== "admin") return { ok: false, status: 409 as const };
-  return { ok: true as const };
+  // A vertical sobe junto: é ela que decide se forma de pagamento é exigida.
+  return { ok: true as const, tipo: row.tipo as TipoNegocio };
 }
 
 function erroPeriodoEditavel(status: 404 | 403 | 409) {
@@ -54,6 +64,13 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       { error: "rateio inválido: cada item precisa de papel e de um corretor (da lista ou pelo nome)" },
       { status: 400 }
     );
+  }
+
+  // Mesma trava do POST: editar não pode ser a porta dos fundos para deixar
+  // um campo obrigatório em branco.
+  const faltam = camposFaltando(body, check.tipo);
+  if (faltam.length > 0) {
+    return NextResponse.json({ error: erroCamposFaltando(faltam) }, { status: 400 });
   }
 
   const sql = getDb();
