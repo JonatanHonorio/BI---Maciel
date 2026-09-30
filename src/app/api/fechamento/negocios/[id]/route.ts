@@ -61,7 +61,13 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   });
   if (rateio.some((r) => !r)) {
     return NextResponse.json(
-      { error: "rateio inválido: cada item precisa de papel e de um corretor (da lista ou pelo nome)" },
+      {
+        // A mensagem acompanha a chave: com a digitação livre desligada,
+        // mandar "ou pelo nome" faria a adm tentar de novo o que não existe.
+        error: PERMITE_NOME_LIVRE_NO_RATEIO
+          ? "rateio inválido: cada item precisa de papel e de um corretor (da lista ou pelo nome)"
+          : "rateio inválido: cada item precisa de papel e de um corretor da lista",
+      },
       { status: 400 }
     );
   }

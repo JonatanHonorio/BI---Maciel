@@ -15,11 +15,21 @@
  * ago/2026: aqueles meses têm captadores e vendedores que já saíram da
  * empresa e sumiram do cadastro.
  *
- * O preenchimento automático pela referência NÃO muda — continua trazendo o
- * captador do Kurole. Digitar é só a saída para quem o Kurole não conhece.
+ * DESLIGADA em 30/09/2026, com a carga retroativa terminada (833 negócios,
+ * dez/2025 a ago/2026 enviados). Antes de desligar, a auditoria ligou ao
+ * cadastro do Kurole todas as linhas com correspondência — ver
+ * `scripts/corrigir-digitacao-fechamento.js`.
  *
- * COMO DESLIGAR, quando a carga terminar: trocar para `false`. A tela volta a
- * exigir nome da lista, e as linhas já gravadas com nome digitado continuam
- * aparecendo normalmente (a leitura não depende desta chave).
+ * Sobraram 18 linhas em 6 nomes (Doris, Rita, Kely Silva, Helen Firmino, Ana
+ * Mosti, Pamela), gente que passou pela empresa e nunca teve cadastro. Elas
+ * continuam aparecendo e recebendo comissão: a LEITURA nunca dependeu desta
+ * chave, só a digitação de linhas novas.
+ *
+ * O preenchimento automático pela referência não muda — continua trazendo o
+ * captador do Kurole.
+ *
+ * QUANDO RELIGAR: se um acerto retroativo precisar de alguém que já saiu e
+ * sumiu da lista (ela só traz corretor ATIVO). A alternativa, melhor, é
+ * reativar a pessoa no Kurole. Trocar para `true` e subir basta.
  */
-export const PERMITE_NOME_LIVRE_NO_RATEIO = true;
+export const PERMITE_NOME_LIVRE_NO_RATEIO = false;

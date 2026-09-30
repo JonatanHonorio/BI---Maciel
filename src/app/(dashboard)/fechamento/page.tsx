@@ -94,6 +94,7 @@ function competenciaAtualISO() {
 export default function FechamentoPage() {
   const [dados, setDados] = useState<Resposta | null>(null);
   const [corretores, setCorretores] = useState<{ id: number; nome: string }[]>([]);
+  const [erroCorretores, setErroCorretores] = useState("");
   const [mostrarForm, setMostrarForm] = useState(false);
   const [unidadeSel, setUnidadeSel] = useState("");
   const [tipoSel, setTipoSel] = useState<"venda" | "locacao" | "">("");
@@ -148,12 +149,37 @@ export default function FechamentoPage() {
   // esperar por unidadeSel deixaria a tela sem recarregar ao trocar a vertical.
   useEffect(() => { carregar(); }, [de, ate, unidadeSel, tipoSel]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Lista de corretores é a mesma pra todo mundo — busca uma vez.
+  /*
+   * Lista de corretores: a mesma pra todo mundo, buscada uma vez.
+   *
+   * Tentativa dupla e erro na tela (30/09/2026). Antes, um 500 da API caía no
+   * `[]` e a lista ficava VAZIA EM SILÊNCIO — foi o que aconteceu num teste,
+   * com o banco fora do ar por um instante. Enquanto dava pra digitar o nome,
+   * a adm contornava sem perceber; com a digitação livre desligada ela fica
+   * sem nenhum nome para escolher e sem nenhuma explicação.
+   */
   useEffect(() => {
-    fetch("/api/fechamento/corretores")
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setCorretores)
-      .catch(() => setCorretores([]));
+    let vivo = true;
+    (async () => {
+      for (let tentativa = 0; tentativa < 2; tentativa++) {
+        try {
+          const r = await fetch("/api/fechamento/corretores");
+          if (!r.ok) throw new Error(String(r.status));
+          const lista = await r.json();
+          if (!vivo) return;
+          setCorretores(lista);
+          setErroCorretores("");
+          return;
+        } catch {
+          if (tentativa === 0) await new Promise((r) => setTimeout(r, 1500));
+        }
+      }
+      if (vivo) {
+        setCorretores([]);
+        setErroCorretores("Não foi possível carregar a lista de corretores. Recarregue a página antes de lançar um negócio.");
+      }
+    })();
+    return () => { vivo = false; };
   }, []);
 
   /** Mostra o erro da API (403 de outra unidade, 409 de período travado) em vez de falhar calado. */
@@ -632,6 +658,12 @@ export default function FechamentoPage() {
             // anterior — a Gerência continuava preenchida com o gerente da
             // OUTRA vertical (Locação numa venda), e aqueles 10% da comissão
             // iriam pra pessoa errada sem nenhum aviso.
+            <>
+            {erroCorretores && (
+              <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+                {erroCorretores}
+              </div>
+            )}
             <FechamentoForm
               key={periodo.id}
               periodoId={periodo.id}
@@ -641,6 +673,7 @@ export default function FechamentoPage() {
               onSalvo={() => { setMostrarForm(false); carregar(); }}
               onCancelar={() => setMostrarForm(false)}
             />
+            </>
           )}
 
           <div className="rounded-xl border border-gray-200 bg-white p-4">

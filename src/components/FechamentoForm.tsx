@@ -389,6 +389,25 @@ export default function FechamentoForm({
       ...gerencia.filter(usavel).map((l) => ({ ...l, papel: "gerencia" as const })),
       ...doLancamento.map((l) => ({ ...l, papel: "lancamento" as const })),
     ];
+    /*
+     * Nome escrito que não casou com ninguém da lista (30/09/2026, junto com
+     * o desligamento da digitação livre). Sem este aviso a linha era
+     * DESCARTADA em silêncio e o erro que aparecia era "falta o Fechamento" —
+     * com o nome da pessoa ali na tela, o que faz a adm reescrever o mesmo
+     * nome achando que esqueceu de preencher.
+     */
+    if (!PERMITE_NOME_LIVRE_NO_RATEIO) {
+      const soltos = [...levantamento, ...fechamento, ...gerencia, ...lancamento]
+        .filter((l) => !l.corretor_id && l.texto.trim() !== "")
+        .map((l) => l.texto.trim());
+      if (soltos.length > 0) {
+        setErro(
+          `${soltos.join(", ")} — escolha o nome da lista. Se a pessoa não aparece, é porque está inativa no Kurole.`
+        );
+        return;
+      }
+    }
+
     // Em Lançamento o percentual é digitado, e digitado é esquecido: sem esta
     // trava o nome seria gravado com percentual nulo, apareceria como "—" nas
     // comissões e a pessoa simplesmente não receberia — sem erro nenhum.
