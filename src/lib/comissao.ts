@@ -99,7 +99,11 @@ export const REGRAS: Record<Tipo, Regra> = {
   locacao: {
     levantamento: 0.10,
     fechamento: 0.30,
-    gerencia: 0.10,
+    // 20%, e não os 10% da venda (01/10/2026). O BI vinha com 10% por
+    // informação errada; a composição real da locação é
+    // 20 + 30 + 10 + 3 = 63%, e cinco negócios já tinham sido lançados
+    // assim pelas adms antes de a regra ser corrigida aqui.
+    gerencia: 0.20,
     // Lançamento é coisa de venda: quem lança um empreendimento não entra no
     // primeiro aluguel. Se um dia precisar, é só trocar por `null` e o bloco
     // aparece na locação também.
@@ -213,7 +217,7 @@ export interface LinhaRateioCalc {
  * Soma o que sai da comissão e o que sobra para a imobiliária.
  *
  * Serve pra tela mostrar o resultado enquanto a pessoa digita: com as regras
- * cheias, venda distribui 54,5% e locação 53% — mais o que o Lançamento
+ * cheias, venda distribui 54,5% e locação 63% — mais o que o Lançamento
  * levar, que varia. Passar de 100% é erro de digitação, e é melhor ver antes
  * de salvar.
  */
