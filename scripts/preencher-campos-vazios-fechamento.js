@@ -12,17 +12,17 @@
  * DATA DO CONTRATO -> primeiro dia da competência. Também proposta dela. São
  * duas locações da Vista Verde cuja data ninguém tem.
  *
- * ORIGEM e FORMA DE PAGAMENTO -> "Não informado", e NÃO "Cliente de Carteira"
- * / "A Vista" como ela sugeriu. A diferença importa: referência e data são
- * campos de identificação, e um marcador ali é obviamente um marcador. Origem
- * e forma de pagamento são campos de ANÁLISE — a origem alimenta a conta de
- * onde vêm os negócios, e "A Vista" contra "Financiamento" muda o retrato da
- * carteira. Preencher com uma categoria real transformaria "não sabemos" em
- * "sabemos, e foi assim", e daqui a seis meses ninguém lembraria da diferença.
+ * ORIGEM -> "Cliente de Carteira" e FORMA DE PAGAMENTO -> "A Vista", como a
+ * adm pediu. Eu tinha gravado "Não informado" nos dois e levantado a ressalva:
+ * referência e data são campos de identificação, onde um marcador se lê como
+ * marcador, mas origem e forma de pagamento se leem como fato — daqui a seis
+ * meses ninguém lembra que foram preenchidos no escuro. O Jonatan decidiu em
+ * 01/10/2026 pelo que a adm pediu, ciente disso.
  *
- * "Não informado" NÃO entra na lista do formulário de propósito: o valor fica
- * gravado e aparece na tela, mas quem lança um negócio novo continua obrigado
- * a escolher uma origem e uma forma de pagamento de verdade.
+ * Pesa a favor: hoje nenhum relatório do BI calcula nada em cima desses dois
+ * campos; eles só aparecem na tabela do fechamento e no Excel. Se algum dia
+ * entrar uma análise por origem, estes 7 negócios de locação de dez/2025 a
+ * set/2026 e estas 4 vendas são os que não têm origem de verdade.
  *
  * Uso: node scripts/preencher-campos-vazios-fechamento.js [--aplicar]
  * Sem --aplicar, só mostra. Idempotente: só toca no que está vazio.
@@ -40,7 +40,8 @@ const q = async (sql, params) => {
   }
 };
 
-const SEM_INFO = "Não informado";
+const ORIGEM_PADRAO = "Cliente de Carteira";
+const PAGAMENTO_PADRAO = "A Vista";
 
 (async () => {
   const mostrar = async (titulo, sql) => {
@@ -57,8 +58,8 @@ const SEM_INFO = "Não informado";
 
   await mostrar("REF -> 0000", `SELECT ${cols} ${base} AND (n.ref IS NULL OR n.ref !~ '^[0-9]+$') ORDER BY n.id`);
   await mostrar("DATA -> 1º dia da competência", `SELECT ${cols} ${base} AND n.data_contrato IS NULL ORDER BY n.id`);
-  await mostrar(`ORIGEM -> ${SEM_INFO}`, `SELECT ${cols} ${base} AND btrim(coalesce(n.origem,'')) = '' ORDER BY n.id`);
-  await mostrar(`PAGAMENTO -> ${SEM_INFO} (só venda)`, `SELECT ${cols} ${base} AND p.tipo='venda' AND btrim(coalesce(n.pagamento,'')) = '' ORDER BY n.id`);
+  await mostrar(`ORIGEM -> ${ORIGEM_PADRAO}`, `SELECT ${cols} ${base} AND btrim(coalesce(n.origem,'')) = '' ORDER BY n.id`);
+  await mostrar(`PAGAMENTO -> ${PAGAMENTO_PADRAO} (só venda)`, `SELECT ${cols} ${base} AND p.tipo='venda' AND btrim(coalesce(n.pagamento,'')) = '' ORDER BY n.id`);
 
   if (!APLICAR) {
     console.log("\n(simulação — rode com --aplicar para gravar)");
@@ -76,12 +77,12 @@ const SEM_INFO = "Não informado";
     WHERE p.id = n.periodo_id AND NOT n.cancelado AND n.data_contrato IS NULL`);
   const r3 = await q(`
     UPDATE fechamento_negocios SET origem = $1
-    WHERE NOT cancelado AND btrim(coalesce(origem,'')) = ''`, [SEM_INFO]);
+    WHERE NOT cancelado AND btrim(coalesce(origem,'')) = ''`, [ORIGEM_PADRAO]);
   const r4 = await q(`
     UPDATE fechamento_negocios n SET pagamento = $1
     FROM fechamento_periodos p
     WHERE p.id = n.periodo_id AND NOT n.cancelado AND p.tipo = 'venda'
-      AND btrim(coalesce(n.pagamento,'')) = ''`, [SEM_INFO]);
+      AND btrim(coalesce(n.pagamento,'')) = ''`, [PAGAMENTO_PADRAO]);
 
   console.log(`\nref: ${r1.rowCount} · data: ${r2.rowCount} · origem: ${r3.rowCount} · pagamento: ${r4.rowCount}`);
 
