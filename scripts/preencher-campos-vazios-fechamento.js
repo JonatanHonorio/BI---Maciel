@@ -4,10 +4,10 @@
  * (01/10/2026), seguindo as convenções que a adm propôs — com uma diferença,
  * explicada abaixo.
  *
- * REFERÊNCIA -> "00000". É a convenção que ela já usou no negócio novo da
- * Cecilia (um laudo de viabilidade que nunca foi cadastrado no Kurole).
- * "00000" se lê como ausência à primeira vista e nunca vai casar com um
- * imóvel de verdade, então é um bom marcador.
+ * REFERÊNCIA -> "0000". Marcador de referência perdida: o Jonatan confirmou
+ * em 01/10/2026 que esses negócios tiveram a referência perdida no banco. Ele
+ * pediu quatro zeros; a adm tinha usado cinco num negócio, e os onze foram
+ * padronizados em "0000" para uma busca achar todos de uma vez.
  *
  * DATA DO CONTRATO -> primeiro dia da competência. Também proposta dela. São
  * duas locações da Vista Verde cuja data ninguém tem.
@@ -55,7 +55,7 @@ const SEM_INFO = "Não informado";
     WHERE NOT n.cancelado`;
   const cols = `n.id, p.unidade, p.tipo, to_char(p.competencia,'MM/YYYY') comp, n.ref`;
 
-  await mostrar("REF -> 00000", `SELECT ${cols} ${base} AND (n.ref IS NULL OR n.ref !~ '^[0-9]+$') ORDER BY n.id`);
+  await mostrar("REF -> 0000", `SELECT ${cols} ${base} AND (n.ref IS NULL OR n.ref !~ '^[0-9]+$') ORDER BY n.id`);
   await mostrar("DATA -> 1º dia da competência", `SELECT ${cols} ${base} AND n.data_contrato IS NULL ORDER BY n.id`);
   await mostrar(`ORIGEM -> ${SEM_INFO}`, `SELECT ${cols} ${base} AND btrim(coalesce(n.origem,'')) = '' ORDER BY n.id`);
   await mostrar(`PAGAMENTO -> ${SEM_INFO} (só venda)`, `SELECT ${cols} ${base} AND p.tipo='venda' AND btrim(coalesce(n.pagamento,'')) = '' ORDER BY n.id`);
@@ -67,7 +67,7 @@ const SEM_INFO = "Não informado";
   }
 
   const r1 = await q(`
-    UPDATE fechamento_negocios SET ref = '00000'
+    UPDATE fechamento_negocios SET ref = '0000'
     WHERE NOT cancelado AND (ref IS NULL OR ref !~ '^[0-9]+$')`);
   // A data vem da competência do próprio período, não de uma lista fixa.
   const r2 = await q(`
