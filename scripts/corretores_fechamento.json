@@ -6,6 +6,8 @@
   "corretores": [
     { "id": 272, "nome": "Secretaria Comercial", "obs": "participa de rateio real; confirmada com o Jonatan em 17/09/2026" },
 
+    { "id": 900001, "nome": "Zulietti", "obs": "NÃO existe no Kurole — cadastro criado só no BI em 01/10/2026 (scripts/add-corretor-zulietti.js), id fora da faixa do Kurole pra nenhum import sobrescrever. Entra no bloco Lançamento; quando ele entra, a gerência da venda cai de 10% para 5%." },
+
     { "id": 236, "nome": "Marcondes Machado" },
     { "id": 1014, "nome": "Thales dos Santos" },
     { "id": 253, "nome": "Monica Santaniello" },

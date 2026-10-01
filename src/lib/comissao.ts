@@ -135,6 +135,27 @@ export function percentualSugerido(
   return quantasLinhas > 0 ? total / quantasLinhas : total;
 }
 
+/**
+ * O Zulietti (01/10/2026). Ele participa dos lançamentos e recebe rateio, mas
+ * NÃO tem cadastro no Kurole — o cadastro dele existe só aqui, com um id fora
+ * da faixa do Kurole (ver `scripts/add-corretor-zulietti.js`).
+ *
+ * A regra que o acompanha: quando ele entra no bloco Lançamento, os 10% da
+ * GERÊNCIA se partem ao meio — 5% para ele e 5% para o gerente da venda. Não
+ * é um percentual novo saindo da imobiliária; é o mesmo bolo dividido.
+ *
+ * Por isso a regra mora aqui e não vira um `if` escondido no formulário: é
+ * regra de comissão como as outras, e quem mexer nos percentuais um dia
+ * precisa esbarrar nela.
+ */
+export const ID_ZULIETTI = 900001;
+
+/** Quanto a Gerência paga, considerando a partição com o Zulietti. */
+export function percentualGerencia(tipo: Tipo, comZulietti: boolean): number {
+  const cheio = REGRAS[tipo].gerencia;
+  return comZulietti ? cheio / 2 : cheio;
+}
+
 /** O bloco de Lançamento só aparece onde a regra o prevê (hoje, só venda). */
 export function temBlocoLancamento(tipo: Tipo): boolean {
   return REGRAS[tipo].lancamento !== false;

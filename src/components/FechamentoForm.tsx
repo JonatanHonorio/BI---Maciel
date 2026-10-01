@@ -4,7 +4,9 @@ import { Plus, Trash2, X } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { PERMITE_NOME_LIVRE_NO_RATEIO } from "@/lib/flags";
 import { camposFaltando, erroCamposFaltando } from "@/lib/negocio-obrigatorio";
-import { REGRAS, resumoRateio, pctTexto, temBlocoLancamento, type Tipo } from "@/lib/comissao";
+import {
+  REGRAS, resumoRateio, pctTexto, temBlocoLancamento, percentualGerencia, ID_ZULIETTI, type Tipo,
+} from "@/lib/comissao";
 
 type Corretor = { id: number; nome: string };
 // `texto` é o que está escrito no campo; `corretor_id` só é preenchido quando
@@ -199,16 +201,48 @@ export default function FechamentoForm({
    *  que todos os percentuais incidem. */
   const pool = tipo === "venda" ? Number(comissao || 0) : Number(valorLocacao || 0);
 
-  // O gerente da unidade entra sozinho com os 10%. Só enquanto a adm não
-  // mexeu: se ela trocou o nome ou o percentual, o que ela fez manda.
+  /*
+   * Com o Zulietti no Lançamento, a Gerência cai de 10% para 5% — os outros
+   * 5% são dele. Ver `percentualGerencia` em @/lib/comissao.
+   */
+  const temZulietti = lancamento.some((l) => Number(l.corretor_id) === ID_ZULIETTI);
+  const pctGerencia = percentualGerencia(tipo, temZulietti);
+
+  // O gerente da unidade entra sozinho com o percentual da casa. Só enquanto a
+  // adm não mexeu: se ela trocou o nome ou o percentual, o que ela fez manda.
   useEffect(() => {
     if (!gerente) return;
     setGerencia((atual) =>
       atual.length === 1 && !atual[0].corretor_id && !atual[0].texto
-        ? [{ corretor_id: gerente.id, texto: gerente.nome, percentual: String(regra.gerencia * 100) }]
+        ? [{ corretor_id: gerente.id, texto: gerente.nome, percentual: String(pctGerencia * 100) }]
         : atual
     );
-  }, [gerente, regra.gerencia]);
+  }, [gerente, pctGerencia]);
+
+  /*
+   * Entrou (ou saiu) o Zulietti depois que a Gerência já estava preenchida:
+   * troca 10 por 5, e 5 por 10 se ele for removido. Só mexe no valor que a
+   * regra tinha posto — percentual digitado à mão pela adm fica como está, que
+   * é a mesma convenção do efeito acima.
+   *
+   * O percentual dele também é preenchido aqui: o bloco Lançamento é de
+   * digitação livre, e sem isto a adm escolheria o nome e deixaria o campo
+   * vazio, que é recusado na hora de salvar.
+   */
+  useEffect(() => {
+    const agora = String(percentualGerencia(tipo, temZulietti) * 100);
+    const antes = String(percentualGerencia(tipo, !temZulietti) * 100);
+    setGerencia((atual) => atual.map((l) => (l.percentual === antes ? { ...l, percentual: agora } : l)));
+    if (temZulietti) {
+      setLancamento((atual) =>
+        atual.map((l) =>
+          Number(l.corretor_id) === ID_ZULIETTI && l.percentual.trim() === ""
+            ? { ...l, percentual: agora }
+            : l
+        )
+      );
+    }
+  }, [temZulietti, tipo]);
 
   const mostraLancamento = temBlocoLancamento(tipo);
 
@@ -582,10 +616,11 @@ export default function FechamentoForm({
           totalDoBloco={regra.fechamento}
         />
         <BlocoRateio
-          titulo="Gerência" ajuda={pctTexto(regra.gerencia)}
+          titulo="Gerência"
+          ajuda={temZulietti ? `${pctTexto(pctGerencia)} — 5% vão pro Zulietti` : pctTexto(pctGerencia)}
           lista={gerencia} set={setGerencia} corretores={corretores}
           atualizarLinha={atualizarLinha}
-          totalDoBloco={regra.gerencia}
+          totalDoBloco={pctGerencia}
         />
         {/* Lançamento é o único bloco de percentual MANUAL: o diretor de
             lançamento muda conforme o perfil do produto, e o percentual muda
