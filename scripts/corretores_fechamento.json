@@ -1,12 +1,13 @@
 {
   "_comentario": "Quem pode receber rateio de comissão no fechamento (18/09/2026). Lista definida pelo Jonatan a partir das 12 roletas de Leads Online do Kurole (os corretores que efetivamente recebem lead) mais 6 nomes avulsos. NÃO é a lista de todos os corretores ativos — são 202 ativos no Kurole e a maioria não fecha negócio. A mesma lista vale pra todas as unidades: elas são parceiras, vendem captação uma da outra, corretores dividem venda entre si e corretor de locação faz venda de vez em quando. É também o que destrava Diretoria e Lançamento, que não têm departamento próprio no Kurole.",
   "_como_atualizar": "Entrou ou saiu corretor? Acrescente/remova o id aqui. O nome ao lado é só referência humana — quem manda na tela é o nome atual do cadastro do Kurole (corretores.nome_comercial). Quem estiver sem nome no cadastro aparece com o nome montado a partir do e-mail.",
-  "_pendente": "Ana Mosti: pedida pelo Jonatan em 18/09/2026, mas não existe no cadastro do Kurole (a única Mosti é a Micaele, id 920). Acrescentar o id aqui quando ela for cadastrada.",
+  "_externos": "Ids na faixa dos 900000 NÃO existem no Kurole — são cadastros criados só no BI por scripts/add-corretores-externos.js, para gente que recebe rateio sem estar na folha. Se um deles for cadastrado no Kurole, migre o rateio para o id de lá e desative este, senão a pessoa fica partida em dois no ranking.",
 
   "corretores": [
     { "id": 272, "nome": "Secretaria Comercial", "obs": "participa de rateio real; confirmada com o Jonatan em 17/09/2026" },
 
-    { "id": 900001, "nome": "Zulietti", "obs": "NÃO existe no Kurole — cadastro criado só no BI em 01/10/2026 (scripts/add-corretor-zulietti.js), id fora da faixa do Kurole pra nenhum import sobrescrever. Entra no bloco Lançamento; quando ele entra, a gerência da venda cai de 10% para 5%." },
+    { "id": 900001, "nome": "Zulietti", "obs": "NÃO existe no Kurole — cadastro criado só no BI em 01/10/2026 (scripts/add-corretores-externos.js). Entra no bloco Lançamento; quando ele entra, a gerência da venda cai de 10% para 5%." },
+    { "id": 900002, "nome": "ANA MARIA MOSTI", "obs": "NÃO existe no Kurole — cadastro criado só no BI em 01/10/2026. Vendas e locações esporádicas. A Mosti do Kurole (Micaele, id 920) é outra pessoa." },
 
     { "id": 236, "nome": "Marcondes Machado" },
     { "id": 1014, "nome": "Thales dos Santos" },
