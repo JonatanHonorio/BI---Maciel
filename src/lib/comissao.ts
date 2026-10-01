@@ -136,6 +136,34 @@ export function percentualSugerido(
 }
 
 /**
+ * Captadores com percentual próprio (01/10/2026): Mauro Souza, José Rafael
+ * Girotto e Dimas Barbosa captam por **20%** em vez dos 10% de tabela, em
+ * venda e em locação.
+ *
+ * Os 10 pontos a mais saem do FECHADOR, não da imobiliária: o bloco
+ * Fechamento cai de 30% para 20% e o negócio continua somando 54,5% em venda
+ * e 53% em locação. Confirmado pelo Jonatan e pelo único negócio que já tinha
+ * sido lançado com a regra (o #879 da Aquarius).
+ *
+ * ⚠️ A regra não diz o que fazer quando a captação é DIVIDIDA com outra
+ * pessoa — "20% para cada" estouraria a soma. Nesses casos o formulário
+ * reparte os 20% entre os captadores, que é o único resultado que fecha a
+ * conta, e os negócios já lançados assim ficaram sem correção de propósito.
+ */
+export const CAPTADORES_20 = [209, 207, 174] as const;
+
+export function captacaoDiferenciada(ids: (number | string | null | undefined)[]): boolean {
+  return ids.some((id) => (CAPTADORES_20 as readonly number[]).includes(Number(id)));
+}
+
+/** Levantamento e Fechamento, já considerando o captador de 20%. */
+export function percentuaisCaptacao(tipo: Tipo, comCaptador20: boolean) {
+  const r = REGRAS[tipo];
+  const extra = comCaptador20 ? 0.10 : 0;
+  return { levantamento: r.levantamento + extra, fechamento: r.fechamento - extra };
+}
+
+/**
  * O Zulietti (01/10/2026). Ele participa dos lançamentos e recebe rateio, mas
  * NÃO tem cadastro no Kurole — o cadastro dele existe só aqui, com um id fora
  * da faixa do Kurole (ver `scripts/add-corretor-zulietti.js`).

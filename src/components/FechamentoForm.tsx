@@ -5,7 +5,8 @@ import { fmtMoney } from "@/lib/format";
 import { PERMITE_NOME_LIVRE_NO_RATEIO } from "@/lib/flags";
 import { camposFaltando, erroCamposFaltando } from "@/lib/negocio-obrigatorio";
 import {
-  REGRAS, resumoRateio, pctTexto, temBlocoLancamento, percentualGerencia, ID_ZULIETTI, type Tipo,
+  REGRAS, resumoRateio, pctTexto, temBlocoLancamento, percentualGerencia, percentuaisCaptacao,
+  captacaoDiferenciada, ID_ZULIETTI, type Tipo,
 } from "@/lib/comissao";
 
 type Corretor = { id: number; nome: string };
@@ -208,6 +209,13 @@ export default function FechamentoForm({
   const temZulietti = lancamento.some((l) => Number(l.corretor_id) === ID_ZULIETTI);
   const pctGerencia = percentualGerencia(tipo, temZulietti);
 
+  /*
+   * Mauro, Girotto e Dimas captam por 20%, e os 10 pontos saem do fechador.
+   * Ver `percentuaisCaptacao` em @/lib/comissao.
+   */
+  const temCaptador20 = captacaoDiferenciada(levantamento.map((l) => l.corretor_id));
+  const pctBloco = percentuaisCaptacao(tipo, temCaptador20);
+
   // O gerente da unidade entra sozinho com o percentual da casa. Só enquanto a
   // adm não mexeu: se ela trocou o nome ou o percentual, o que ela fez manda.
   useEffect(() => {
@@ -229,6 +237,20 @@ export default function FechamentoForm({
    * digitação livre, e sem isto a adm escolheria o nome e deixaria o campo
    * vazio, que é recusado na hora de salvar.
    */
+  /*
+   * Mesma ideia do Zulietti, para o captador de 20%: entrou ou saiu depois dos
+   * blocos preenchidos, troca 10/30 por 20/20 e vice-versa. Só mexe no valor
+   * que a regra tinha posto.
+   */
+  useEffect(() => {
+    const agora = percentuaisCaptacao(tipo, temCaptador20);
+    const antes = percentuaisCaptacao(tipo, !temCaptador20);
+    const troca = (de: number, para: number) => (l: LinhaRateio) =>
+      l.percentual === String(de * 100) ? { ...l, percentual: String(para * 100) } : l;
+    setLevantamento((atual) => atual.map(troca(antes.levantamento, agora.levantamento)));
+    setFechamento((atual) => atual.map(troca(antes.fechamento, agora.fechamento)));
+  }, [temCaptador20, tipo]);
+
   useEffect(() => {
     const agora = String(percentualGerencia(tipo, temZulietti) * 100);
     const antes = String(percentualGerencia(tipo, !temZulietti) * 100);
@@ -604,16 +626,19 @@ export default function FechamentoForm({
         (mostraLancamento ? "xl:grid-cols-4" : "xl:grid-cols-3")
       }>
         <BlocoRateio
-          titulo="Levantamento" ajuda={`${pctTexto(regra.levantamento)} no total`}
+          titulo="Levantamento"
+          ajuda={temCaptador20
+            ? `${pctTexto(pctBloco.levantamento)} no total — captação de 20%, tirada do Fechamento`
+            : `${pctTexto(pctBloco.levantamento)} no total`}
           lista={levantamento} set={setLevantamento} corretores={corretores}
           atualizarLinha={atualizarLinha}
-          totalDoBloco={regra.levantamento}
+          totalDoBloco={pctBloco.levantamento}
         />
         <BlocoRateio
-          titulo="Fechamento" ajuda={pctTexto(regra.fechamento)}
+          titulo="Fechamento" ajuda={pctTexto(pctBloco.fechamento)}
           lista={fechamento} set={setFechamento} corretores={corretores}
           atualizarLinha={atualizarLinha}
-          totalDoBloco={regra.fechamento}
+          totalDoBloco={pctBloco.fechamento}
         />
         <BlocoRateio
           titulo="Gerência"
