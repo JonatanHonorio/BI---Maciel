@@ -219,7 +219,16 @@ const QUERIES = {
   ordem_atendimento_releases: { cols: 7, sql: (n) => `INSERT INTO lead_atividades (id,lead_id,corretor_id,descricao,temperatura_id,data,tempo_retorno) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
   atualizacoes: { cols: 5, sql: (n) => `INSERT INTO imovel_atualizacoes (id,imovel_id,corretor_id,corretor_trocou_id,data) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
   imoveis_alt_temp: { cols: 9, sql: (n) => `INSERT INTO imovel_atualizacao_form (id,imovel_id,altera_cadastrador,atualizado,atualizado_em,atualizado_por_id,nao_atualizou_por_id,nao_atualizou_motivo,data) VALUES ${n} ON CONFLICT (id) DO UPDATE SET atualizado=EXCLUDED.atualizado,atualizado_em=EXCLUDED.atualizado_em,atualizado_por_id=EXCLUDED.atualizado_por_id` },
-  imoveis_cadastrador: { cols: 6, sql: (n) => `INSERT INTO imovel_captadores (id,imovel_id,corretor_id,percentual,locacao_venda,data) VALUES ${n} ON CONFLICT (id) DO UPDATE SET percentual=EXCLUDED.percentual,locacao_venda=EXCLUDED.locacao_venda,data=EXCLUDED.data` },
+  // `corretor_id` e `imovel_id` entraram no DO UPDATE em 02/10/2026. Sem eles,
+  // TROCAR o captador no Kurole não chegava aqui: a linha tem o mesmo id, o
+  // ON CONFLICT caía no UPDATE e o corretor antigo ficava congelado para
+  // sempre. Foi o caso do imóvel 64390, que no Kurole está com a
+  // secretaria.comercial desde maio e no BI continuava com um corretor
+  // inativo — e, como inativo não entra no rateio, o fechamento saiu sem
+  // captador. É a mesma armadilha que já congelou o encoding dos imóveis e o
+  // departamento dos corretores: coluna fora do DO UPDATE SET nunca é
+  // reescrita.
+  imoveis_cadastrador: { cols: 6, sql: (n) => `INSERT INTO imovel_captadores (id,imovel_id,corretor_id,percentual,locacao_venda,data) VALUES ${n} ON CONFLICT (id) DO UPDATE SET imovel_id=EXCLUDED.imovel_id,corretor_id=EXCLUDED.corretor_id,percentual=EXCLUDED.percentual,locacao_venda=EXCLUDED.locacao_venda,data=EXCLUDED.data` },
   ordem_atendimento_responsaveis: { cols: 5, sql: (n) => `INSERT INTO lead_responsaveis (id,lead_id,corretor_id,data,atribuido_por_id) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
   ordem_atendimento_utm: { cols: 8, sql: (n) => `INSERT INTO lead_utms (id,lead_id,utm_source,utm_medium,utm_campaign,utm_term,utm_content,data) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
   saidadeproposta: { cols: 9, sql: (n) => `INSERT INTO propostas (id,imovel_id,cliente_id,corretor_id,lead_id,locacao_venda,valor_pedido,valor_proposto,data) VALUES ${n} ON CONFLICT (id) DO NOTHING` },
