@@ -86,11 +86,33 @@ export async function POST(req: NextRequest) {
   // negócio em "Parcial" para sempre, com todo mundo pago.
   const fecha = Math.abs(ja + valor - pool) < 0.01;
 
-  const [recebimento] = await sql`
-    INSERT INTO fechamento_recebimentos (negocio_id, valor, data_recebimento, observacao, criado_por)
-    VALUES (${body.negocio_id}, ${valor}, ${body.data_recebimento}, ${body.observacao ?? null}, ${session.id})
-    RETURNING id
-  `;
+  /*
+   * O índice único (negocio_id, data_recebimento, valor) é o que de fato
+   * barra o clique duplo (02/10/2026). A checagem de valor acima roda em dois
+   * comandos — conferir e gravar —, e no clique duplo as duas requisições
+   * conferem antes de qualquer uma gravar: as duas passavam, e quatro
+   * negócios ficaram com a comissão distribuída em dobro. Só o banco, num
+   * comando só, resolve corrida.
+   *
+   * A checagem de valor continua porque pega o que o índice não pega: o
+   * dígito a mais num recebimento de valor diferente.
+   */
+  let recebimento: { id: number };
+  try {
+    [recebimento] = (await sql`
+      INSERT INTO fechamento_recebimentos (negocio_id, valor, data_recebimento, observacao, criado_por)
+      VALUES (${body.negocio_id}, ${valor}, ${body.data_recebimento}, ${body.observacao ?? null}, ${session.id})
+      RETURNING id
+    `) as { id: number }[];
+  } catch (e) {
+    const codigo = (e as { code?: string }).code;
+    if (codigo === "23505") {
+      return NextResponse.json({
+        error: "este recebimento já foi lançado (mesmo valor, mesma data). Se for uma segunda parcela de verdade, junte num lançamento só ou use outra data.",
+      }, { status: 409 });
+    }
+    throw e;
+  }
 
   let distribuido = 0;
   for (const r of rateio) {

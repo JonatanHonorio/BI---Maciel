@@ -7,6 +7,9 @@ import type { Tipo } from "@/lib/unidade";
 
 /** Valor do seletor que pede o mês inteiro, sem separar por unidade. */
 const TODAS_AS_UNIDADES = "__todas";
+// "Vendas e locação" no consolidado (02/10/2026): sem isto o Fechamento só
+// somava uma vertical por vez e nunca batia com o Controle de comissões.
+const AMBAS_VERTICAIS = "__ambas";
 
 /**
  * Período do mês pedido. Quem tem UMA opção só é resolvido aqui no servidor
@@ -48,6 +51,8 @@ export async function GET(req: NextRequest) {
   // "Todas as unidades" só faz sentido pra quem tem mais de uma — e nunca
   // amplia o que a pessoa já podia ver: `unidadesOk` continua sendo o escopo.
   const querTodasUnidades = unidade === TODAS_AS_UNIDADES && (unidadesOk === null || unidadesOk.length > 1);
+  // Como "todas as unidades": só vale para quem pode ver as duas verticais.
+  const querAmbasVerticais = (tipo as string | null) === AMBAS_VERTICAIS && (tiposOk === null || tiposOk.length > 1);
   // Faixa de mais de um mês não tem período possível, então é sempre leitura —
   // mesmo com uma unidade escolhida.
   const faixaLonga = de !== ate;
@@ -63,6 +68,7 @@ export async function GET(req: NextRequest) {
   };
 
   if (querTodas && tipo) {
+    const tipoFiltro = querAmbasVerticais ? null : tipo;
     const sqlTodas = getDb();
     // Uma unidade escolhida dentro da faixa continua valendo como filtro, e
     // passa pelo mesmo cruzamento com a permissão de sempre.
@@ -72,7 +78,7 @@ export async function GET(req: NextRequest) {
       SELECT n.id, n.data_contrato, n.ref, n.contrato, n.endereco, n.origem,
         n.valor, n.comissao, n.pagamento, n.observacao,
         n.comissao_paga, n.comissao_paga_em, n.cancelado, n.cancelado_motivo,
-        p.unidade, p.status AS periodo_status,
+        p.unidade, p.tipo, p.status AS periodo_status,
         to_char(p.competencia, 'YYYY-MM') AS competencia,
         COALESCE(
           json_agg(
@@ -86,25 +92,27 @@ export async function GET(req: NextRequest) {
       JOIN fechamento_periodos p ON p.id = n.periodo_id
       LEFT JOIN fechamento_negocio_corretores rc ON rc.negocio_id = n.id
       LEFT JOIN corretores cor ON cor.id = rc.corretor_id
-      WHERE p.competencia BETWEEN ${de} AND ${ate} AND p.tipo = ${tipo}
+      WHERE p.competencia BETWEEN ${de} AND ${ate}
+        AND (${tipoFiltro}::text IS NULL OR p.tipo = ${tipoFiltro})
         AND (${todasPermitidas} OR p.unidade = ANY(${escopo ?? []}::text[]))
-      GROUP BY n.id, p.competencia, p.unidade, p.status
+      GROUP BY n.id, p.competencia, p.unidade, p.tipo, p.status
       ORDER BY p.competencia, p.unidade, n.id
     `;
     // Quais unidades já fecharam o mês — é a primeira coisa que se pergunta
     // olhando o consolidado, e sem isso um total baixo parece erro quando na
     // verdade é unidade que ainda não lançou.
     const periodos = await sqlTodas`
-      SELECT to_char(competencia, 'YYYY-MM') AS competencia, unidade, status
+      SELECT DISTINCT to_char(competencia, 'YYYY-MM') AS competencia, unidade, status
       FROM fechamento_periodos
-      WHERE competencia BETWEEN ${de} AND ${ate} AND tipo = ${tipo}
+      WHERE competencia BETWEEN ${de} AND ${ate}
+        AND (${tipoFiltro}::text IS NULL OR tipo = ${tipoFiltro})
         AND (${todasPermitidas} OR unidade = ANY(${escopo ?? []}::text[]))
       ORDER BY competencia, unidade
     `;
     return NextResponse.json({
       session: sessaoInfo, permissoes, unidades: permissoes.unidades,
       periodo: null, gerente: null,
-      consolidado: { de, ate, tipo, unidade, periodos },
+      consolidado: { de, ate, tipo: tipoFiltro, unidade, periodos },
       negocios: negociosTodos,
     });
   }

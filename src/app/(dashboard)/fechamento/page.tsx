@@ -17,11 +17,13 @@ type Negocio = {
   /** Só vêm no consolidado, onde a lista mistura unidades e meses. */
   unidade?: string;
   competencia?: string;
+  /** Também só no consolidado — e só importa quando as duas verticais vêm juntas. */
+  tipo?: "venda" | "locacao";
 };
 type Periodo = { id: number; competencia: string; unidade: string; tipo: "venda" | "locacao"; status: "aberto" | "enviado" };
 /** Leitura sem período: mais de uma unidade, mais de um mês, ou os dois. */
 type Consolidado = {
-  de: string; ate: string; tipo: "venda" | "locacao"; unidade: string | null;
+  de: string; ate: string; /** `null` = as duas verticais juntas. */ tipo: "venda" | "locacao" | null; unidade: string | null;
   periodos: { competencia: string; unidade: string; status: "aberto" | "enviado" }[];
 };
 type Permissoes = {
@@ -44,6 +46,9 @@ type Resposta = {
 
 /** Valor do seletor que pede o mês inteiro. Combina com a API. */
 const TODAS_AS_UNIDADES = "__todas";
+// "Vendas e locação" no consolidado (02/10/2026): sem isto o Fechamento só
+// somava uma vertical por vez e nunca batia com o Controle de comissões.
+const AMBAS_VERTICAIS = "__ambas";
 
 const nomesPapel = (rateio: Rateio[], papel: string) =>
   rateio.filter((r) => r.papel === papel).map((r) => r.nome).join(", ") || "—";
@@ -97,7 +102,9 @@ export default function FechamentoPage() {
   const [erroCorretores, setErroCorretores] = useState("");
   const [mostrarForm, setMostrarForm] = useState(false);
   const [unidadeSel, setUnidadeSel] = useState("");
-  const [tipoSel, setTipoSel] = useState<"venda" | "locacao" | "">("");
+  const [tipoSel, setTipoSel] = useState<"venda" | "locacao" | "__ambas" | "">("");
+  /** Consolidado: ver só as ativas, só as canceladas, ou tudo. */
+  const [situacao, setSituacao] = useState<"todas" | "ativas" | "canceladas">("todas");
   // Faixa de competências, igual à tela de Comissões. Abre no mês corrente,
   // que é o uso do dia a dia; faixa de mais de um mês vira leitura, porque um
   // período é sempre de um mês só.
@@ -288,6 +295,14 @@ export default function FechamentoPage() {
   // Venda cancelada não entra em nenhum total — é o ponto do cancelamento.
   const valendo = dados.negocios.filter((n) => !n.cancelado);
   const canceladas = dados.negocios.length - valendo.length;
+  /*
+   * O que vai pra tabela. O cabeçalho continua contando tudo — é ali que se vê
+   * "quantas estão cancelando" —, e o filtro serve pra listar quais são.
+   */
+  const negociosNaTabela =
+    situacao === "ativas" ? valendo
+    : situacao === "canceladas" ? dados.negocios.filter((n) => n.cancelado)
+    : dados.negocios;
   const totalValor = valendo.reduce((s, n) => s + (n.valor ? Number(n.valor) : 0), 0);
   const totalComissao = valendo.reduce((s, n) => s + (n.comissao ? Number(n.comissao) : 0), 0);
 
@@ -303,6 +318,7 @@ export default function FechamentoPage() {
       situacao: n.cancelado ? "Cancelada" : "",
       valor: n.cancelado ? null : n.valor,
       comissao: n.cancelado ? null : n.comissao,
+      vertical: n.tipo === "locacao" ? "Locação" : "Venda",
       levantamento: nomesPapel(n.rateio, "levantamento"),
       fechamento: nomesPapel(n.rateio, "fechamento"),
     }));
@@ -434,7 +450,7 @@ export default function FechamentoPage() {
               {consolidado.unidade && consolidado.unidade !== TODAS_AS_UNIDADES
                 ? consolidado.unidade
                 : "Todas as unidades"}{" "}
-              · {consolidado.tipo === "venda" ? "Vendas" : "Locação"} ·{" "}
+              · {consolidado.tipo === "venda" ? "Vendas" : consolidado.tipo === "locacao" ? "Locação" : "Vendas e locação"} ·{" "}
               {consolidado.de === consolidado.ate
                 ? mesAno(consolidado.de)
                 : `${mesAno(consolidado.de)} a ${mesAno(consolidado.ate)}`}
@@ -479,10 +495,13 @@ export default function FechamentoPage() {
             </select>
           )}
           {permissoes.escolheTipo && (
-            <select value={tipoSel} onChange={(e) => setTipoSel(e.target.value as "venda" | "locacao" | "")} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
+            <select value={tipoSel} onChange={(e) => setTipoSel(e.target.value as "venda" | "locacao" | "__ambas" | "")} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
               <option value="">Tipo...</option>
               <option value="venda">Vendas</option>
               <option value="locacao">Locação</option>
+              {/* Só na faixa/consolidado: um PERÍODO é sempre de uma vertical,
+                  então as duas juntas só fazem sentido como leitura. */}
+              <option value={AMBAS_VERTICAIS}>Vendas e locação</option>
             </select>
           )}
         </div>
@@ -515,12 +534,21 @@ export default function FechamentoPage() {
                 )}
               </span>
               <span><span className="text-gray-500">Total: </span><span className="font-semibold">{fmtMoney(totalValor)}</span></span>
-              {consolidado.tipo === "venda" && (
+              {consolidado.tipo !== "locacao" && (
                 <span><span className="text-gray-500">Comissão: </span><span className="font-semibold">{fmtMoney(totalComissao)}</span></span>
               )}
+              <select
+                value={situacao}
+                onChange={(e) => setSituacao(e.target.value as "todas" | "ativas" | "canceladas")}
+                className="rounded-md border border-gray-200 px-2 py-1 text-sm"
+              >
+                <option value="todas">Todas as situações</option>
+                <option value="ativas">Só as ativas</option>
+                <option value="canceladas">Só as canceladas</option>
+              </select>
             </div>
             <a
-              href={`/api/fechamento/exportar?de=${consolidado.de}&ate=${consolidado.ate}&tipo=${consolidado.tipo}${consolidado.unidade ? `&unidade=${encodeURIComponent(consolidado.unidade)}` : ""}`}
+              href={`/api/fechamento/exportar?de=${consolidado.de}&ate=${consolidado.ate}${consolidado.tipo ? `&tipo=${consolidado.tipo}` : ""}${consolidado.unidade ? `&unidade=${encodeURIComponent(consolidado.unidade)}` : ""}`}
               className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <Download size={14} /> Excel
@@ -569,19 +597,24 @@ export default function FechamentoPage() {
                     }]
                   : []),
                 { key: "unidade", label: "Unidade" },
+                // Com as duas verticais na mesma tabela, sem esta coluna não
+                // dá pra saber se a linha é venda ou locação.
+                ...(consolidado.tipo === null
+                  ? [{ key: "vertical", label: "Vertical" }]
+                  : []),
                 { key: "ref", label: "Ref" },
                 { key: "contrato", label: "Contrato" },
                 { key: "endereco", label: "Endereço" },
                 { key: "levantamento", label: "Levantamento" },
                 { key: "fechamento", label: "Fechamento" },
                 { key: "valor", label: "Valor", align: "right", format: (v) => (v ? fmtMoney(v as number) : "—") },
-                ...(consolidado.tipo === "venda"
+                ...(consolidado.tipo !== "locacao"
                   ? [{ key: "comissao", label: "Comissão", align: "right" as const, format: (v: unknown) => (v ? fmtMoney(v as number) : "—") }]
                   : []),
                 { key: "origem", label: "Origem" },
                 { key: "situacao", label: "Situação" },
               ]}
-              data={linhasTabela(dados.negocios)}
+              data={linhasTabela(negociosNaTabela)}
               onRowClick={(row) => {
                 const id = Number(row.id);
                 setLinhaAberta(linhaAberta === id ? null : id);

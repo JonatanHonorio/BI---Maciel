@@ -207,6 +207,18 @@ export default function ComissoesPage() {
   // mês em que tudo foi pago.
   const totalPendente = filtrados.reduce((s, n) => s + n.valor_pendente, 0);
   const totalFicou = filtrados.reduce((s, n) => s + n.ficou_pra_imobiliaria, 0);
+  /*
+   * O lado do CAIXA, que é o que a Tatiane olha (02/10/2026): quanto de
+   * comissão o período gerou, quanto disso já entrou e quanto falta entrar.
+   *
+   * Não confundir com Pago/Pendente, que são o lado dos CORRETORES. Dá pra ter
+   * comissão recebida do cliente e ainda não repassada, e o contrário também.
+   */
+  const totalGerado = totalDevido + totalFicou;
+  const totalRecebido = filtrados.reduce(
+    (s, n) => s + n.recebimentos.reduce((t, r) => t + Number(r.valor), 0), 0
+  );
+  const totalAReceber = Math.max(0, totalGerado - totalRecebido);
 
   return (
     <div className="space-y-4">
@@ -315,12 +327,31 @@ export default function ComissoesPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-6 rounded-xl border border-gray-200 bg-white p-4 text-sm">
-        <span><span className="text-gray-500">Negócios: </span><span className="font-semibold">{filtrados.length}</span></span>
-        <span><span className="text-gray-500">Devido: </span><span className="font-semibold">{fmtMoney(totalDevido)}</span></span>
-        <span><span className="text-gray-500">Pago: </span><span className="font-semibold text-emerald-700">{fmtMoney(totalPago)}</span></span>
-        <span><span className="text-gray-500">Pendente: </span><span className="font-semibold text-amber-600">{fmtMoney(totalPendente)}</span></span>
-        <span><span className="text-gray-500">Ficou pra Imobiliária: </span><span className="font-semibold">{fmtMoney(totalFicou)}</span></span>
+      {/*
+        Dois blocos em vez de sete números numa linha só: em cima o caixa da
+        imobiliária (o que a comissão gerou, o que entrou, o que falta
+        entrar), embaixo o repasse aos corretores. Juntos, "Pago" e "Recebido"
+        liam como a mesma coisa e não são.
+      */}
+      <div className="rounded-xl border border-gray-200 bg-white text-sm">
+        <div className="flex flex-wrap gap-6 p-4">
+          <span><span className="text-gray-500">Negócios: </span><span className="font-semibold">{filtrados.length}</span></span>
+          <span><span className="text-gray-500">Comissão gerada: </span><span className="font-semibold">{fmtMoney(totalGerado)}</span></span>
+          <span><span className="text-gray-500">Recebido: </span><span className="font-semibold text-emerald-700">{fmtMoney(totalRecebido)}</span></span>
+          <span><span className="text-gray-500">A receber: </span><span className="font-semibold text-amber-600">{fmtMoney(totalAReceber)}</span></span>
+        </div>
+        <div className="flex flex-wrap gap-6 border-t border-gray-100 p-4">
+          <span className="text-gray-400">Repasse</span>
+          <span><span className="text-gray-500">Distribuído: </span><span className="font-semibold">{fmtMoney(totalDevido)}</span></span>
+          <span><span className="text-gray-500">Pago: </span><span className="font-semibold text-emerald-700">{fmtMoney(totalPago)}</span></span>
+          <span><span className="text-gray-500">Pendente: </span><span className="font-semibold text-amber-600">{fmtMoney(totalPendente)}</span></span>
+          {/*
+            "Ficará", e não "Ficou": o valor é a fatia da comissão que não tem
+            dono no rateio, definida no lançamento — mas a imobiliária só a tem
+            na mão quando o cliente termina de pagar.
+          */}
+          <span><span className="text-gray-500">Ficará para a Imobiliária: </span><span className="font-semibold">{fmtMoney(totalFicou)}</span></span>
+        </div>
       </div>
 
       {/* Resumo por pessoa. É o que a adm usa pra pagar: a tabela de baixo é
