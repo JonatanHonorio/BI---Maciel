@@ -15,10 +15,10 @@
  * sozinho não distingue. O script confere o nome antes de escrever — se o
  * rateio tiver mudado, ele para em vez de gravar no lugar errado.
  *
- * FORA: a ref 63666 (#783). A Tatiane mandou captação do Girotto em 10% e
- * fechamento do Janduir em 20%, o que soma 53% — dez pontos abaixo dos 63%
- * da locação. Nos outros sete as contas fecham exatas, então aqui falta uma
- * informação, e chutar qual seria inventar dinheiro.
+ * A ref 63666 veio primeiro com a captação em 10% e o fechamento em 20%, o
+ * que somaria 53% — dez pontos abaixo dos 63% da locação. Perguntado, a
+ * captação era 20%, como nos outros casos em que o Girotto capta sozinho.
+ * Os oito entraram.
  *
  * Uso: node scripts/rateio-oito-pendentes.js [--aplicar]
  * Sem --aplicar, só mostra. Idempotente.
@@ -61,6 +61,10 @@ const AJUSTES = [
   // 6. ref 65075 — venda, Satélite 07/2026
   { ref: "65075", linha: 2851, confere: "GIROTTO", pct: 0.20 },
   { ref: "65075", linha: 2852, confere: "GIROTTO", pct: 0.20 },
+  // 7. ref 63666 — locação, Esplanada 04/2026. Confirmada em 02/10/2026,
+  // depois de a primeira mensagem vir com a captação em 10%, o que somava 53%.
+  { ref: "63666", linha: 4367, confere: "GIROTTO", pct: 0.20 },
+  { ref: "63666", linha: 4368, confere: "Janduir", pct: 0.20 },
   // 8. ref 47716 — locação, Esplanada 12/2025
   { ref: "47716", linha: 3212, confere: "GIROTTO", pct: 0.20 },
   { ref: "47716", linha: 3213, confere: "Catarina", pct: 0.20 },
