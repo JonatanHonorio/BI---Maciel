@@ -1,11 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
 import { PERMITE_NOME_LIVRE_NO_RATEIO } from "@/lib/flags";
 import { camposFaltando, erroCamposFaltando } from "@/lib/negocio-obrigatorio";
 import {
-  REGRAS, resumoRateio, pctTexto, temBlocoLancamento, percentualGerencia, percentuaisCaptacao,
+  REGRAS, resumoRateio, pctTexto, temBlocoLancamento, percentualGerencia,
   captacaoDiferenciada, ID_ZULIETTI, type Tipo,
 } from "@/lib/comissao";
 
@@ -40,7 +40,47 @@ function redistribuir(lista: LinhaRateio[], totalDoBloco: number | null): LinhaR
   const quantos = lista.filter(temDestinatario).length;
   if (quantos === 0) return lista;
   const cada = String(Number(((totalDoBloco / quantos) * 100).toFixed(4)));
-  return lista.map((l) => (temDestinatario(l) ? { ...l, percentual: cada } : l));
+  // Linha que ficou sem nome perde o percentual: ela é descartada ao salvar,
+  // mas enquanto fica na tela com o número antigo o resumo soma a mais e
+  // parece que o rateio estourou.
+  return lista.map((l) => ({ ...l, percentual: temDestinatario(l) ? cada : "" }));
+}
+
+/**
+ * Quanto cada bloco paga, considerando o captador de 20% (Mauro, Girotto,
+ * Dimas) e com quantas pessoas ele divide a captação.
+ *
+ * Captando SOZINHO, ele leva 20% e o Fechamento desce para 20%. Dividindo, a
+ * regra que a Tatiane definiu em 02/10/2026 é outra: ele fica com 10%, cada
+ * um dos outros com 5%, e o Fechamento desce só o que for preciso. Nos dois
+ * casos o negócio continua fechando em 54,5% (venda) e 63% (locação).
+ *
+ * Dividir os 20% em partes iguais — que é o que a divisão normal do bloco
+ * faria — fecharia a conta igual, mas daria 10% ao outro captador em vez dos
+ * 5% combinados.
+ */
+function percentuaisDosBlocos(tipo: Tipo, captadores: LinhaRateio[]) {
+  const regra = REGRAS[tipo];
+  const comNome = captadores.filter(temDestinatario);
+  const especial = captacaoDiferenciada(comNome.map((l) => l.corretor_id));
+  if (!especial) return { levantamento: regra.levantamento, fechamento: regra.fechamento };
+  const levantamento = comNome.length <= 1 ? 0.20 : 0.10 + 0.05 * (comNome.length - 1);
+  return {
+    levantamento,
+    fechamento: regra.fechamento - (levantamento - regra.levantamento),
+  };
+}
+
+/** A fatia de cada captador: 10% pro de 20%, 5% pros outros, quando dividem. */
+function distribuirCaptacao(lista: LinhaRateio[], tipo: Tipo): LinhaRateio[] {
+  const { levantamento } = percentuaisDosBlocos(tipo, lista);
+  const comNome = lista.filter(temDestinatario);
+  const especial = captacaoDiferenciada(comNome.map((l) => l.corretor_id));
+  if (!especial || comNome.length <= 1) return redistribuir(lista, levantamento);
+  return lista.map((l) => ({
+    ...l,
+    percentual: temDestinatario(l) ? (captacaoDiferenciada([l.corretor_id]) ? "10" : "5") : "",
+  }));
 }
 
 // Gêmea de ORIGENS_FECHAMENTO em @/lib/fechamento (que não pode ser
@@ -64,7 +104,7 @@ const TAXA_COMISSAO_VENDA = 0.06;
  * as unidades; num select nativo só dá pra pular pela primeira letra.
  */
 function BlocoRateio({
-  titulo, ajuda, lista, set, corretores, atualizarLinha, totalDoBloco,
+  titulo, ajuda, lista, set, corretores, atualizarLinha, totalDoBloco, distribuir,
 }: {
   titulo: string;
   ajuda?: string;
@@ -79,6 +119,8 @@ function BlocoRateio({
    * linhas — ou `null` quando o percentual é digitado caso a caso.
    */
   totalDoBloco: number | null;
+  /** Divisão própria do bloco; sem ela, divide o total em partes iguais. */
+  distribuir?: (lista: LinhaRateio[]) => LinhaRateio[];
 }) {
   return (
     <div>
@@ -100,7 +142,7 @@ function BlocoRateio({
                 copia[i] = { ...copia[i], texto, corretor_id: achado ? achado.id : "" };
                 // Divide o percentual do bloco entre quem já tem nome. Entrar
                 // ou sair alguém muda a fatia de todos, não só a da linha nova.
-                set(redistribuir(copia, totalDoBloco));
+                set(distribuir ? distribuir(copia) : redistribuir(copia, totalDoBloco));
               }}
               className={inputCls + (linha.texto && !linha.corretor_id ? " border-amber-400" : "")}
               title={
@@ -124,7 +166,10 @@ function BlocoRateio({
             {lista.length > 1 && (
               <button
                 type="button"
-                onClick={() => set(redistribuir(lista.filter((_, x) => x !== i), totalDoBloco))}
+                onClick={() => {
+                  const sobrou = lista.filter((_, x) => x !== i);
+                  set(distribuir ? distribuir(sobrou) : redistribuir(sobrou, totalDoBloco));
+                }}
                 className="text-muted-foreground hover:text-destructive px-1"
               >
                 <Trash2 size={14} />
@@ -214,7 +259,7 @@ export default function FechamentoForm({
    * Ver `percentuaisCaptacao` em @/lib/comissao.
    */
   const temCaptador20 = captacaoDiferenciada(levantamento.map((l) => l.corretor_id));
-  const pctBloco = percentuaisCaptacao(tipo, temCaptador20);
+  const pctBloco = percentuaisDosBlocos(tipo, levantamento);
 
   // O gerente da unidade entra sozinho com o percentual da casa. Só enquanto a
   // adm não mexeu: se ela trocou o nome ou o percentual, o que ela fez manda.
@@ -242,14 +287,35 @@ export default function FechamentoForm({
    * blocos preenchidos, troca 10/30 por 20/20 e vice-versa. Só mexe no valor
    * que a regra tinha posto.
    */
+  /*
+   * O Fechamento acompanha a captação: entrou o captador de 20%, ele desce;
+   * entrou um segundo captador, ele sobe de volta para 25%. Só mexe no valor
+   * que a REGRA tinha posto — por isso o ref guarda o último valor aplicado,
+   * e um número digitado à mão pela adm não é sobrescrito.
+   */
+  const fechDaRegra = useRef<string | null>(null);
   useEffect(() => {
-    const agora = percentuaisCaptacao(tipo, temCaptador20);
-    const antes = percentuaisCaptacao(tipo, !temCaptador20);
-    const troca = (de: number, para: number) => (l: LinhaRateio) =>
-      l.percentual === String(de * 100) ? { ...l, percentual: String(para * 100) } : l;
-    setLevantamento((atual) => atual.map(troca(antes.levantamento, agora.levantamento)));
-    setFechamento((atual) => atual.map(troca(antes.fechamento, agora.fechamento)));
-  }, [temCaptador20, tipo]);
+    setLevantamento((atual) => distribuirCaptacao(atual, tipo));
+    /*
+     * O ref é atualizado FORA do setState de propósito: em desenvolvimento o
+     * React chama o atualizador duas vezes, e na segunda ele já veria o valor
+     * novo no ref — a troca não acontecia e o Fechamento ficava preso em 30%.
+     */
+    const quantos = fechamento.filter(temDestinatario).length || 1;
+    const agora = String(Number(((pctBloco.fechamento / quantos) * 100).toFixed(4)));
+    const daRegra =
+      fechDaRegra.current ?? String(Number(((REGRAS[tipo].fechamento / quantos) * 100).toFixed(4)));
+    fechDaRegra.current = agora;
+    setFechamento((atual) =>
+      atual.map((l) =>
+        temDestinatario(l) && (l.percentual === daRegra || l.percentual === "")
+          ? { ...l, percentual: agora }
+          : l
+      )
+    );
+    // `fechamento` entra só pela leitura do tamanho; incluí-lo nas deps faria
+    // o efeito rodar a cada tecla no bloco.
+  }, [tipo, pctBloco.fechamento]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const agora = String(percentualGerencia(tipo, temZulietti) * 100);
@@ -633,6 +699,7 @@ export default function FechamentoForm({
           lista={levantamento} set={setLevantamento} corretores={corretores}
           atualizarLinha={atualizarLinha}
           totalDoBloco={pctBloco.levantamento}
+          distribuir={(l) => distribuirCaptacao(l, tipo)}
         />
         <BlocoRateio
           titulo="Fechamento" ajuda={pctTexto(pctBloco.fechamento)}
