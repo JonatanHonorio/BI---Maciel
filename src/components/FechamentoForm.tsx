@@ -104,7 +104,7 @@ const TAXA_COMISSAO_VENDA = 0.06;
  * as unidades; num select nativo só dá pra pular pela primeira letra.
  */
 function BlocoRateio({
-  titulo, ajuda, lista, set, corretores, atualizarLinha, totalDoBloco, distribuir,
+  titulo, ajuda, lista, set, corretores, atualizarLinha, totalDoBloco, distribuir, percentualFixo,
 }: {
   titulo: string;
   ajuda?: string;
@@ -121,6 +121,19 @@ function BlocoRateio({
   totalDoBloco: number | null;
   /** Divisão própria do bloco; sem ela, divide o total em partes iguais. */
   distribuir?: (lista: LinhaRateio[]) => LinhaRateio[];
+  /**
+   * Percentual só de leitura — quem manda é a regra da casa (02/10/2026).
+   *
+   * Os blocos de Levantamento, Fechamento e Gerência têm percentual de
+   * tabela, e digitá-lo à mão foi a origem de quase toda a bagunça que a
+   * auditoria achou: 7,5/2,5 numa captação dividida, 15/15 num fechamento,
+   * gerência de locação em 10%. O número continua visível, para a adm
+   * conferir o que o negócio vai pagar.
+   *
+   * Lançamento fica de fora: ali não existe percentual de tabela, ele muda
+   * com o produto e com quem é o diretor daquele lançamento.
+   */
+  percentualFixo?: boolean;
 }) {
   return (
     <div>
@@ -160,8 +173,10 @@ function BlocoRateio({
             <input
               type="number" placeholder="%" min={0} max={100} step="0.01"
               value={linha.percentual}
+              readOnly={percentualFixo}
+              title={percentualFixo ? "Percentual da regra da casa — não se digita aqui" : undefined}
               onChange={(e) => atualizarLinha(lista, set, i, { percentual: e.target.value })}
-              className={inputCls + " w-20"}
+              className={inputCls + " w-20" + (percentualFixo ? " bg-gray-50 text-muted-foreground" : "")}
             />
             {lista.length > 1 && (
               <button
@@ -700,12 +715,14 @@ export default function FechamentoForm({
           atualizarLinha={atualizarLinha}
           totalDoBloco={pctBloco.levantamento}
           distribuir={(l) => distribuirCaptacao(l, tipo)}
+          percentualFixo
         />
         <BlocoRateio
           titulo="Fechamento" ajuda={pctTexto(pctBloco.fechamento)}
           lista={fechamento} set={setFechamento} corretores={corretores}
           atualizarLinha={atualizarLinha}
           totalDoBloco={pctBloco.fechamento}
+          percentualFixo
         />
         <BlocoRateio
           titulo="Gerência"
@@ -713,6 +730,7 @@ export default function FechamentoForm({
           lista={gerencia} set={setGerencia} corretores={corretores}
           atualizarLinha={atualizarLinha}
           totalDoBloco={pctGerencia}
+          percentualFixo
         />
         {/* Lançamento é o único bloco de percentual MANUAL: o diretor de
             lançamento muda conforme o perfil do produto, e o percentual muda
