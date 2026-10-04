@@ -222,6 +222,7 @@ function BlocoRateio({
 export default function FechamentoForm({
   periodoId,
   tipo,
+  unidade,
   corretores,
   gerente,
   onSalvo,
@@ -229,6 +230,8 @@ export default function FechamentoForm({
 }: {
   periodoId: number;
   tipo: Tipo;
+  /** Unidade do período — a gerência de locação da Vista Verde é 10%. */
+  unidade: string;
   corretores: Corretor[];
   /** Gerente da unidade/vertical — entra sozinho no bloco Gerência. */
   gerente?: Corretor | null;
@@ -267,7 +270,7 @@ export default function FechamentoForm({
    * 5% são dele. Ver `percentualGerencia` em @/lib/comissao.
    */
   const temZulietti = lancamento.some((l) => Number(l.corretor_id) === ID_ZULIETTI);
-  const pctGerencia = percentualGerencia(tipo, temZulietti);
+  const pctGerencia = percentualGerencia(tipo, temZulietti, unidade);
 
   /*
    * Mauro, Girotto e Dimas captam por 20%, e os 10 pontos saem do fechador.
@@ -333,8 +336,8 @@ export default function FechamentoForm({
   }, [tipo, pctBloco.fechamento]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const agora = String(percentualGerencia(tipo, temZulietti) * 100);
-    const antes = String(percentualGerencia(tipo, !temZulietti) * 100);
+    const agora = String(percentualGerencia(tipo, temZulietti, unidade) * 100);
+    const antes = String(percentualGerencia(tipo, !temZulietti, unidade) * 100);
     setGerencia((atual) => atual.map((l) => (l.percentual === antes ? { ...l, percentual: agora } : l)));
     if (temZulietti) {
       setLancamento((atual) =>
@@ -345,7 +348,7 @@ export default function FechamentoForm({
         )
       );
     }
-  }, [temZulietti, tipo]);
+  }, [temZulietti, tipo, unidade]);
 
   const mostraLancamento = temBlocoLancamento(tipo);
 

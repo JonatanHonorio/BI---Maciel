@@ -701,6 +701,7 @@ export default function FechamentoPage() {
               key={periodo.id}
               periodoId={periodo.id}
               tipo={periodo.tipo}
+              unidade={periodo.unidade}
               corretores={corretores}
               gerente={dados?.gerente ?? null}
               onSalvo={() => { setMostrarForm(false); carregar(); }}

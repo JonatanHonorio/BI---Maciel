@@ -218,7 +218,7 @@ export interface RecebimentoDoNegocio {
 }
 
 export interface NegocioDoMes {
-  id: number; ref: string | null; endereco: string | null;
+  id: number; ref: string | null; contrato: string | null; endereco: string | null;
   valor: number | null; comissao: number | null;
   unidade: string; tipo: "venda" | "locacao"; competencia: string;
   rateio: RateioDoMes[];
@@ -247,7 +247,7 @@ export async function negociosDaCompetencia(
   const todasUnidades = unidades === null;
   const todosTipos = tipos === null;
   return (await sql`
-    SELECT n.id, n.ref, n.endereco, n.valor, n.comissao,
+    SELECT n.id, n.ref, n.contrato, n.endereco, n.valor, n.comissao,
       p.unidade, p.tipo, p.competencia,
       COALESCE(
         json_agg(

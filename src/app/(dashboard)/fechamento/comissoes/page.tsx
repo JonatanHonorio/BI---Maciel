@@ -15,7 +15,8 @@ type Rateio = {
 };
 type Recebimento = { id: number; valor: number; data_recebimento: string; observacao: string | null };
 type Negocio = {
-  id: number; ref: string | null; endereco: string | null; valor: number | null; comissao: number | null;
+  id: number; ref: string | null; contrato: string | null; endereco: string | null;
+  valor: number | null; comissao: number | null;
   unidade: string; tipo: "venda" | "locacao"; competencia: string; rateio: Rateio[];
   recebimentos: Recebimento[];
   valor_devido_total: number; valor_pago_total: number; valor_pendente: number;
@@ -408,18 +409,19 @@ export default function ComissoesPage() {
               <th className="px-3 py-2.5">Unidade</th>
               <th className="px-3 py-2.5">Tipo</th>
               <th className="px-3 py-2.5">Ref</th>
+              <th className="px-3 py-2.5">Contrato</th>
               <th className="px-3 py-2.5">Endereço</th>
               <th className="px-3 py-2.5">Levantamento</th>
               <th className="px-3 py-2.5">Fechamento</th>
               <th className="px-3 py-2.5 text-right">Status</th>
-              <th className="px-3 py-2.5 text-right">Ficou pra Imobiliária</th>
+              <th className="px-3 py-2.5 text-right">Ficará p/ Imobiliária</th>
             </tr>
           </thead>
           <tbody>
             {carregando ? (
-              <tr><td colSpan={10} className="px-3 py-8 text-center text-xs text-gray-400">Carregando...</td></tr>
+              <tr><td colSpan={11} className="px-3 py-8 text-center text-xs text-gray-400">Carregando...</td></tr>
             ) : filtrados.length === 0 ? (
-              <tr><td colSpan={10} className="px-3 py-8 text-center text-xs text-gray-400">Nenhum negócio no período.</td></tr>
+              <tr><td colSpan={11} className="px-3 py-8 text-center text-xs text-gray-400">Nenhum negócio no período.</td></tr>
             ) : (
               filtrados.map((n, i) => {
                 const aberto = expandido === n.id;
@@ -435,6 +437,7 @@ export default function ComissoesPage() {
                       <td className="px-3 py-2">{n.unidade}</td>
                       <td className="px-3 py-2">{n.tipo === "venda" ? "Vendas" : "Locação"}</td>
                       <td className="px-3 py-2">{n.ref || "—"}</td>
+                      <td className="px-3 py-2 tabular-nums">{n.contrato || "—"}</td>
                       <td className="px-3 py-2">{n.endereco || "—"}</td>
                       <td className="px-3 py-2">{nomesPapel(n.rateio, "levantamento")}</td>
                       <td className="px-3 py-2">{nomesPapel(n.rateio, "fechamento")}</td>
@@ -447,7 +450,7 @@ export default function ComissoesPage() {
                     {aberto && (
                       <tr className="bg-gray-50/70">
                         <td></td>
-                        <td colSpan={9} className="space-y-3 px-3 py-3">
+                        <td colSpan={10} className="space-y-3 px-3 py-3">
                           {/* Recebimento da parcela: um valor e uma data, e o
                               sistema reparte pelo percentual de cada um. É o
                               caminho normal — a baixa pessoa a pessoa embaixo

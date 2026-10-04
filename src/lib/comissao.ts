@@ -182,9 +182,26 @@ export function percentuaisCaptacao(tipo: Tipo, comCaptador20: boolean) {
  */
 export const ID_ZULIETTI = 900001;
 
-/** Quanto a Gerência paga, considerando a partição com o Zulietti. */
-export function percentualGerencia(tipo: Tipo, comZulietti: boolean): number {
-  const cheio = REGRAS[tipo].gerencia;
+/**
+ * Unidades em que a gerência de LOCAÇÃO é 10%, e não os 20% da regra geral
+ * (04/10/2026): "a Gisela é a única gerente de locação que recebe 10%; nas
+ * locações da Vista Verde a Maciel fica com uma parte maior da comissão".
+ *
+ * A exceção é da UNIDADE, não da pessoa, porque é a unidade que define quanto
+ * o negócio inteiro distribui — a locação da Vista Verde fecha em 53%, e as
+ * das outras em 63%. Amarrar na pessoa deixaria o total errado no dia em que
+ * outra pessoa assinasse a gerência.
+ */
+const GERENCIA_LOCACAO_10 = ["Vista Verde"];
+
+/** Quanto a Gerência paga, considerando o Zulietti e a exceção da unidade. */
+export function percentualGerencia(
+  tipo: Tipo, comZulietti: boolean, unidade?: string | null
+): number {
+  const cheio =
+    tipo === "locacao" && unidade && GERENCIA_LOCACAO_10.includes(unidade)
+      ? 0.10
+      : REGRAS[tipo].gerencia;
   return comZulietti ? cheio / 2 : cheio;
 }
 
@@ -217,8 +234,8 @@ export interface LinhaRateioCalc {
  * Soma o que sai da comissão e o que sobra para a imobiliária.
  *
  * Serve pra tela mostrar o resultado enquanto a pessoa digita: com as regras
- * cheias, venda distribui 54,5% e locação 63% — mais o que o Lançamento
- * levar, que varia. Passar de 100% é erro de digitação, e é melhor ver antes
+ * cheias, venda distribui 54,5% e locação 63% — 53% na Vista Verde, onde a
+ * gerência é 10% —, mais o que o Lançamento levar, que varia. Passar de 100% é erro de digitação, e é melhor ver antes
  * de salvar.
  */
 export function resumoRateio(pool: number, linhas: LinhaRateioCalc[]) {
