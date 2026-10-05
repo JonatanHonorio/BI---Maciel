@@ -11,6 +11,8 @@ import { faseValida, GARANTIAS_LOCACAO } from "./contratos";
 
 export interface CorpoContrato {
   ref?: string;
+  /** Número do contrato no Kurole — aparece no card ao lado da referência. */
+  contrato?: string | null;
   imovel_id?: number | null;
   tipo?: string;
   unidade?: string;

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { podeEditarContrato, podeVerBanco, unidadesContrato, tiposContrato } from "@/lib/contratos";
+import {
+  podeEditarContrato, podeVerBanco, unidadesContrato, tiposContrato, veFilaFantasma,
+} from "@/lib/contratos";
 import { limparContrato, validarBase, json, type CorpoContrato } from "@/lib/contratos-api";
 import { UNIDADES_FECHAMENTO } from "@/lib/fechamento";
 
@@ -90,8 +92,35 @@ export async function GET(req: NextRequest) {
     ORDER BY corretor_nome
   `) as { corretor_nome: string }[];
 
+  /*
+   * Fila FANTASMA (05/10/2026): os contratos fora do escopo de quem perguntou,
+   * reduzidos ao número de balcão e à coluna em que estão.
+   *
+   * Sem isso, o gerente via só os próprios cards e não tinha como saber que há
+   * oito contratos na frente do dele. Vai sem `id`, sem referência, sem
+   * endereço, sem corretor, sem unidade e sem vertical — nada que diga de quem
+   * é. O `NOT (...)` é exatamente o complemento do escopo aplicado acima, para
+   * um contrato nunca aparecer duas vezes, cheio e fantasma.
+   *
+   * Os filtros da tela não entram aqui de propósito: o fantasma é o retrato da
+   * fila inteira, e filtrar por unidade (que é o que mais se usa) apagaria
+   * justamente os contratos dos outros, que é a informação que ele dá.
+   */
+  const fantasmas = veFilaFantasma(session) && !arquivados
+    ? ((await sql`
+        SELECT senha, fase FROM contratos
+        WHERE arquivado = false
+          AND NOT (
+            (${unidades}::text[] IS NULL OR unidade = ANY(${unidades}::text[]))
+            AND (${tipos}::text[] IS NULL OR tipo = ANY(${tipos}::text[]))
+          )
+        ORDER BY fase, senha
+      `) as { senha: number | null; fase: number }[])
+    : [];
+
   const verBanco = podeVerBanco(session);
   return NextResponse.json({
+    fantasmas,
     contratos: linhas.map((c) => {
       const naFila = posicaoPorId.get(Number(c.id));
       return {
@@ -123,11 +152,12 @@ export async function POST(req: NextRequest) {
   const sql = getDb();
   const [novo] = (await sql`
     INSERT INTO contratos (
-      ref, imovel_id, tipo, unidade, corretor_id, corretor_nome, fase,
+      ref, contrato, imovel_id, tipo, unidade, corretor_id, corretor_nome, fase,
       vendedor, comprador, imovel_endereco, imovel_dados, banco,
       pagamento, observacao, garantia, garantia_detalhe, criado_por, atualizado_por
     ) VALUES (
-      ${body.ref!.trim()}, ${body.imovel_id ?? null}, ${body.tipo!}, ${body.unidade!},
+      ${body.ref!.trim()}, ${body.contrato?.trim() || null},
+      ${body.imovel_id ?? null}, ${body.tipo!}, ${body.unidade!},
       ${body.corretor_id ?? null}, ${body.corretor_nome ?? ""}, ${body.fase ?? 1},
       ${json(body.vendedor, "[]")}, ${json(body.comprador, "[]")},
       ${body.imovel_endereco ?? null}, ${json(body.imovel_dados, "{}")},

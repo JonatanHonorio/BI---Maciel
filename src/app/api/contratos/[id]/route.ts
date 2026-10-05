@@ -6,7 +6,7 @@ import {
   motivoBloqueioMover, faseValida, FASES_QUE_AVISAM,
 } from "@/lib/contratos";
 import { limparContrato, validarBase, json, type CorpoContrato } from "@/lib/contratos-api";
-import { avisarGerenteDoContrato } from "@/lib/contratos-aviso";
+import { avisarGerenteDoContrato, avisarContratosDoMovimento } from "@/lib/contratos-aviso";
 
 /** Next 16: `params` chega como Promise nas rotas dinâmicas. */
 type Ctx = { params: Promise<{ id: string }> };
@@ -113,7 +113,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   // 2) Edição dos dados — só quem opera o quadro
   const querEditarDados =
-    body.ref !== undefined || body.tipo !== undefined || body.unidade !== undefined ||
+    body.ref !== undefined || body.contrato !== undefined ||
+    body.tipo !== undefined || body.unidade !== undefined ||
     body.vendedor !== undefined || body.comprador !== undefined || body.banco !== undefined ||
     body.pagamento !== undefined || body.observacao !== undefined ||
     body.garantia !== undefined || body.garantia_detalhe !== undefined ||
@@ -137,6 +138,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     await sql`
       UPDATE contratos SET
         ref = ${base.ref!.trim()},
+        contrato = ${body.contrato !== undefined ? (body.contrato?.trim() || null) : (atual.contrato as string | null)},
         imovel_id = ${body.imovel_id !== undefined ? body.imovel_id : (atual.imovel_id as number | null)},
         tipo = ${base.tipo!},
         unidade = ${base.unidade!},
@@ -186,6 +188,21 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       await avisarGerenteDoContrato(depois as never, novaFase, session.nome, comentario);
     } catch (e) {
       console.error("aviso de contrato não enviado:", (e as Error).message);
+    }
+  }
+
+  /*
+   * O caminho inverso: quem moveu NÃO opera o quadro — o gerente conferindo —,
+   * então quem precisa saber é o setor de contratos (pedido da Ana,
+   * 05/10/2026). A condição é "não é editor" em vez de "saiu da conferência"
+   * porque é a pessoa que define o aviso, não a fase: se amanhã o gerente
+   * puder mover de outro lugar, o aviso acompanha sozinho.
+   */
+  if (novaFase !== faseAtual && !editor) {
+    try {
+      await avisarContratosDoMovimento(depois as never, faseAtual, novaFase, session.nome, comentario);
+    } catch (e) {
+      console.error("aviso para o setor de contratos não enviado:", (e as Error).message);
     }
   }
 

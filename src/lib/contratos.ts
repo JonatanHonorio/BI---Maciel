@@ -9,19 +9,30 @@ import type { Tipo } from "./unidade";
  * @/lib/unidade (que usa fs/path) quebraria o build.
  */
 
+/**
+ * A assinatura virou DUAS fases em 05/10/2026, a pedido da Ana: com uma só não
+ * dava pra separar o que ainda é trabalho dela ("Enviar") do que é espera de
+ * terceiro ("Aguardando"). Um card parado há dez dias significa coisas
+ * opostas nos dois casos.
+ *
+ * Por isso "Assinado e finalizado" saiu do 7 e foi pro 8 — ver
+ * `scripts/contratos-assinatura-e-avisos.js`, que renumerou também o
+ * histórico.
+ */
 export const FASES = [
   { id: 1, nome: "Recebimento dos docs", curto: "Recebimento" },
   { id: 2, nome: "Análise dos docs", curto: "Análise" },
   { id: 3, nome: "Pendência dos docs", curto: "Pendência" },
   { id: 4, nome: "Contrato em execução", curto: "Execução" },
   { id: 5, nome: "Conferência gerentes e diretoria", curto: "Conferência" },
-  { id: 6, nome: "Enviado para assinatura", curto: "Assinatura" },
-  { id: 7, nome: "Assinado e finalizado", curto: "Finalizado" },
+  { id: 6, nome: "Enviar para assinatura", curto: "Enviar" },
+  { id: 7, nome: "Aguardando assinatura", curto: "Aguardando" },
+  { id: 8, nome: "Assinado e finalizado", curto: "Finalizado" },
 ] as const;
 
 export const FASE_CONFERENCIA = 5;
 export const FASE_PENDENCIA = 3;
-export const FASE_FINAL = 7;
+export const FASE_FINAL = 8;
 
 export function nomeFase(id: number): string {
   return FASES.find((f) => f.id === id)?.nome ?? `fase ${id}`;
@@ -139,3 +150,21 @@ export function rotulosDoTipo(tipo: "venda" | "locacao") {
 
 /** Fases cujo card recém-chegado dispara e-mail para o gerente da unidade. */
 export const FASES_QUE_AVISAM = [FASE_PENDENCIA, FASE_CONFERENCIA, FASE_FINAL];
+
+/**
+ * Visão FANTASMA da fila (05/10/2026, pedido da Ana e do Jonatan).
+ *
+ * Quem não opera o quadro passa a ver, nas colunas, um cartão cego para cada
+ * contrato fora do seu escopo: **só o número de balcão**, sem referência,
+ * endereço, corretor, unidade ou vertical. Serve a uma pergunta só — "em que
+ * lugar da fila está o meu?" —, que não dá para responder vendo apenas os
+ * próprios cards: numerar dentro do que a pessoa enxerga diria "você é o 2º"
+ * havendo oito contratos de outras unidades na frente.
+ *
+ * Vale para gerente de unidade, gerente administrativa e para a Daniela (que é
+ * `gerente` com unidade nula): decisão do Jonatan em 05/10/2026. Admin e o
+ * setor de contratos não precisam — eles já veem tudo por completo.
+ */
+export function veFilaFantasma(s: Session): boolean {
+  return s.role === "gerente" || s.role === "gerente_adm";
+}

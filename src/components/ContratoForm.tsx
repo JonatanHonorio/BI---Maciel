@@ -29,6 +29,9 @@ export interface ContaBancaria {
 export interface ContratoEdicao {
   id?: number;
   ref: string;
+  /** Número do contrato no Kurole. Vem depois da referência, e nem sempre existe
+   *  quando o card nasce — por isso não é obrigatório. */
+  contrato: string;
   imovel_id: number | null;
   tipo: "venda" | "locacao";
   unidade: string;
@@ -48,7 +51,7 @@ export interface ContratoEdicao {
 type Corretor = { id: number; nome: string; unidade: string; tipo: "venda" | "locacao" | null };
 
 export const CONTRATO_VAZIO: ContratoEdicao = {
-  ref: "", imovel_id: null, tipo: "venda", unidade: "", corretor_id: null, corretor_nome: "",
+  ref: "", contrato: "", imovel_id: null, tipo: "venda", unidade: "", corretor_id: null, corretor_nome: "",
   vendedor: [], comprador: [], imovel_endereco: "", imovel_dados: {}, banco: { contas: [] },
   pagamento: "", observacao: "", garantia: "", garantia_detalhe: "",
 };
@@ -361,7 +364,7 @@ export default function ContratoForm({
 
   return (
     <div className="space-y-5">
-      <section className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+      <section className="grid grid-cols-1 sm:grid-cols-5 gap-3">
         <div>
           <label className={rotulo}>Referência</label>
           <div className="relative">
@@ -376,6 +379,15 @@ export default function ContratoForm({
               {buscando ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
             </span>
           </div>
+        </div>
+        <div>
+          <label className={rotulo}>Contrato</label>
+          <input
+            className={campo}
+            value={valor.contrato}
+            onChange={(e) => mudar("contrato", e.target.value)}
+            placeholder="nº do CT"
+          />
         </div>
         <div>
           <label className={rotulo}>Tipo</label>

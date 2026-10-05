@@ -5,7 +5,10 @@ import ContratoForm, { CONTRATO_VAZIO, type ContratoEdicao, type Pessoa, type Co
 import { FASES, FASE_CONFERENCIA, FASE_PENDENCIA, nomeFase, rotulosDoTipo } from "@/lib/contratos";
 
 type Contrato = {
-  id: number; ref: string; imovel_id: number | null;
+  id: number; ref: string;
+  /** Número do contrato no Kurole — pode não existir quando o card nasce. */
+  contrato: string | null;
+  imovel_id: number | null;
   tipo: "venda" | "locacao"; unidade: string;
   corretor_id: number | null; corretor_nome: string; fase: number;
   vendedor: Pessoa[]; comprador: Pessoa[];
@@ -48,7 +51,10 @@ const temFiltro = (f: Filtros) => Object.values(f).some(Boolean);
 const CORES_FASE = [
   "bg-slate-100 text-slate-700", "bg-blue-100 text-blue-700", "bg-amber-100 text-amber-800",
   "bg-indigo-100 text-indigo-700", "bg-purple-100 text-purple-700",
-  "bg-cyan-100 text-cyan-700", "bg-emerald-100 text-emerald-700",
+  // As duas da assinatura ficam em tons vizinhos de propósito: são a mesma
+  // etapa partida em "falta eu mandar" e "falta o cliente assinar".
+  "bg-cyan-100 text-cyan-700", "bg-teal-100 text-teal-700",
+  "bg-emerald-100 text-emerald-700",
 ];
 
 const diaHora = (iso: string) => {
@@ -77,6 +83,16 @@ function CartaoContrato({ c, onAbrir }: { c: Contrato; onAbrir: (c: Contrato) =>
             {fmtSenha(c.senha)}
           </span>
           {c.ref}
+          {/* Pedido da Ana (05/10/2026): a referência identifica o imóvel, o
+              número do contrato identifica o negócio — ela procura pelos dois.
+              Mesmo peso visual, separados por um traço fino para não lerem
+              como um número só. */}
+          {c.contrato && (
+            <>
+              <span className="text-gray-300">·</span>
+              <span className="font-semibold">{c.contrato}</span>
+            </>
+          )}
         </span>
         <span className={`text-[10px] px-1.5 py-0.5 rounded ${c.tipo === "venda" ? "bg-emerald-50 text-emerald-700" : "bg-sky-50 text-sky-700"}`}>
           {c.tipo === "venda" ? "Venda" : "Locação"}
@@ -103,6 +119,24 @@ function CartaoContrato({ c, onAbrir }: { c: Contrato; onAbrir: (c: Contrato) =>
   );
 }
 
+/**
+ * Cartão cego: um contrato que existe na fila mas não é de quem está olhando.
+ *
+ * Mostra só o número de balcão, e é `div` e não `button` de propósito — não há
+ * o que abrir, e um cartão clicável que não faz nada ensina a pessoa a
+ * desconfiar da tela.
+ */
+function CartaoFantasma({ senha }: { senha: number | null }) {
+  return (
+    <div
+      className="w-full rounded-lg border border-dashed border-gray-300 bg-gray-50/60 px-3 py-2 text-center"
+      title="Contrato de outra unidade — você vê a posição na fila, não os dados"
+    >
+      <span className="font-mono text-[11px] font-semibold text-gray-400">{fmtSenha(senha)}</span>
+    </div>
+  );
+}
+
 export default function ContratosPage() {
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [permissoes, setPermissoes] = useState<Permissoes | null>(null);
@@ -115,6 +149,8 @@ export default function ContratosPage() {
   const [comentario, setComentario] = useState("");
   const [erro, setErro] = useState<string | null>(null);
 
+  /** Contratos fora do escopo, reduzidos a senha + fase. Vazio para a Ana e o admin. */
+  const [fantasmas, setFantasmas] = useState<{ senha: number | null; fase: number }[]>([]);
   const [corretoresNoQuadro, setCorretoresNoQuadro] = useState<string[]>([]);
   const [filtros, setFiltros] = useState<Filtros>(SEM_FILTRO);
 
@@ -134,6 +170,7 @@ export default function ContratosPage() {
         setPermissoes(d.permissoes ?? null);
         setTodasUnidades(d.todasUnidades ?? []);
         setCorretoresNoQuadro(d.corretoresNoQuadro ?? []);
+        setFantasmas(d.fantasmas ?? []);
         return (d.contratos ?? []) as Contrato[];
       }
       return [];
@@ -182,6 +219,16 @@ export default function ContratosPage() {
     for (const c of contratos) mapa.get(c.fase)?.push(c);
     return mapa;
   }, [contratos]);
+
+  const fantasmasPorFase = useMemo(() => {
+    const mapa = new Map<number, { senha: number | null }[]>(FASES.map((f) => [f.id, []]));
+    // Ordenados pela senha para o fantasma ficar entre os cards certos: é a
+    // ordem de chegada que faz a fila ter sentido.
+    for (const f of [...fantasmas].sort((a, b) => (a.senha ?? 0) - (b.senha ?? 0))) {
+      mapa.get(f.fase)?.push({ senha: f.senha });
+    }
+    return mapa;
+  }, [fantasmas]);
 
   async function salvarCard() {
     if (!editando) return;
@@ -340,11 +387,16 @@ export default function ContratosPage() {
       <div className="flex gap-3 overflow-x-auto pb-4">
         {FASES.map((f, i) => {
           const lista = porFase.get(f.id) ?? [];
+          const cegos = fantasmasPorFase.get(f.id) ?? [];
           return (
             <div key={f.id} className="w-64 shrink-0">
               <div className={`rounded-t-lg px-3 py-2 text-xs font-semibold ${CORES_FASE[i]}`}>
                 {f.curto}
-                <span className="float-right opacity-70">{lista.length}</span>
+                {/* O contador soma os dois: a coluna tem o tamanho que tem,
+                    independentemente de quantos cards a pessoa pode abrir. */}
+                <span className="float-right opacity-70">
+                  {lista.length + cegos.length}
+                </span>
               </div>
               {f.id === 1 && lista.length > 0 && lista[0].fila_total != null && lista[0].fila_total > lista.length && (
                 // A gerente vê só a própria unidade; sem esta linha ela contaria
@@ -357,7 +409,10 @@ export default function ContratosPage() {
                 {lista.map((c) => (
                   <CartaoContrato key={c.id} c={c} onAbrir={abrirCard} />
                 ))}
-                {lista.length === 0 && (
+                {cegos.map((g, k) => (
+                  <CartaoFantasma key={`f${k}`} senha={g.senha} />
+                ))}
+                {lista.length + cegos.length === 0 && (
                   <p className="text-[11px] text-gray-400 text-center py-4">vazio</p>
                 )}
               </div>
@@ -440,7 +495,8 @@ export default function ContratosPage() {
                       <button
                         onClick={() =>
                           setEditando({
-                            id: aberto.id, ref: aberto.ref, imovel_id: aberto.imovel_id,
+                            id: aberto.id, ref: aberto.ref, contrato: aberto.contrato ?? "",
+                            imovel_id: aberto.imovel_id,
                             tipo: aberto.tipo, unidade: aberto.unidade,
                             corretor_id: aberto.corretor_id, corretor_nome: aberto.corretor_nome,
                             vendedor: aberto.vendedor ?? [], comprador: aberto.comprador ?? [],
