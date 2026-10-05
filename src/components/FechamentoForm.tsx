@@ -434,10 +434,63 @@ export default function FechamentoForm({
   const resumo = resumoRateio(pool, linhasParaResumo);
 
   /**
+   * O que a BUSCA escreveu da última vez, campo a campo (05/10/2026).
+   *
+   * Existe por causa de um negócio real: a adm digitou "44" no campo do
+   * contrato, saiu do campo, e a busca preencheu tudo com o contrato 44 — um
+   * aluguel de 2022, outro imóvel, outro valor. Ela voltou e completou para
+   * "4442"; a busca rodou de novo, achou o contrato certo e **não corrigiu
+   * nada**, porque a regra era "só preenche o que está vazio" e os campos já
+   * tinham o lixo da busca anterior. O negócio foi gravado com o número de um
+   * contrato e os dados de outro.
+   *
+   * Com este registro a regra fica mais precisa: uma busca nova sobrescreve o
+   * que uma busca ANTERIOR pôs, e continua sem encostar no que a adm digitou.
+   */
+  const daBusca = useRef<Record<string, string>>({});
+
+  /** Grava o valor da busca se o campo está vazio ou tem o valor da busca anterior. */
+  function porBusca(chave: string, atual: string, novo: string, set: (v: string) => void): boolean {
+    if (!novo) return false;
+    if (atual.trim() !== "" && atual !== daBusca.current[chave]) return false;
+    const corrigiu = atual.trim() !== "" && atual !== novo;
+    daBusca.current[chave] = novo;
+    set(novo);
+    return corrigiu;
+  }
+
+  /**
+   * Mesma ideia para os blocos de rateio, comparando só QUEM está no bloco.
+   *
+   * O percentual fica de fora de propósito: ele é das regras da casa, que o
+   * reescrevem sozinhas depois da busca — entrou um captador de 20%, o
+   * Fechamento cai para 20%. Guardando o percentual na marca, essa reescrita
+   * fazia o bloco parecer "mexido pela adm" e a busca seguinte desistia de
+   * corrigi-lo. Foi o que aconteceu no teste: o Fechamento ficou com o
+   * comissionado do contrato errado.
+   */
+  const marcaDoBloco = (lista: LinhaRateio[]) =>
+    JSON.stringify(lista.map((l) => [l.corretor_id, l.texto.trim()]));
+
+  function porBuscaRateio(
+    chave: string, atual: LinhaRateio[], novo: LinhaRateio[], set: (l: LinhaRateio[]) => void
+  ): boolean {
+    const vazio = atual.every((l) => !l.corretor_id && !l.texto.trim());
+    // A adm mexeu no bloco: o que ela fez manda.
+    if (!vazio && marcaDoBloco(atual) !== daBusca.current[chave]) return false;
+    daBusca.current[chave] = marcaDoBloco(novo);
+    // Mesmas pessoas da busca anterior: reescrever só apagaria uma divisão de
+    // percentual feita à mão, sem corrigir nada.
+    if (!vazio && marcaDoBloco(atual) === marcaDoBloco(novo)) return false;
+    set(novo);
+    return !vazio;
+  }
+
+  /**
    * A referência é a chave do imóvel no Kurole, então dá pra puxar endereço e
    * captador em vez de digitar de novo — menos trabalho e menos erro de
-   * digitação. Só preenche o que está vazio: se a pessoa já escreveu alguma
-   * coisa, o que ela escreveu manda.
+   * digitação. Não encosta no que a pessoa escreveu — só no que está vazio ou
+   * no que uma busca anterior preencheu (ver `daBusca`).
    */
   async function buscarImovel() {
     if (!ref.trim()) return;
@@ -465,23 +518,24 @@ export default function FechamentoForm({
     endereco?: string | null;
     captadores?: { corretor_id: number; nome: string; percentual: number | null }[];
     captadores_fora?: number;
-  }) {
-      if (dados.endereco && !endereco.trim()) setEndereco(dados.endereco);
+  }): boolean {
+      let corrigiu = false;
+      if (dados.endereco) {
+        corrigiu = porBusca("endereco", endereco, dados.endereco, setEndereco) || corrigiu;
+      }
 
-      // Também conta como preenchido o que foi só DIGITADO. Olhando apenas
-      // corretor_id, um nome digitado (que não tem id) parecia campo vazio e
-      // a busca pela referência sobrescrevia o que a pessoa acabou de
-      // escrever — exatamente o contrário da regra "o que ela escreveu manda".
-      const semCaptador = levantamento.every((l) => !l.corretor_id && !l.texto.trim());
-      if (dados.captadores?.length && semCaptador) {
+      // Nome DIGITADO também conta como preenchido: olhando só corretor_id,
+      // ele parecia campo vazio e a busca sobrescrevia o que a pessoa acabou
+      // de escrever — o contrário da regra "o que ela escreveu manda".
+      if (dados.captadores?.length) {
         // A Maciel paga 10% da comissão pela captação INTEIRA. O percentual
         // que vem do Kurole é a divisão entre os captadores (0,5 e 0,5 quando
         // são dois), não a fatia da comissão — então ele multiplica os 10%,
         // dando 5% pra cada. Antes o número do Kurole entrava cru e virava
         // "50% da comissão" pra cada captador.
         const n = dados.captadores.length;
-        setLevantamento(
-          dados.captadores.map((c: { corretor_id: number; nome: string; percentual: number | null }) => {
+        const novo = dados.captadores.map(
+          (c: { corretor_id: number; nome: string; percentual: number | null }) => {
             // O Kurole grava o rateio do captador em 0–100 ("50" para meio a
             // meio, "100" para captador único), não em fração. Tratando como
             // fração, um captador sozinho virava 1000% da comissão.
@@ -495,12 +549,14 @@ export default function FechamentoForm({
               // meio a meio e a captação cadastrada se perderia calada.
               manual: Math.abs(fatia - 1 / n) > 0.0001,
             };
-          })
+          }
         );
+        corrigiu = porBuscaRateio("levantamento", levantamento, novo, setLevantamento) || corrigiu;
       }
       if ((dados.captadores_fora ?? 0) > 0 && !dados.captadores?.length) {
         setAviso("O captador deste imóvel não está na lista de rateio — escolha na mão.");
       }
+      return corrigiu;
   }
 
   /**
@@ -524,9 +580,12 @@ export default function FechamentoForm({
       }
       if (!r.ok) return;
       const dados = await r.json();
+      // `corrigiu` acumula se a busca trocou algo que uma busca ANTERIOR tinha
+      // posto — é o que vira aviso no fim, pra correção não acontecer calada.
+      let corrigiu = false;
       // A referência vem junto: é a chave do imóvel, e a adm digitaria de novo.
-      if (dados.ref && !ref.trim()) setRef(dados.ref);
-      aplicarDadosDoImovel(dados);
+      if (dados.ref) corrigiu = porBusca("ref", ref, dados.ref, setRef) || corrigiu;
+      corrigiu = aplicarDadosDoImovel(dados) || corrigiu;
 
       /*
        * As duas datas do contrato. A ASSINATURA é a que define a competência
@@ -538,11 +597,13 @@ export default function FechamentoForm({
        * diferente do da assinatura, e às vezes no mês seguinte. Não muda o mês
        * do fechamento; serve pra adm saber de que contrato se trata.
        */
-      if (dados.data_assinatura && !dataContrato) {
-        setDataContrato(String(dados.data_assinatura).slice(0, 10));
+      if (dados.data_assinatura) {
+        const d = String(dados.data_assinatura).slice(0, 10);
+        corrigiu = porBusca("data_contrato", dataContrato, d, setDataContrato) || corrigiu;
       }
-      if (tipo === "locacao" && dados.data_inicio && !dataInicio) {
-        setDataInicio(String(dados.data_inicio).slice(0, 10));
+      if (tipo === "locacao" && dados.data_inicio) {
+        const d = String(dados.data_inicio).slice(0, 10);
+        corrigiu = porBusca("data_inicio", dataInicio, d, setDataInicio) || corrigiu;
       }
 
       /*
@@ -562,11 +623,11 @@ export default function FechamentoForm({
        * É a mesma regra que o resto do fechamento já usa para saber o que a
        * imobiliária recebe: venda olha a comissão, locação olha o valor.
        */
-      if (tipo === "venda" && dados.comissao_valor > 0 && !comissao.trim()) {
-        setComissao(String(dados.comissao_valor));
+      if (tipo === "venda" && dados.comissao_valor > 0) {
+        corrigiu = porBusca("comissao", comissao, String(dados.comissao_valor), setComissao) || corrigiu;
       }
-      if (tipo === "locacao" && dados.valor > 0 && !valorLocacao.trim()) {
-        setValorLocacao(String(dados.valor));
+      if (tipo === "locacao" && dados.valor > 0) {
+        corrigiu = porBusca("valor", valorLocacao, String(dados.valor), setValorLocacao) || corrigiu;
       }
 
       /*
@@ -575,19 +636,29 @@ export default function FechamentoForm({
        * entre eles (100% para um só), não a fatia da comissão. Então o nome
        * vem de lá e o percentual sai da regra da casa, igual ao Levantamento.
        */
-      const semFechamento = fechamento.every((f) => !f.corretor_id && !f.texto.trim());
-      if (dados.comissionados?.length && semFechamento) {
+      if (dados.comissionados?.length) {
         const n = dados.comissionados.length;
-        setFechamento(
-          dados.comissionados.map((c: { corretor_id: number; nome: string; percentual: number | null }) => {
+        const novo = dados.comissionados.map(
+          (c: { corretor_id: number; nome: string; percentual: number | null }) => {
             const fatia = c.percentual != null && c.percentual > 0 ? c.percentual / 100 : 1 / n;
             return {
               corretor_id: c.corretor_id,
               texto: c.nome,
               percentual: String(Number((regra.fechamento * fatia * 100).toFixed(4))),
             };
-          })
+          }
         );
+        corrigiu = porBuscaRateio("fechamento", fechamento, novo, setFechamento) || corrigiu;
+      }
+
+      /*
+       * Correção silenciosa é pior do que erro visível: se a busca trocou o
+       * que outra busca tinha posto, a adm precisa saber — foi digitando "44"
+       * e depois "4442" que um negócio saiu com o número de um contrato e os
+       * dados de outro.
+       */
+      if (corrigiu) {
+        setAviso(`Os campos foram atualizados com os dados do contrato ${contrato.trim()}.`);
       }
     } catch {
       // Busca é conveniência: falhou, a pessoa preenche na mão.
