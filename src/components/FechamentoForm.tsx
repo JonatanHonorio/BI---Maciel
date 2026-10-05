@@ -651,7 +651,9 @@ export default function FechamentoForm({
     // que é quem de fato tranca.
     const faltam = camposFaltando(
       {
-        data_contrato: dataContrato, ref, endereco, origem, valor,
+        data_contrato: dataContrato,
+        data_inicio: tipo === "locacao" ? dataInicio : null,
+        ref, endereco, origem, valor,
         comissao: comissao ? Number(comissao) : null,
         pagamento, rateio,
       },

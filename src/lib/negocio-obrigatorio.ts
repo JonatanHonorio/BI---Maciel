@@ -19,12 +19,18 @@
  *    de composição com outra imobiliária;
  *  - **Gerência**: a Diretoria não tem gerente, e o bloco fica vazio ali;
  *  - **Observação**: é anotação livre.
+ *
+ * E o que ENTROU depois: o **início da vigência**, em locação (05/10/2026).
+ * Ali a assinatura e o início divergem em 62% dos contratos, e sem o início
+ * não dá pra saber de que contrato a comissão é.
  */
 
 export type TipoNegocio = "venda" | "locacao";
 
 export interface NegocioObrigatorio {
   data_contrato?: string | null;
+  /** Início da vigência — só locação. */
+  data_inicio?: string | null;
   ref?: string | null;
   endereco?: string | null;
   origem?: string | null;
@@ -44,7 +50,16 @@ const vazio = (v: unknown) => v === null || v === undefined || String(v).trim() 
 export function camposFaltando(n: NegocioObrigatorio, tipo: TipoNegocio): string[] {
   const faltam: string[] = [];
 
-  if (vazio(n.data_contrato)) faltam.push("Data Contrato");
+  if (vazio(n.data_contrato)) faltam.push(tipo === "locacao" ? "Assinatura" : "Data Contrato");
+  /*
+   * Início da vigência, exigido em locação desde 05/10/2026. É um dado que
+   * existe no Kurole e que o formulário preenche sozinho pelo nº do contrato —
+   * exigir só obriga a digitar quando o CT ainda não foi numerado.
+   *
+   * "Daqui pra frente": as 31 locações já lançadas que ficaram sem início são
+   * as que não têm CT de onde tirá-lo, e esta checagem só roda ao gravar.
+   */
+  if (tipo === "locacao" && vazio(n.data_inicio)) faltam.push("Início da locação");
   if (vazio(n.ref)) faltam.push("Ref");
   if (vazio(n.endereco)) faltam.push("Endereço");
 
