@@ -14,7 +14,9 @@ type Corretor = { id: number; nome: string };
 // o texto casa com um corretor da lista. São separados porque enquanto a
 // pessoa digita ("Dani...") ainda não existe corretor escolhido — com um
 // campo só, o que ela digitou sumiria a cada tecla.
-type LinhaRateio = { corretor_id: number | ""; percentual: string; texto: string };
+// `manual` marca a linha cujo percentual foi DIGITADO: a divisão automática
+// não mexe mais nela, e o que sobra do bloco se divide entre as outras.
+type LinhaRateio = { corretor_id: number | ""; percentual: string; texto: string; manual?: boolean };
 
 const inputCls = "border-input bg-card w-full rounded-md border px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring";
 const labelCls = "mb-1 block text-xs font-medium text-muted-foreground";
@@ -24,27 +26,50 @@ const pctNum = (s: string): number | null => (s.trim() === "" ? null : Number(s)
 
 const temDestinatario = (l: LinhaRateio) => Boolean(l.corretor_id) || l.texto.trim() !== "";
 
+/** Soma o que está escrito nas linhas do bloco, em pontos percentuais. */
+const somaDigitada = (lista: LinhaRateio[]) =>
+  lista.filter(temDestinatario).reduce((s, l) => s + (Number(l.percentual) || 0), 0);
+
 /**
- * Divide o percentual do bloco entre as linhas que já têm destinatário.
+ * Divide o percentual do bloco entre as linhas que já têm destinatário, sem
+ * tocar nas que foram digitadas à mão.
  *
  * O percentual é da FUNÇÃO: a Maciel paga 30% pelo fechamento, então dois
  * fechadores ficam com 15% cada. Precisa rodar também ao ADICIONAR ou REMOVER
  * uma linha — sem isso o primeiro corretor continuava com os 30% cheios e o
  * negócio distribuía 60%.
  *
+ * O que SOBRA é o que se divide (04/10/2026): numa captação dividida, digitar
+ * 7% num captador deixa 3% para o outro. A divisão em partes iguais continua
+ * sendo o padrão — ela só deixa de valer para a linha que alguém escreveu.
+ *
  * `totalDoBloco` nulo é o bloco de percentual MANUAL (Lançamento): aí nada é
  * redistribuído, porque o número que a adm digitou é o que vale.
  */
 function redistribuir(lista: LinhaRateio[], totalDoBloco: number | null): LinhaRateio[] {
   if (totalDoBloco == null) return lista;
-  const quantos = lista.filter(temDestinatario).length;
-  if (quantos === 0) return lista;
-  const cada = String(Number(((totalDoBloco / quantos) * 100).toFixed(4)));
+  const ativas = lista.filter(temDestinatario);
+  if (ativas.length === 0) return lista;
+  const fixado = somaDigitada(ativas.filter((l) => l.manual));
+  const livres = ativas.filter((l) => !l.manual).length;
+  // Digitaram mais do que o bloco paga: as livres ficam zeradas e o aviso de
+  // soma aparece. Negativo aqui viraria percentual negativo no banco.
+  const sobra = Math.max(0, totalDoBloco * 100 - fixado);
+  const cada = livres > 0 ? String(Number((sobra / livres).toFixed(4))) : "";
   // Linha que ficou sem nome perde o percentual: ela é descartada ao salvar,
   // mas enquanto fica na tela com o número antigo o resumo soma a mais e
   // parece que o rateio estourou.
-  return lista.map((l) => ({ ...l, percentual: temDestinatario(l) ? cada : "" }));
+  return lista.map((l) =>
+    !temDestinatario(l)
+      ? { ...l, percentual: "", manual: false }
+      : l.manual
+        ? l
+        : { ...l, percentual: cada }
+  );
 }
+
+/** Tira as marcas de digitação e devolve o bloco à divisão da regra. */
+const limparManual = (lista: LinhaRateio[]) => lista.map((l) => ({ ...l, manual: false }));
 
 /**
  * Quanto cada bloco paga, considerando o captador de 20% (Mauro, Girotto,
@@ -71,16 +96,24 @@ function percentuaisDosBlocos(tipo: Tipo, captadores: LinhaRateio[]) {
   };
 }
 
-/** A fatia de cada captador: 10% pro de 20%, 5% pros outros, quando dividem. */
+/**
+ * A fatia de cada captador: 10% pro de 20%, 5% pros outros, quando dividem.
+ *
+ * Linha digitada à mão fica como está, igual ao `redistribuir`: a regra do
+ * Girotto é o padrão da casa, não uma trava.
+ */
 function distribuirCaptacao(lista: LinhaRateio[], tipo: Tipo): LinhaRateio[] {
   const { levantamento } = percentuaisDosBlocos(tipo, lista);
   const comNome = lista.filter(temDestinatario);
   const especial = captacaoDiferenciada(comNome.map((l) => l.corretor_id));
   if (!especial || comNome.length <= 1) return redistribuir(lista, levantamento);
-  return lista.map((l) => ({
-    ...l,
-    percentual: temDestinatario(l) ? (captacaoDiferenciada([l.corretor_id]) ? "10" : "5") : "",
-  }));
+  return lista.map((l) =>
+    !temDestinatario(l)
+      ? { ...l, percentual: "", manual: false }
+      : l.manual
+        ? l
+        : { ...l, percentual: captacaoDiferenciada([l.corretor_id]) ? "10" : "5" }
+  );
 }
 
 // Gêmea de ORIGENS_FECHAMENTO em @/lib/fechamento (que não pode ser
@@ -104,16 +137,13 @@ const TAXA_COMISSAO_VENDA = 0.06;
  * as unidades; num select nativo só dá pra pular pela primeira letra.
  */
 function BlocoRateio({
-  titulo, ajuda, lista, set, corretores, atualizarLinha, totalDoBloco, distribuir, percentualFixo,
+  titulo, ajuda, lista, set, corretores, totalDoBloco, distribuir, percentualFixo,
 }: {
   titulo: string;
   ajuda?: string;
   lista: LinhaRateio[];
   set: (l: LinhaRateio[]) => void;
   corretores: Corretor[];
-  atualizarLinha: (
-    lista: LinhaRateio[], set: (l: LinhaRateio[]) => void, i: number, campos: Partial<LinhaRateio>
-  ) => void;
   /**
    * Percentual da comissão que este bloco paga no total, a dividir entre as
    * linhas — ou `null` quando o percentual é digitado caso a caso.
@@ -124,17 +154,29 @@ function BlocoRateio({
   /**
    * Percentual só de leitura — quem manda é a regra da casa (02/10/2026).
    *
-   * Os blocos de Levantamento, Fechamento e Gerência têm percentual de
-   * tabela, e digitá-lo à mão foi a origem de quase toda a bagunça que a
-   * auditoria achou: 7,5/2,5 numa captação dividida, 15/15 num fechamento,
-   * gerência de locação em 10%. O número continua visível, para a adm
-   * conferir o que o negócio vai pagar.
+   * Fechamento e Gerência têm percentual de tabela, e digitá-lo à mão foi a
+   * origem de quase toda a bagunça que a auditoria achou: 15/15 num
+   * fechamento, gerência de locação em 10%. O número continua visível, para a
+   * adm conferir o que o negócio vai pagar.
    *
-   * Lançamento fica de fora: ali não existe percentual de tabela, ele muda
-   * com o produto e com quem é o diretor daquele lançamento.
+   * Dois blocos ficam de fora. Em Lançamento não existe percentual de tabela:
+   * ele muda com o produto e com quem é o diretor daquele lançamento. Em
+   * Levantamento o TOTAL é de tabela mas a divisão não (04/10/2026) — os
+   * captadores combinam entre si, e há quem prefira dividir a captação em vez
+   * da venda. Lá a digitação volta, com a soma do bloco à vista.
    */
   percentualFixo?: boolean;
 }) {
+  const repartir = (l: LinhaRateio[]) => (distribuir ? distribuir(l) : redistribuir(l, totalDoBloco));
+  // Quanto o bloco está pagando de fato, contra o que a regra manda. Só
+  // diverge quando alguém digitou — e é exatamente aí que precisa aparecer.
+  const soma = somaDigitada(lista);
+  const esperado = totalDoBloco == null ? null : Number((totalDoBloco * 100).toFixed(4));
+  // Bloco ainda vazio não está "fora da regra" — está em branco.
+  const foraDaRegra =
+    esperado != null && lista.some(temDestinatario) && Math.abs(soma - esperado) > 0.001;
+  const temDigitado = lista.some((l) => l.manual && temDestinatario(l));
+
   return (
     <div>
       <label className={labelCls}>
@@ -155,7 +197,7 @@ function BlocoRateio({
                 copia[i] = { ...copia[i], texto, corretor_id: achado ? achado.id : "" };
                 // Divide o percentual do bloco entre quem já tem nome. Entrar
                 // ou sair alguém muda a fatia de todos, não só a da linha nova.
-                set(distribuir ? distribuir(copia) : redistribuir(copia, totalDoBloco));
+                set(repartir(copia));
               }}
               className={inputCls + (linha.texto && !linha.corretor_id ? " border-amber-400" : "")}
               title={
@@ -175,16 +217,24 @@ function BlocoRateio({
               value={linha.percentual}
               readOnly={percentualFixo}
               title={percentualFixo ? "Percentual da regra da casa — não se digita aqui" : undefined}
-              onChange={(e) => atualizarLinha(lista, set, i, { percentual: e.target.value })}
-              className={inputCls + " w-20" + (percentualFixo ? " bg-gray-50 text-muted-foreground" : "")}
+              onChange={(e) => {
+                if (percentualFixo) return;
+                // Digitou: esta linha passa a mandar e o resto do bloco se
+                // acerta em volta dela — 7% num captador deixa 3% no outro.
+                const copia = [...lista];
+                copia[i] = { ...copia[i], percentual: e.target.value, manual: true };
+                set(repartir(copia));
+              }}
+              className={
+                inputCls + " w-20" +
+                (percentualFixo ? " bg-gray-50 text-muted-foreground" : "") +
+                (linha.manual && temDestinatario(linha) ? " border-blue-400" : "")
+              }
             />
             {lista.length > 1 && (
               <button
                 type="button"
-                onClick={() => {
-                  const sobrou = lista.filter((_, x) => x !== i);
-                  set(distribuir ? distribuir(sobrou) : redistribuir(sobrou, totalDoBloco));
-                }}
+                onClick={() => set(repartir(lista.filter((_, x) => x !== i)))}
                 className="text-muted-foreground hover:text-destructive px-1"
               >
                 <Trash2 size={14} />
@@ -193,13 +243,32 @@ function BlocoRateio({
           </div>
         ))}
       </div>
-      <button
-        type="button"
-        onClick={() => set([...lista, { corretor_id: "", percentual: "", texto: "" }])}
-        className="mt-1.5 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
-      >
-        <Plus size={12} /> adicionar
-      </button>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <button
+          type="button"
+          onClick={() => set([...lista, { corretor_id: "", percentual: "", texto: "" }])}
+          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+        >
+          <Plus size={12} /> adicionar
+        </button>
+        {temDigitado && (
+          <button
+            type="button"
+            onClick={() => set(repartir(limparManual(lista)))}
+            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+          >
+            voltar ao padrão
+          </button>
+        )}
+        {/* A soma só aparece quando foge da regra: no caso normal ela repete o
+            que já está escrito no cabeçalho do bloco. */}
+        {foraDaRegra && (
+          <span className="text-xs text-amber-700">
+            soma <strong className="tabular-nums">{pctTexto(soma / 100)}</strong>
+            {" "}(a regra é {pctTexto(esperado! / 100)})
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -418,6 +487,10 @@ export default function FechamentoForm({
               corretor_id: c.corretor_id,
               texto: c.nome,
               percentual: String(Number((regra.levantamento * fatia * 100).toFixed(4))),
+              // Divisão desigual vinda do cadastro (70/30, 75/25) entra como
+              // digitada, senão a primeira mexida no bloco a devolveria para
+              // meio a meio e a captação cadastrada se perderia calada.
+              manual: Math.abs(fatia - 1 / n) > 0.0001,
             };
           })
         );
@@ -504,14 +577,6 @@ export default function FechamentoForm({
     } catch {
       // Busca é conveniência: falhou, a pessoa preenche na mão.
     }
-  }
-
-  function atualizarLinha(
-    lista: LinhaRateio[], set: (l: LinhaRateio[]) => void, i: number, campos: Partial<LinhaRateio>
-  ) {
-    const copia = [...lista];
-    copia[i] = { ...copia[i], ...campos };
-    set(copia);
   }
 
   async function salvar() {
@@ -709,21 +774,21 @@ export default function FechamentoForm({
         "mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 " +
         (mostraLancamento ? "xl:grid-cols-4" : "xl:grid-cols-3")
       }>
+        {/* Único bloco de percentual de tabela que aceita digitação: a
+            captação se divide em proporções que a regra não prevê — há quem
+            prefira dividir a captação em vez da venda. Ver `redistribuir`. */}
         <BlocoRateio
           titulo="Levantamento"
           ajuda={temCaptador20
             ? `${pctTexto(pctBloco.levantamento)} no total — captação de 20%, tirada do Fechamento`
-            : `${pctTexto(pctBloco.levantamento)} no total`}
+            : `${pctTexto(pctBloco.levantamento)} no total, dá pra dividir`}
           lista={levantamento} set={setLevantamento} corretores={corretores}
-          atualizarLinha={atualizarLinha}
           totalDoBloco={pctBloco.levantamento}
           distribuir={(l) => distribuirCaptacao(l, tipo)}
-          percentualFixo
         />
         <BlocoRateio
           titulo="Fechamento" ajuda={pctTexto(pctBloco.fechamento)}
           lista={fechamento} set={setFechamento} corretores={corretores}
-          atualizarLinha={atualizarLinha}
           totalDoBloco={pctBloco.fechamento}
           percentualFixo
         />
@@ -731,7 +796,6 @@ export default function FechamentoForm({
           titulo="Gerência"
           ajuda={temZulietti ? `${pctTexto(pctGerencia)} — 5% vão pro Zulietti` : pctTexto(pctGerencia)}
           lista={gerencia} set={setGerencia} corretores={corretores}
-          atualizarLinha={atualizarLinha}
           totalDoBloco={pctGerencia}
           percentualFixo
         />
@@ -742,7 +806,6 @@ export default function FechamentoForm({
           <BlocoRateio
             titulo="Lançamento" ajuda="% manual"
             lista={lancamento} set={setLancamento} corretores={corretores}
-            atualizarLinha={atualizarLinha}
             totalDoBloco={null}
           />
         )}
