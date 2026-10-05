@@ -74,7 +74,9 @@ export async function GET(req: NextRequest) {
       p.unidade AS p_unidade, to_char(p.competencia, 'MM/YYYY') AS p_competencia,
       COALESCE(
         json_agg(
-          json_build_object('corretor_id', rc.corretor_id, 'nome', COALESCE(NULLIF(TRIM(cor.nome_comercial), ''), NULLIF(TRIM(cor.nome), ''), rc.nome_livre),
+          json_build_object('corretor_id', rc.corretor_id,
+            'nome', COALESCE(NULLIF(TRIM(cor.nome_comercial), ''), NULLIF(TRIM(cor.nome), ''), rc.nome_livre,
+                     NULLIF(initcap(replace(split_part(COALESCE(cor.email, ''), '@', 1), '.', ' ')), '')),
             'papel', rc.papel, 'percentual', rc.percentual,
             'pagamentos', COALESCE(pg.pagamentos, '[]'::json))
         ) FILTER (WHERE rc.id IS NOT NULL), '[]'

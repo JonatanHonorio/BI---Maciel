@@ -253,7 +253,8 @@ export async function negociosDaCompetencia(
         json_agg(
           json_build_object(
             'id', rc.id, 'corretor_id', rc.corretor_id,
-            'nome', COALESCE(NULLIF(TRIM(cor.nome_comercial), ''), NULLIF(TRIM(cor.nome), ''), rc.nome_livre),
+            'nome', COALESCE(NULLIF(TRIM(cor.nome_comercial), ''), NULLIF(TRIM(cor.nome), ''), rc.nome_livre,
+                     NULLIF(initcap(replace(split_part(COALESCE(cor.email, ''), '@', 1), '.', ' ')), '')),
             'papel', rc.papel, 'percentual', rc.percentual,
             'pagamentos', COALESCE(pg.pagamentos, '[]'::json)
           ) ORDER BY rc.papel, rc.id

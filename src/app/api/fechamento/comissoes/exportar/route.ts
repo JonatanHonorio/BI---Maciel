@@ -102,7 +102,9 @@ export async function GET(req: NextRequest) {
   const wd = wb.addWorksheet("Por destinatário");
   wd.addRow(["Destinatário", "Papéis", "Negócios", "Devido", "Pago", "Pendente"]);
   [...porDestinatario.values()]
-    .sort((a, b) => (b.devido - b.pago) - (a.devido - a.pago) || a.nome.localeCompare(b.nome))
+    // Nome nulo quebrava a exportação do mesmo jeito que quebrava a tela —
+    // ver o comentário em ../route.ts.
+    .sort((a, b) => (b.devido - b.pago) - (a.devido - a.pago) || (a.nome ?? "").localeCompare(b.nome ?? ""))
     .forEach((d) => {
       wd.addRow([d.nome, [...d.papeis].join(", "), d.negocios, d.devido, d.pago, d.devido - d.pago]);
     });

@@ -81,7 +81,8 @@ export async function rankingPorPapel(
              COALESCE(rc.corretor_id::text, 'nome:' || lower(btrim(rc.nome_livre))) AS chave,
              max(rc.corretor_id) AS corretor_id,
              max(COALESCE(NULLIF(TRIM(k.nome_comercial), ''), NULLIF(TRIM(k.nome), ''),
-                          btrim(rc.nome_livre))) AS nome
+                          btrim(rc.nome_livre),
+                          NULLIF(initcap(replace(split_part(COALESCE(k.email, ''), '@', 1), '.', ' ')), ''))) AS nome
       FROM fechamento_negocio_corretores rc
       JOIN base b ON b.id = rc.negocio_id
       LEFT JOIN corretores k ON k.id = rc.corretor_id
@@ -134,7 +135,8 @@ export async function rankingUnidades(sql: SQL, f: FiltroRanking): Promise<Linha
   const gerentes = (await sql`
     SELECT DISTINCT ON (p.unidade) p.unidade,
            COALESCE(NULLIF(TRIM(k.nome_comercial), ''), NULLIF(TRIM(k.nome), ''),
-                    btrim(rc.nome_livre)) AS gerente
+                    btrim(rc.nome_livre),
+                    NULLIF(initcap(replace(split_part(COALESCE(k.email, ''), '@', 1), '.', ' ')), '')) AS gerente
     FROM fechamento_negocio_corretores rc
     JOIN fechamento_negocios n ON n.id = rc.negocio_id AND NOT n.cancelado
     JOIN fechamento_periodos p ON p.id = n.periodo_id

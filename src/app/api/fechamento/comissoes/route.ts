@@ -87,7 +87,13 @@ export async function GET(req: NextRequest) {
       negocios: d.negocios, devido: d.devido, pago: d.pago,
       pendente: pendenteAPagar(d.devido, d.pago),
     }))
-    .sort((a, b) => b.pendente - a.pendente || a.nome.localeCompare(b.nome));
+    // `?? ""` não é zelo à toa: um destinatário sem nome derrubava a TELA
+    // INTEIRA aqui (05/10/2026). O Jerson Lima está sem nome nos dois campos
+    // do Kurole, e `localeCompare` de nulo estoura — a Erika via "Não foi
+    // possível carregar as comissões" em dez/2025 por causa de uma linha. A
+    // consulta agora tem o nome tirado do e-mail, mas um nome faltando nunca
+    // mais pode custar a tela.
+    .sort((a, b) => b.pendente - a.pendente || (a.nome ?? "").localeCompare(b.nome ?? ""));
 
   const totais = {
     devido: comNegociosComputados.reduce((s, n) => s + n.valor_devido_total, 0),
