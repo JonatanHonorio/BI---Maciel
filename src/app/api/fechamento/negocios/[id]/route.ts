@@ -103,7 +103,11 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   await sql`
     UPDATE fechamento_negocios SET
-      data_contrato = ${body.data_contrato}, ref = ${body.ref}, contrato = ${body.contrato},
+      data_contrato = ${body.data_contrato},
+      -- Início de vigência é campo de locação; em venda fica nulo mesmo que
+      -- venha preenchido no corpo da requisição.
+      data_inicio = ${check.tipo === "locacao" ? body.data_inicio || null : null},
+      ref = ${body.ref}, contrato = ${body.contrato},
       endereco = ${body.endereco}, origem = ${body.origem}, valor = ${body.valor},
       comissao = ${body.comissao}, pagamento = ${body.pagamento}, observacao = ${body.observacao},
       atualizado_em = NOW(), atualizado_por = ${session.id}

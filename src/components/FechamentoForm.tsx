@@ -308,6 +308,9 @@ export default function FechamentoForm({
   onCancelar: () => void;
 }) {
   const [dataContrato, setDataContrato] = useState("");
+  // Início da vigência — só locação. Não é obrigatório: 30 das locações já
+  // lançadas não têm nem número de contrato, que é de onde ele viria.
+  const [dataInicio, setDataInicio] = useState("");
   const [ref, setRef] = useState("");
   const [contrato, setContrato] = useState("");
   const [endereco, setEndereco] = useState("");
@@ -525,9 +528,21 @@ export default function FechamentoForm({
       if (dados.ref && !ref.trim()) setRef(dados.ref);
       aplicarDadosDoImovel(dados);
 
-      // Data do contrato: a assinatura é a data que o fechamento usa.
+      /*
+       * As duas datas do contrato. A ASSINATURA é a que define a competência
+       * — "a locação vale pro mês que o contrato foi assinado, ou seja toda
+       * documentação foi recolhida e a negociação foi concluída" (05/10/2026).
+       *
+       * O INÍCIO entra ao lado, só em locação, porque ali as duas divergem com
+       * frequência: 62% dos contratos de locação do Kurole começam em dia
+       * diferente do da assinatura, e às vezes no mês seguinte. Não muda o mês
+       * do fechamento; serve pra adm saber de que contrato se trata.
+       */
       if (dados.data_assinatura && !dataContrato) {
         setDataContrato(String(dados.data_assinatura).slice(0, 10));
+      }
+      if (tipo === "locacao" && dados.data_inicio && !dataInicio) {
+        setDataInicio(String(dados.data_inicio).slice(0, 10));
       }
 
       /*
@@ -655,6 +670,7 @@ export default function FechamentoForm({
         body: JSON.stringify({
           periodo_id: periodoId,
           data_contrato: dataContrato || null,
+          data_inicio: tipo === "locacao" ? (dataInicio || null) : null,
           ref: ref || null,
           contrato: contrato || null,
           endereco: endereco || null,
@@ -710,9 +726,20 @@ export default function FechamentoForm({
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div>
-          <label className={labelCls}>Data Contrato</label>
+          {/* Em locação vale a pena nomear: é a assinatura que manda no mês,
+              e o campo ao lado é outra data do mesmo contrato. */}
+          <label className={labelCls}>{tipo === "locacao" ? "Assinatura" : "Data Contrato"}</label>
           <input type="date" value={dataContrato} onChange={(e) => setDataContrato(e.target.value)} className={inputCls} />
         </div>
+        {tipo === "locacao" && (
+          <div>
+            <label className={labelCls}>
+              Início da locação
+              <span className="ml-1.5 font-normal text-muted-foreground/70">não muda o mês</span>
+            </label>
+            <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className={inputCls} />
+          </div>
+        )}
         <div>
           <label className={labelCls}>Ref</label>
           <input

@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
   const todasUnidades = unidadesEscopo === null;
 
   const negocios = (await sql`
-    SELECT n.id, n.data_contrato, n.ref, n.contrato, n.endereco, n.origem,
+    SELECT n.id, n.data_contrato, n.data_inicio, n.ref, n.contrato, n.endereco, n.origem,
       n.valor, n.comissao, n.pagamento, n.cancelado,
       p.unidade AS p_unidade, to_char(p.competencia, 'MM/YYYY') AS p_competencia,
       COALESCE(
@@ -95,7 +95,8 @@ export async function GET(req: NextRequest) {
     GROUP BY n.id, p.unidade, p.competencia
     ORDER BY p.competencia, p.unidade, n.id
   `) as {
-    id: number; data_contrato: string | null; ref: string | null; contrato: string | null;
+    id: number; data_contrato: string | null; data_inicio: string | null;
+    ref: string | null; contrato: string | null;
     endereco: string | null; origem: string | null; valor: string | null; comissao: string | null;
     cancelado: boolean; p_unidade: string; p_competencia: string;
     pagamento: string | null; rateio: Rateio[];
@@ -126,7 +127,10 @@ export async function GET(req: NextRequest) {
 
   const colunas: Coluna[] = [
     { titulo: "QTDE", largura: 6, valor: (_n, i) => i + 1 },
-    { titulo: "Data Contrato", largura: 13, valor: (n) => n.data_contrato },
+    { titulo: ehVenda ? "Data Contrato" : "Assinatura", largura: 13, valor: (n) => n.data_contrato },
+    // Início da vigência só existe em locação, e lá vale a pena: a chave
+    // costuma entrar depois da assinatura, às vezes no mês seguinte.
+    ...(ehVenda ? [] : [{ titulo: "Início", largura: 13, valor: (n: (typeof negocios)[number]) => n.data_inicio }]),
     // Numa faixa de vários meses a competência deixa de ser o cabeçalho da
     // planilha e precisa ir linha a linha.
     ...(porPeriodo ? [] : [{ titulo: "Competência", largura: 12, valor: (n: (typeof negocios)[number]) => n.p_competencia }]),

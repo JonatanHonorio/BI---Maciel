@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
     const escopo = querTodasUnidades ? unidadesOk : escopoUnidade(unidadesOk, unidade);
     const todasPermitidas = escopo === null;
     const negociosTodos = await sqlTodas`
-      SELECT n.id, n.data_contrato, n.ref, n.contrato, n.endereco, n.origem,
+      SELECT n.id, n.data_contrato, n.data_inicio, n.ref, n.contrato, n.endereco, n.origem,
         n.valor, n.comissao, n.pagamento, n.observacao,
         n.comissao_paga, n.comissao_paga_em, n.cancelado, n.cancelado_motivo,
         p.unidade, p.tipo, p.status AS periodo_status,
@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
   `;
 
   const negocios = await sql`
-    SELECT n.id, n.data_contrato, n.ref, n.contrato, n.endereco, n.origem,
+    SELECT n.id, n.data_contrato, n.data_inicio, n.ref, n.contrato, n.endereco, n.origem,
       n.valor, n.comissao, n.pagamento, n.observacao,
       n.comissao_paga, n.comissao_paga_em, n.cancelado, n.cancelado_motivo,
       COALESCE(

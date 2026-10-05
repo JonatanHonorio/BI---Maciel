@@ -9,7 +9,10 @@ import { fmtMoney } from "@/lib/format";
 // fora do cadastro do Kurole) — o `nome` já chega resolvido pela API.
 type Rateio = { corretor_id: number | null; nome: string; papel: "levantamento" | "fechamento"; percentual: number | null };
 type Negocio = {
-  id: number; data_contrato: string | null; ref: string | null; contrato: string | null;
+  id: number; data_contrato: string | null;
+  /** Início da vigência — só locação. A competência continua sendo a da assinatura. */
+  data_inicio: string | null;
+  ref: string | null; contrato: string | null;
   endereco: string | null; origem: string | null; valor: number | null; comissao: number | null;
   pagamento: string | null; observacao: string | null; comissao_paga: boolean; rateio: Rateio[];
   /** Venda cancelada/distratada: a linha fica, os valores saem das contas. */
@@ -58,6 +61,31 @@ const fmtDataISO = (s: string) => {
   const [y, m, d] = s.slice(0, 10).split("-");
   return `${d}/${m}/${y}`;
 };
+
+const dataOuTraco = (v: unknown) => (v ? fmtDataISO(v as string) : "—");
+
+/**
+ * As colunas de data da tabela, que mudam com a vertical (05/10/2026).
+ *
+ * Em venda é uma data só. Em locação são duas: a ASSINATURA, que é a que
+ * define o mês do fechamento ("a locação vale pro mês que o contrato foi
+ * assinado, ou seja toda documentação foi recolhida e a negociação foi
+ * concluída"), e o INÍCIO da vigência, que costuma ser depois — 62% dos
+ * contratos de locação do Kurole começam em dia diferente do da assinatura, e
+ * 68 dos já lançados começam no mês seguinte.
+ *
+ * `tipo` nulo é a visão das duas verticais juntas: as colunas de locação
+ * aparecem, e as linhas de venda mostram "—" no início.
+ */
+function colunasDeData(tipo: "venda" | "locacao" | null) {
+  if (tipo === "venda") {
+    return [{ key: "data_contrato", label: "Data", format: dataOuTraco }];
+  }
+  return [
+    { key: "data_contrato", label: "Assinatura", format: dataOuTraco },
+    { key: "data_inicio", label: "Início", format: dataOuTraco },
+  ];
+}
 
 /** Agrupa os períodos por mês, pra faixa longa não virar 80 etiquetas. */
 function resumoPorMes(periodos: Consolidado["periodos"]) {
@@ -588,7 +616,7 @@ export default function FechamentoPage() {
             <DataTable
               searchable
               columns={[
-                { key: "data_contrato", label: "Data", format: (v) => (v ? fmtDataISO(v as string) : "—") },
+                ...colunasDeData(consolidado.tipo),
                 // Com faixa de um mês só, a competência é o próprio cabeçalho.
                 ...(consolidado.de !== consolidado.ate
                   ? [{
@@ -714,7 +742,7 @@ export default function FechamentoPage() {
             <DataTable
               searchable
               columns={[
-                { key: "data_contrato", label: "Data", format: (v) => (v ? fmtDataISO(v as string) : "—") },
+                ...colunasDeData(periodo.tipo),
                 { key: "ref", label: "Ref" },
                 { key: "contrato", label: "Contrato" },
                 { key: "endereco", label: "Endereço" },

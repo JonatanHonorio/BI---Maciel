@@ -14,6 +14,12 @@ interface RateioInput extends RateioEntrada {
 interface NegocioInput {
   periodo_id: number;
   data_contrato: string | null;
+  /**
+   * Início da vigência — só locação (05/10/2026). O mês do fechamento continua
+   * sendo o da ASSINATURA; esta data é informação ao lado, porque a chave
+   * costuma entrar dias depois (e às vezes no mês seguinte).
+   */
+  data_inicio: string | null;
   ref: string | null;
   contrato: string | null;
   endereco: string | null;
@@ -83,9 +89,11 @@ export async function POST(req: NextRequest) {
 
   const [negocio] = await sql`
     INSERT INTO fechamento_negocios
-      (periodo_id, data_contrato, ref, contrato, endereco, origem, valor, comissao, pagamento, observacao, criado_por)
+      (periodo_id, data_contrato, data_inicio, ref, contrato, endereco, origem, valor, comissao, pagamento, observacao, criado_por)
     VALUES
-      (${body.periodo_id}, ${body.data_contrato}, ${body.ref}, ${body.contrato}, ${body.endereco},
+      (${body.periodo_id}, ${body.data_contrato},
+       ${periodo.tipo === "locacao" ? body.data_inicio || null : null},
+       ${body.ref}, ${body.contrato}, ${body.endereco},
        ${body.origem}, ${body.valor}, ${body.comissao}, ${body.pagamento}, ${body.observacao}, ${session.id})
     RETURNING id
   `;
