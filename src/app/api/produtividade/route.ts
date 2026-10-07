@@ -140,9 +140,16 @@ export async function GET(req: NextRequest) {
         AND (${corretorIds}::int[] IS NULL OR a.corretor_id = ANY(${corretorIds}::int[]))` as unknown as Promise<{ n: string }[]>,
   ]);
 
+  /*
+   * `Number(x.id)` não é zelo à toa: o driver devolve o id como número numa
+   * consulta e como TEXTO em outra, conforme o tipo que sai da agregação. Com
+   * os dois formatos circulando, o mesmo corretor aparecia duas vezes no
+   * seletor da tela — "David Borges" e "David Borges" — e o filtro por id não
+   * casava com a lista que veio em texto.
+   */
   const enfeitar = (linhas: LinhaBanco[]) =>
     linhas.map((x) => ({
-      id: x.id, nome: x.nome, unidade: unidadeDoCorretor(x.id, x.dep),
+      id: Number(x.id), nome: x.nome, unidade: unidadeDoCorretor(x.id, x.dep),
       total: Number(x.n),
       proprios: x.proprios === undefined ? undefined : Number(x.proprios),
       outros: x.proprios === undefined ? undefined : Number(x.n) - Number(x.proprios),
@@ -158,6 +165,10 @@ export async function GET(req: NextRequest) {
   };
 
   const mov = movimentos.map((x) => ({
+    // O id vai junto para a tela poder filtrar por corretor pelo MESMO critério
+    // das tabelas. Filtrar por nome casaria errado no dia em que dois corretores
+    // tiverem o mesmo nome, e isso já aconteceu no cadastro (há duas "Taina").
+    id: Number(x.id),
     nome: x.nome, unidade: unidadeDoCorretor(x.id, x.dep),
     dia: paraISO(x.dia),
     total: Number(x.n), proprios: Number(x.proprios ?? 0),
