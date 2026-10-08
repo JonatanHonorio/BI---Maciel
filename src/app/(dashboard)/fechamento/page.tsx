@@ -65,13 +65,17 @@ const fmtDataISO = (s: string) => {
 const dataOuTraco = (v: unknown) => (v ? fmtDataISO(v as string) : "—");
 
 /**
- * A casa trabalha com 6% fixo em venda: o valor do imóvel é a comissão
- * dividida por isso. É a mesma conta do formulário de lançamento, onde a adm
- * nem digita o valor — ele aparece calculado embaixo da comissão.
+ * 6% é a taxa MAIS COMUM de comissão em venda, não uma regra — serve de
+ * sugestão quando não se tem o valor do contrato.
  *
- * Aqui existe porque a tela de CORREÇÃO tinha os dois campos soltos: a Tatiane
+ * ⚠️ Conferido em 08/10/2026 contra o Kurole: dos 132 contratos de venda que
+ * casam, 84 estão em 6% e 48 não, de 2,7% a 9,1%. Por isso aqui a conta é
+ * oferecida com um clique e nunca aplicada sozinha: forçá-la num negócio de
+ * taxa diferente troca um valor certo por um errado.
+ *
+ * Existe porque a tela de correção tinha os dois campos soltos: a Tatiane
  * baixou a comissão para R$ 9.000 e o valor ficou com a conta da comissão
- * antiga, R$ 166.666,67 em vez de R$ 150.000 (08/10/2026).
+ * antiga, R$ 166.666,67 em vez de R$ 150.000.
  */
 const TAXA_COMISSAO_VENDA = 0.06;
 const valorPelaComissao = (comissao: string) => {
@@ -404,19 +408,24 @@ export default function FechamentoPage() {
                 className="w-36 rounded border border-gray-300 px-2 py-1.5 text-xs tabular-nums"
               />
               {n.comissao !== null && (() => {
-                const daRegra = valorPelaComissao(correcao.comissao);
-                if (!daRegra) return null;
-                const bate = Math.abs(Number(correcao.valor) - Number(daRegra)) < 0.01;
-                return bate ? (
-                  <p className="mt-0.5 text-[10px] text-gray-400">= comissão ÷ 6%</p>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setCorrecao({ ...correcao, valor: daRegra })}
-                    className="mt-0.5 text-[10px] text-amber-700 underline-offset-2 hover:underline"
-                  >
-                    pela regra seria {fmtMoney(Number(daRegra))} — usar
-                  </button>
+                const comSeis = valorPelaComissao(correcao.comissao);
+                const c = Number(correcao.comissao);
+                const v = Number(correcao.valor);
+                if (!(c > 0) || !(v > 0)) return null;
+                const taxa = (c / v) * 100;
+                return (
+                  <p className="mt-0.5 text-[10px] text-gray-400">
+                    taxa de {taxa.toFixed(2).replace(/\.?0+$/, "")}%
+                    {comSeis && Math.abs(v - Number(comSeis)) > 0.01 && (
+                      <button
+                        type="button"
+                        onClick={() => setCorrecao({ ...correcao, valor: comSeis })}
+                        className="ml-1 text-blue-600 underline-offset-2 hover:underline"
+                      >
+                        6% daria {fmtMoney(Number(comSeis))}
+                      </button>
+                    )}
+                  </p>
                 );
               })()}
             </div>
@@ -425,16 +434,7 @@ export default function FechamentoPage() {
                 <label className="block text-[10px] uppercase tracking-wide text-gray-500">Comissão</label>
                 <input
                   value={correcao.comissao}
-                  onChange={(e) =>
-                    // O valor acompanha a comissão, como no lançamento. Ele
-                    // continua editável: se a adm digitar depois, o que ela
-                    // escreveu manda — há venda com taxa fora dos 6%.
-                    setCorrecao({
-                      ...correcao,
-                      comissao: e.target.value,
-                      valor: valorPelaComissao(e.target.value) || correcao.valor,
-                    })
-                  }
+                  onChange={(e) => setCorrecao({ ...correcao, comissao: e.target.value })}
                   inputMode="decimal"
                   className="w-36 rounded border border-gray-300 px-2 py-1.5 text-xs tabular-nums"
                 />
