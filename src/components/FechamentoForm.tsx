@@ -318,20 +318,6 @@ export default function FechamentoForm({
   const [pagamento, setPagamento] = useState("");
   const [comissao, setComissao] = useState(""); // venda
   const [valorLocacao, setValorLocacao] = useState(""); // locação
-  /**
-   * Valor da venda. Era CALCULADO (comissão ÷ 6%) e a adm nem o via como campo;
-   * virou campo de verdade em 08/10/2026.
-   *
-   * Motivo: os 6% não são fixos. Dos 132 contratos de venda que dá pra casar
-   * com o Kurole, **84 têm taxa de 6% e 48 não** — vão de 2,7% a 9,1%. Com o
-   * valor derivado da taxa fixa, o VGV saía R$ 6,17 milhões abaixo do real só
-   * nesses 132, e é o VGV que alimenta o ranking de quem mais vendeu.
-   *
-   * Agora: os 6% viram SUGESTÃO enquanto a adm digita a comissão, o número
-   * real vem do contrato quando há CT, e ela pode corrigir à mão — "realmente
-   * tem negociações que a comissão precisa ser alterada" (Jonatan, 08/10/2026).
-   */
-  const [valorVenda, setValorVenda] = useState("");
   const [observacao, setObservacao] = useState("");
   const [levantamento, setLevantamento] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "", texto: "" }]);
   const [fechamento, setFechamento] = useState<LinhaRateio[]>([{ corretor_id: "", percentual: "", texto: "" }]);
@@ -344,13 +330,7 @@ export default function FechamentoForm({
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
 
-  /** O que os 6% dariam — sugestão, não verdade. */
-  const valorSugerido = tipo === "venda" && comissao ? Number(comissao) / TAXA_COMISSAO_VENDA : null;
-  /** A taxa que o par comissão/valor realmente representa, pra um zero a mais saltar aos olhos. */
-  const taxaReal =
-    tipo === "venda" && Number(comissao) > 0 && Number(valorVenda) > 0
-      ? (Number(comissao) / Number(valorVenda)) * 100
-      : null;
+  const valorCalculado = tipo === "venda" && comissao ? Number(comissao) / TAXA_COMISSAO_VENDA : null;
   const regra = REGRAS[tipo];
 
   /** Comissão da venda, ou a prestação de serviço da locação — é sobre isso
@@ -646,15 +626,6 @@ export default function FechamentoForm({
       if (tipo === "venda" && dados.comissao_valor > 0) {
         corrigiu = porBusca("comissao", comissao, String(dados.comissao_valor), setComissao) || corrigiu;
       }
-      /*
-       * O valor REAL da venda, direto do contrato — e não a conta dos 6%. É a
-       * correção de 08/10/2026: o Kurole guarda `valor` e `taxa` por contrato,
-       * e a taxa varia de 2,7% a 9,1%. Enquanto o BI derivava tudo de 6%, o
-       * VGV ficava abaixo do real.
-       */
-      if (tipo === "venda" && dados.valor > 0) {
-        corrigiu = porBusca("valor_venda", valorVenda, String(dados.valor), setValorVenda) || corrigiu;
-      }
       if (tipo === "locacao" && dados.valor > 0) {
         corrigiu = porBusca("valor", valorLocacao, String(dados.valor), setValorLocacao) || corrigiu;
       }
@@ -744,10 +715,7 @@ export default function FechamentoForm({
       return;
     }
 
-    const valor =
-      tipo === "venda"
-        ? (valorVenda.trim() ? Number(valorVenda) : valorSugerido)
-        : (valorLocacao ? Number(valorLocacao) : null);
+    const valor = tipo === "venda" ? valorCalculado : (valorLocacao ? Number(valorLocacao) : null);
 
     // Campo em branco não dava erro em lugar nenhum: sumia do relatório e da
     // conferência com a planilha da diretoria. A mesma checagem roda na API,
@@ -881,49 +849,9 @@ export default function FechamentoForm({
           <>
             <div>
               <label className={labelCls}>Comissão (R$)</label>
-              <input
-                type="number" step="0.01" value={comissao}
-                onChange={(e) => {
-                  const nova = e.target.value;
-                  setComissao(nova);
-                  // Os 6% preenchem o valor enquanto ele está vazio ou com a
-                  // sugestão anterior. Valor vindo do contrato, ou digitado,
-                  // não é mexido — é o mesmo critério do `porBusca`.
-                  const sugestaoAntiga =
-                    comissao ? String(Number(comissao) / TAXA_COMISSAO_VENDA) : "";
-                  if (!valorVenda.trim() || valorVenda === sugestaoAntiga) {
-                    setValorVenda(nova ? String(Number(nova) / TAXA_COMISSAO_VENDA) : "");
-                  }
-                }}
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>
-                Valor da venda (R$)
-                <span className="ml-1.5 font-normal text-muted-foreground/70">sugestão ÷ 6%</span>
-              </label>
-              <input
-                type="number" step="0.01" value={valorVenda}
-                onChange={(e) => setValorVenda(e.target.value)}
-                className={inputCls}
-              />
-              {/* A taxa que o par comissão/valor representa. Serve de conferência
-                  barata: uma comissão digitada sem os milhares (aconteceu na ref
-                  63902, R$ 10 em vez de R$ 10.000) salta como 0,005%. */}
-              {taxaReal !== null && (
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  taxa de {taxaReal.toFixed(2).replace(/\.?0+$/, "")}%
-                  {valorSugerido !== null && Math.abs(Number(valorVenda) - valorSugerido) > 0.01 && (
-                    <button
-                      type="button"
-                      onClick={() => setValorVenda(String(valorSugerido))}
-                      className="ml-1.5 text-blue-600 underline-offset-2 hover:underline"
-                    >
-                      6% daria {fmtMoney(valorSugerido)}
-                    </button>
-                  )}
-                </p>
+              <input type="number" step="0.01" value={comissao} onChange={(e) => setComissao(e.target.value)} className={inputCls} />
+              {valorCalculado !== null && (
+                <p className="mt-1 text-[11px] text-muted-foreground">Valor da venda: {fmtMoney(valorCalculado)} (÷6%)</p>
               )}
             </div>
             <div>
