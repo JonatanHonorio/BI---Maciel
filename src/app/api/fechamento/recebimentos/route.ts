@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { podeLancarComissao, podeAcessarPeriodo } from "@/lib/permissoes";
+import { dataPlausivel } from "@/lib/fechamento";
 
 interface Entrada {
   negocio_id: number;
@@ -34,6 +35,16 @@ export async function POST(req: NextRequest) {
   if (!body.negocio_id || !Number.isFinite(valor) || valor <= 0 || !body.data_recebimento) {
     return NextResponse.json(
       { error: "negocio_id, valor (>0) e data_recebimento são obrigatórios" }, { status: 400 });
+  }
+  /*
+   * Ano absurdo é erro de digitação no campo de data, e passa batido porque
+   * nada na tela mostra a data depois de gravada. A tabela tem uma parcela com
+   * ano **0005** e outra com ano **275760** (13/10/2026) — as duas somem de
+   * qualquer relatório por período, levando o dinheiro junto.
+   */
+  if (!dataPlausivel(body.data_recebimento)) {
+    return NextResponse.json(
+      { error: "data do recebimento fora do intervalo esperado — confira o ano" }, { status: 400 });
   }
 
   const sql = getDb();

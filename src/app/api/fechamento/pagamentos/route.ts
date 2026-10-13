@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { podeLancarComissao, podeAcessarPeriodo } from "@/lib/permissoes";
+import { dataPlausivel } from "@/lib/fechamento";
 
 interface PagamentoInput {
   negocio_corretor_id: number;
@@ -24,6 +25,13 @@ export async function POST(req: NextRequest) {
   const body = (await req.json()) as PagamentoInput;
   if (!body.negocio_corretor_id || !body.valor || body.valor <= 0 || !body.data_pagamento) {
     return NextResponse.json({ error: "negocio_corretor_id, valor (>0) e data_pagamento são obrigatórios" }, { status: 400 });
+  }
+  // Mesma trava do recebimento: ano digitado errado tira a baixa de
+  // qualquer relatório por período. As duas parcelas gravadas com ano 0005
+  // e 275760 arrastaram 10 baixas junto.
+  if (!dataPlausivel(body.data_pagamento)) {
+    return NextResponse.json(
+      { error: "data do pagamento fora do intervalo esperado — confira o ano" }, { status: 400 });
   }
 
   const sql = getDb();

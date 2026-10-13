@@ -292,6 +292,69 @@ export async function negociosDaCompetencia(
   `) as NegocioDoMes[];
 }
 
+/**
+ * A data é de um ano que existe?
+ *
+ * Só pega erro de digitação grosseiro, de propósito: o campo de data aceita
+ * qualquer ano e o valor some de todo relatório por período sem ninguém notar.
+ * Em 13/10/2026 havia uma parcela gravada com ano **0005** (R$ 3.167,05, com 5
+ * baixas atrás dela) e outra com ano **275760** (R$ 4.100,00, com 5 baixas).
+ */
+export function dataPlausivel(data: string): boolean {
+  const d = String(data).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) && d >= "2000-01-01" && d <= "2100-12-31";
+}
+
+/** Uma parcela recebida, já com o negócio de onde ela veio. */
+export interface RecebimentoNoPeriodo {
+  id: number; valor: number; data_recebimento: string; observacao: string | null;
+  negocio_id: number; ref: string | null; contrato: string | null; endereco: string | null;
+  comissao: number | null;
+  unidade: string; tipo: "venda" | "locacao"; competencia: string;
+}
+
+/**
+ * Parcelas de comissão RECEBIDAS DO CLIENTE numa faixa de DATAS — o caixa.
+ *
+ * Pedido da Tatiane em 13/10/2026: "quero saber tudo que foi recebido no mês
+ * de agosto". A tela de comissões só sabia filtrar por competência, e as duas
+ * perguntas não têm nada a ver uma com a outra: em agosto/2026 entraram
+ * R$ 310.450,88, dos quais só R$ 23.349,60 eram de negócio da competência de
+ * agosto — 92% do caixa do mês veio de maio, junho e julho.
+ *
+ * Por isso a consulta é por PARCELA e não por negócio: 38 negócios têm
+ * recebimento em mais de um mês, e trazer o negócio inteiro porque uma parcela
+ * caiu na janela inflaria o mês com dinheiro que entrou em outro.
+ *
+ * `de`/`ate` são datas (YYYY-MM-DD), inclusivas. Cancelado fica de fora, como
+ * em todo lugar onde se conta dinheiro.
+ */
+export async function recebimentosNoPeriodo(
+  sql: SQL, de: string, ate: string, unidades: string[] | null, tipos: string[] | null
+): Promise<RecebimentoNoPeriodo[]> {
+  const todasUnidades = unidades === null;
+  const todosTipos = tipos === null;
+  return (await sql`
+    SELECT r.id, r.valor, r.observacao,
+      -- to_char, e não a coluna crua: o driver devolve DATE como objeto Date, e
+      -- String(date).slice(0, 7) vira "Fri May" em vez de "2026-05" — o
+      -- agrupamento por competência saiu assim na primeira versão (13/10/2026).
+      -- Como string, tela, Excel e agrupamento leem todos a mesma coisa, e não
+      -- há fuso no meio pra empurrar a parcela um dia pra trás.
+      to_char(r.data_recebimento, 'YYYY-MM-DD') AS data_recebimento,
+      n.id AS negocio_id, n.ref, n.contrato, n.endereco, n.comissao,
+      p.unidade, p.tipo, to_char(p.competencia, 'YYYY-MM') AS competencia
+    FROM fechamento_recebimentos r
+    JOIN fechamento_negocios n ON n.id = r.negocio_id
+    JOIN fechamento_periodos p ON p.id = n.periodo_id
+    WHERE r.data_recebimento BETWEEN ${de} AND ${ate}
+      AND (${todasUnidades} OR p.unidade = ANY(${unidades ?? []}::text[]))
+      AND (${todosTipos} OR p.tipo = ANY(${tipos ?? []}::text[]))
+      AND n.cancelado = false
+    ORDER BY r.data_recebimento, p.unidade, n.id, r.id
+  `) as RecebimentoNoPeriodo[];
+}
+
 export interface RateioPagamento {
   percentual: number | string | null;
   pagamentos: { valor: number | string }[];

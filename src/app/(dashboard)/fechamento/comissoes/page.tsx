@@ -53,6 +53,34 @@ function competenciaAtualISO() {
   return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
+/**
+ * Uma parcela de comissão recebida do cliente, com o negócio de onde veio.
+ * Alimenta o modo "Recebimento", que é por DATA e não por competência.
+ */
+type RecebimentoPeriodo = {
+  id: number; valor: number; data_recebimento: string; observacao: string | null;
+  negocio_id: number; ref: string | null; contrato: string | null; endereco: string | null;
+  comissao: number | null; unidade: string; tipo: "venda" | "locacao"; competencia: string;
+};
+type Agrupado = { chave: string; parcelas: number; valor: number };
+
+const mesCorrente = () => {
+  const h = new Date();
+  return { ano: h.getFullYear(), mes: h.getMonth() };
+};
+function primeiroDiaDoMesISO() {
+  const { ano, mes } = mesCorrente();
+  return `${ano}-${String(mes + 1).padStart(2, "0")}-01`;
+}
+function ultimoDiaDoMesISO() {
+  const { ano, mes } = mesCorrente();
+  const dia = new Date(ano, mes + 1, 0).getDate();
+  return `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+}
+
+/** "2026-08-01" (ou "2026-08-01T...") → "08/2026". */
+const fmtCompetencia = (s: string) => s.slice(0, 7).split("-").reverse().join("/");
+
 /** Visão do financeiro: todos os negócios do mês, histórico de pagamento por destinatário do rateio. */
 export default function ComissoesPage() {
   // Faixa de competências: a diretoria precisa olhar o ano inteiro ("o que
@@ -61,6 +89,23 @@ export default function ComissoesPage() {
   const [de, setDe] = useState(competenciaAtualISO());
   const [ate, setAte] = useState(competenciaAtualISO());
   const [negocios, setNegocios] = useState<Negocio[]>([]);
+  /*
+   * Dois modos, porque são duas perguntas diferentes (pedido da Tatiane em
+   * 13/10/2026):
+   *
+   *   Competência  o que o mês GEROU de comissão — o fechamento
+   *   Recebimento  o que ENTROU no caixa no período, venha de que mês vier
+   *
+   * Em agosto/2026 a primeira dá R$ 176 mil e a segunda R$ 310 mil, e quase
+   * não se sobrepõem: 92% do que entrou em agosto era de negócio de maio a
+   * julho. Por isso o modo troca a consulta inteira, e não só o intervalo.
+   */
+  const [modo, setModo] = useState<"competencia" | "recebimento">("competencia");
+  const [dataDe, setDataDe] = useState(primeiroDiaDoMesISO());
+  const [dataAte, setDataAte] = useState(ultimoDiaDoMesISO());
+  const [recebidos, setRecebidos] = useState<RecebimentoPeriodo[]>([]);
+  const [porCompetencia, setPorCompetencia] = useState<Agrupado[]>([]);
+  const [porUnidadeRecebido, setPorUnidadeRecebido] = useState<Agrupado[]>([]);
   // Unidade é filtrada no SERVIDOR, e não aqui como status e destinatário:
   // o resumo "Por destinatário" e o Excel vêm prontos da API, e filtrar só na
   // tela deixaria os dois mostrando a empresa inteira enquanto a tabela mostra
@@ -99,10 +144,13 @@ export default function ComissoesPage() {
     setCarregando(true);
     setErro("");
     try {
-      const r = await fetch(
-        `/api/fechamento/comissoes?de=${de}&ate=${ate}` +
+      const filtros =
         (filtroUnidade ? `&unidade=${encodeURIComponent(filtroUnidade)}` : "") +
-        (filtroTipo ? `&tipo=${filtroTipo}` : "")
+        (filtroTipo ? `&tipo=${filtroTipo}` : "");
+      const r = await fetch(
+        modo === "recebimento"
+          ? `/api/fechamento/comissoes/recebimentos?de=${dataDe}&ate=${dataAte}${filtros}`
+          : `/api/fechamento/comissoes?de=${de}&ate=${ate}${filtros}`
       );
       if (minhaBusca !== buscaAtual.current) return;
       if (r.status === 401 || r.status === 403) {
@@ -113,16 +161,22 @@ export default function ComissoesPage() {
       const j = await r.json();
       if (minhaBusca !== buscaAtual.current) return;
       setSemAcesso(false);
-      setNegocios(j.negocios ?? []);
-      setDestinatarios(j.destinatarios ?? []);
       setUnidades(j.unidades_disponiveis ?? []);
+      if (modo === "recebimento") {
+        setRecebidos(j.recebimentos ?? []);
+        setPorCompetencia(j.por_competencia ?? []);
+        setPorUnidadeRecebido(j.por_unidade ?? []);
+      } else {
+        setNegocios(j.negocios ?? []);
+        setDestinatarios(j.destinatarios ?? []);
+      }
     } catch {
       if (minhaBusca !== buscaAtual.current) return;
       setErro("Não foi possível carregar as comissões. Tente de novo.");
     } finally {
       if (minhaBusca === buscaAtual.current) setCarregando(false);
     }
-  }, [de, ate, filtroUnidade, filtroTipo]);
+  }, [modo, de, ate, dataDe, dataAte, filtroUnidade, filtroTipo]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -221,38 +275,108 @@ export default function ComissoesPage() {
   );
   const totalAReceber = Math.max(0, totalGerado - totalRecebido);
 
+  // Modo Recebimento: somado aqui mesmo porque a lista já vem pronta e filtrada
+  // do servidor — não há filtro de tela por cima dela.
+  const recebidoNoPeriodo = recebidos.reduce((s, r) => s + Number(r.valor), 0);
+  const negociosRecebidos = new Set(recebidos.map((r) => r.negocio_id)).size;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-bold text-gray-900">Controle de comissões</h2>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <label className="flex items-center gap-1.5 text-sm text-gray-500">
-            De
-            <input
-              type="month"
-              value={de.slice(0, 7)}
-              onChange={(e) => {
-                const novo = `${e.target.value}-01`;
-                setDe(novo);
-                // Início depois do fim devolve lista vazia sem explicar por quê.
-                if (novo > ate) setAte(novo);
-              }}
-              className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
-            />
-          </label>
-          <label className="flex items-center gap-1.5 text-sm text-gray-500">
-            até
-            <input
-              type="month"
-              value={ate.slice(0, 7)}
-              onChange={(e) => {
-                const novo = `${e.target.value}-01`;
-                setAte(novo);
-                if (novo < de) setDe(novo);
-              }}
-              className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
-            />
-          </label>
+          {/* O seletor vem antes das datas de propósito: ele muda o que "De/até"
+              significa — mês de competência de um lado, dia de entrada no caixa
+              do outro. */}
+          <div className="flex rounded-md border border-gray-200 p-0.5 text-sm">
+            {([
+              ["competencia", "Competência"],
+              ["recebimento", "Recebimento"],
+            ] as const).map(([valor, rotulo]) => (
+              <button
+                key={valor}
+                onClick={() => setModo(valor)}
+                aria-pressed={modo === valor}
+                title={
+                  valor === "competencia"
+                    ? "O que o mês gerou de comissão"
+                    : "O que entrou no caixa no período, de qualquer competência"
+                }
+                className={
+                  "rounded px-2.5 py-1 " +
+                  (modo === valor ? "bg-blue-600 font-medium text-white" : "text-gray-600 hover:bg-gray-50")
+                }
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
+          {modo === "competencia" ? (
+            <>
+              <label className="flex items-center gap-1.5 text-sm text-gray-500">
+                De
+                <input
+                  type="month"
+                  value={de.slice(0, 7)}
+                  onChange={(e) => {
+                    const novo = `${e.target.value}-01`;
+                    setDe(novo);
+                    // Início depois do fim devolve lista vazia sem explicar por quê.
+                    if (novo > ate) setAte(novo);
+                  }}
+                  className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-gray-500">
+                até
+                <input
+                  type="month"
+                  value={ate.slice(0, 7)}
+                  onChange={(e) => {
+                    const novo = `${e.target.value}-01`;
+                    setAte(novo);
+                    if (novo < de) setDe(novo);
+                  }}
+                  className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                />
+              </label>
+            </>
+          ) : (
+            <>
+              <label className="flex items-center gap-1.5 text-sm text-gray-500">
+                De
+                <input
+                  type="date"
+                  value={dataDe}
+                  min="2000-01-01"
+                  max="2100-12-31"
+                  onChange={(e) => {
+                    const novo = e.target.value;
+                    if (!novo) return;
+                    setDataDe(novo);
+                    if (novo > dataAte) setDataAte(novo);
+                  }}
+                  className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-gray-500">
+                até
+                <input
+                  type="date"
+                  value={dataAte}
+                  min="2000-01-01"
+                  max="2100-12-31"
+                  onChange={(e) => {
+                    const novo = e.target.value;
+                    if (!novo) return;
+                    setDataAte(novo);
+                    if (novo < dataDe) setDataDe(novo);
+                  }}
+                  className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                />
+              </label>
+            </>
+          )}
           {/* Escondido pra quem só tem uma unidade: um seletor com uma opção
               só não filtra nada e ainda sugere que existe outra coisa pra ver. */}
           {unidades.length > 1 && (
@@ -282,35 +406,44 @@ export default function ComissoesPage() {
             <option value="venda">Vendas</option>
             <option value="locacao">Locação</option>
           </select>
-          <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value as typeof filtroStatus)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
-            <option value="todos">Todos os status</option>
-            <option value="pendente">Pendente</option>
-            <option value="parcial">Parcial</option>
-            <option value="pago">Pago</option>
-          </select>
-          <select
-            value={filtroDestinatario}
-            onChange={(e) => setFiltroDestinatario(e.target.value)}
-            className="max-w-52 rounded-md border border-gray-200 px-2.5 py-1.5 text-sm"
-          >
-            <option value="todos">Todos os destinatários</option>
-            {destinatarios.map((d) => (
-              <option key={d.nome} value={d.nome}>{d.nome}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => setVerResumo((v) => !v)}
-            aria-pressed={verResumo}
-            className={
-              "rounded-md border px-2.5 py-1.5 text-sm " +
-              (verResumo ? "border-blue-600 bg-blue-600 text-white" : "border-gray-200 text-gray-600 hover:bg-gray-50")
-            }
-          >
-            Por destinatário
-          </button>
+          {/* Status, destinatário e o resumo por pessoa são do repasse, que é
+              por competência. No modo Recebimento a lista é de parcelas que
+              entraram no caixa e não tem status de pagamento nenhum. */}
+          {modo === "competencia" && (
+            <>
+              <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value as typeof filtroStatus)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm">
+                <option value="todos">Todos os status</option>
+                <option value="pendente">Pendente</option>
+                <option value="parcial">Parcial</option>
+                <option value="pago">Pago</option>
+              </select>
+              <select
+                value={filtroDestinatario}
+                onChange={(e) => setFiltroDestinatario(e.target.value)}
+                className="max-w-52 rounded-md border border-gray-200 px-2.5 py-1.5 text-sm"
+              >
+                <option value="todos">Todos os destinatários</option>
+                {destinatarios.map((d) => (
+                  <option key={d.nome} value={d.nome}>{d.nome}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => setVerResumo((v) => !v)}
+                aria-pressed={verResumo}
+                className={
+                  "rounded-md border px-2.5 py-1.5 text-sm " +
+                  (verResumo ? "border-blue-600 bg-blue-600 text-white" : "border-gray-200 text-gray-600 hover:bg-gray-50")
+                }
+              >
+                Por destinatário
+              </button>
+            </>
+          )}
           <a
             href={
-              `/api/fechamento/comissoes/exportar?de=${de}&ate=${ate}` +
+              (modo === "recebimento"
+                ? `/api/fechamento/comissoes/recebimentos/exportar?de=${dataDe}&ate=${dataAte}`
+                : `/api/fechamento/comissoes/exportar?de=${de}&ate=${ate}`) +
               (filtroUnidade ? `&unidade=${encodeURIComponent(filtroUnidade)}` : "") +
               (filtroTipo ? `&tipo=${filtroTipo}` : "")
             }
@@ -328,6 +461,81 @@ export default function ComissoesPage() {
         </div>
       )}
 
+      {modo === "recebimento" ? (
+        <>
+          {/* O caixa do período, e logo abaixo de qual competência ele veio —
+              que é a resposta que não existia: em agosto/2026, 92% do que
+              entrou era de negócio de maio, junho e julho. */}
+          <div className="rounded-xl border border-gray-200 bg-white text-sm">
+            <div className="flex flex-wrap gap-6 p-4">
+              <span>
+                <span className="text-gray-500">Recebido no período: </span>
+                <span className="font-semibold text-emerald-700">{fmtMoney(recebidoNoPeriodo)}</span>
+              </span>
+              <span><span className="text-gray-500">Parcelas: </span><span className="font-semibold">{recebidos.length}</span></span>
+              <span><span className="text-gray-500">Negócios: </span><span className="font-semibold">{negociosRecebidos}</span></span>
+            </div>
+            {porUnidadeRecebido.length > 1 && (
+              <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-gray-100 p-4">
+                <span className="text-gray-400">Por unidade</span>
+                {porUnidadeRecebido.map((u) => (
+                  <span key={u.chave}>
+                    <span className="text-gray-500">{u.chave}: </span>
+                    <span className="font-medium tabular-nums">{fmtMoney(u.valor)}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+            {porCompetencia.length > 0 && (
+              <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-gray-100 p-4">
+                <span className="text-gray-400">De qual competência veio</span>
+                {porCompetencia.map((c) => (
+                  <span key={c.chave}>
+                    <span className="text-gray-500">{fmtCompetencia(c.chave)}: </span>
+                    <span className="font-medium tabular-nums">{fmtMoney(c.valor)}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr className="text-left text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+                  <th className="px-3 py-2.5">Data</th>
+                  <th className="px-3 py-2.5 text-right">Valor</th>
+                  <th className="px-3 py-2.5">Unidade</th>
+                  <th className="px-3 py-2.5">Tipo</th>
+                  <th className="px-3 py-2.5">Ref</th>
+                  <th className="px-3 py-2.5">Endereço</th>
+                  <th className="px-3 py-2.5">Competência</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {carregando && recebidos.length === 0 && (
+                  <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">Carregando…</td></tr>
+                )}
+                {!carregando && recebidos.length === 0 && (
+                  <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">Nenhum recebimento neste período.</td></tr>
+                )}
+                {recebidos.map((r) => (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 tabular-nums">{fmtDataISO(r.data_recebimento)}</td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums text-emerald-700">{fmtMoney(Number(r.valor))}</td>
+                    <td className="px-3 py-2">{r.unidade}</td>
+                    <td className="px-3 py-2 text-gray-500">{r.tipo === "venda" ? "Venda" : "Locação"}</td>
+                    <td className="px-3 py-2 text-gray-500">{r.ref ?? "—"}</td>
+                    <td className="px-3 py-2 text-gray-600">{r.endereco ?? "—"}</td>
+                    <td className="px-3 py-2 tabular-nums text-gray-500">{fmtCompetencia(r.competencia)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+      <>
       {/*
         Dois blocos em vez de sete números numa linha só: em cima o caixa da
         imobiliária (o que a comissão gerou, o que entrou, o que falta
@@ -601,6 +809,8 @@ export default function ComissoesPage() {
           </tbody>
         </table>
       </div>
+      </>
+      )}
     </div>
   );
 }
