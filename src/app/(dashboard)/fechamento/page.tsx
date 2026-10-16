@@ -286,15 +286,25 @@ export default function FechamentoPage() {
    */
   async function salvarCorrecao(negocioId: number) {
     if (!correcao) return;
+    /*
+     * Campo em branco NÃO vira null: fica de fora do envio, e a rota mantém o
+     * que já estava gravado (16/10/2026).
+     *
+     * Antes disso, apagar a comissão para redigitar e salvar pelo campo de
+     * valor gravava comissão NULA — foi o que aconteceu com o negócio 279
+     * (ref 53513, Urbanova 04/2026): o valor ficou certo e a comissão virou um
+     * traço. Em venda a comissão é o pool do rateio, então sem ela o negócio
+     * fica sem nada a distribuir e some das contas de repasse.
+     */
+    const corpo: Record<string, number> = {};
+    if (correcao.valor !== "") corpo.valor = Number(correcao.valor);
+    if (correcao.comissao !== "") corpo.comissao = Number(correcao.comissao);
     await chamar(
       `/api/fechamento/negocios/${negocioId}/valores`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          valor: correcao.valor === "" ? null : Number(correcao.valor),
-          comissao: correcao.comissao === "" ? null : Number(correcao.comissao),
-        }),
+        body: JSON.stringify(corpo),
       },
       () => setCorrecao(null)
     );

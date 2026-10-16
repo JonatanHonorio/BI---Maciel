@@ -60,6 +60,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   /*
+   * O campo que serve de POOL do rateio não pode ficar nulo: em venda é a
+   * comissão, em locação é o valor. Sem ele o negócio fica sem nada a
+   * distribuir, os destinatários somem das contas de repasse e nada na tela
+   * avisa — o número só vira um traço.
+   *
+   * Aconteceu em 16/10/2026 com o negócio 279 (ref 53513, Urbanova 04/2026):
+   * a adm apagou a comissão para redigitar, salvou pelo campo de valor e a
+   * tela gravou nulo em silêncio. A tela agora omite campo em branco em vez
+   * de mandar null, e esta trava é a garantia — vale para qualquer cliente
+   * que chame a rota.
+   */
+  const rotuloPool = linha.tipo === "venda" ? "comissão" : "valor";
+  if ((linha.tipo === "venda" ? comissao : valor) === null) {
+    return NextResponse.json({
+      error: `a ${rotuloPool} não pode ficar em branco: é sobre ela que o rateio é calculado`,
+    }, { status: 400 });
+  }
+
+  /*
    * Não dá para baixar a comissão para menos do que já foi pago aos
    * destinatários: o rateio ficaria com gente "devendo" à imobiliária, e a
    * tela de comissões não tem como mostrar isso.
