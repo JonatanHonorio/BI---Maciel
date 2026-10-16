@@ -28,11 +28,23 @@ export const FASES = [
   { id: 6, nome: "Enviar para assinatura", curto: "Enviar" },
   { id: 7, nome: "Aguardando assinatura", curto: "Aguardando" },
   { id: 8, nome: "Assinado e finalizado", curto: "Finalizado" },
+  /*
+   * Cancelado é o fim da linha oposto ao 8 (pedido da Tatiane em 16/10/2026).
+   *
+   * Coluna, e não arquivamento: arquivar some com o card, e o setor precisa
+   * enxergar o contrato que caiu — é informação, não lixo. Fica por último no
+   * quadro justamente para não disputar atenção com a fila que anda.
+   *
+   * Não entra em FASES_QUE_AVISAM: cancelamento é conversa que já aconteceu
+   * fora do sistema, e um e-mail automático chegaria depois do fato.
+   */
+  { id: 9, nome: "Contrato cancelado", curto: "Cancelado" },
 ] as const;
 
 export const FASE_CONFERENCIA = 5;
 export const FASE_PENDENCIA = 3;
 export const FASE_FINAL = 8;
+export const FASE_CANCELADO = 9;
 
 export function nomeFase(id: number): string {
   return FASES.find((f) => f.id === id)?.nome ?? `fase ${id}`;

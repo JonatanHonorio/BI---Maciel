@@ -55,6 +55,9 @@ const CORES_FASE = [
   // etapa partida em "falta eu mandar" e "falta o cliente assinar".
   "bg-cyan-100 text-cyan-700", "bg-teal-100 text-teal-700",
   "bg-emerald-100 text-emerald-700",
+  // Cancelado em vermelho, ao lado do verde de finalizado: são os dois fins de
+  // linha, e a cor é o que separa um do outro de relance.
+  "bg-rose-100 text-rose-700",
 ];
 
 const diaHora = (iso: string) => {
