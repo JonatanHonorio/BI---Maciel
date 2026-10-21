@@ -63,6 +63,43 @@ export async function clientePorId(sql: SQL, id: number): Promise<ClienteRow | n
   return row ?? null;
 }
 
+/**
+ * Outros cadastros da MESMA pessoa, casados por celular ou e-mail.
+ *
+ * Existe por um caso real (21/10/2026): a Carol digitou o id 373097 e o card
+ * veio com "Dilson - KK CANAL PRO" e sem CPF, enquanto o Kurole já mostrava
+ * "JOSE DILSON AMARAL" com CPF — a adm tinha completado o cadastro depois do
+ * dump daquele dia. Nada na tela dizia que o dado estava pela metade, e ela só
+ * descobriu porque desconfiou.
+ *
+ * O mesmo aviso pega o outro caso, mais frequente: lead do Canal Pro cria uma
+ * ficha nova e incompleta de quem já existe — são **949** cadastros com "CANAL
+ * PRO" no nome, e a pessoa do exemplo tem três fichas com o mesmo telefone.
+ *
+ * Só casa quando há telefone ou e-mail de verdade: cadastro antigo vem com os
+ * dois vazios, e casar vazio com vazio juntaria a base inteira.
+ */
+export async function clientesSemelhantes(
+  sql: SQL, id: number, celular: string | null, email: string | null
+): Promise<{ id: number; nome: string; tem_cpf: boolean }[]> {
+  const cel = (celular ?? "").trim();
+  const mail = (email ?? "").trim().toLowerCase();
+  if (!cel && !mail) return [];
+  const linhas = (await sql`
+    SELECT cl.id, COALESCE(cl.nome, '') AS nome,
+           (NULLIF(TRIM(cl.cpf), '') IS NOT NULL) AS tem_cpf
+    FROM clientes cl
+    WHERE cl.id <> ${id}
+      AND (
+        (${cel} <> '' AND TRIM(cl.celular) = ${cel})
+        OR (${mail} <> '' AND lower(TRIM(cl.email)) = ${mail})
+      )
+    ORDER BY (NULLIF(TRIM(cl.cpf), '') IS NOT NULL) DESC, cl.id
+    LIMIT 5
+  `) as { id: number | string; nome: string; tem_cpf: boolean }[];
+  return linhas.map((l) => ({ ...l, id: Number(l.id) }));
+}
+
 /** Proprietários de um imóvel, em ordem de participação. */
 export async function proprietariosDoImovel(sql: SQL, imovelId: number): Promise<ClienteRow[]> {
   return (await sql`

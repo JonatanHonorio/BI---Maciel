@@ -26,6 +26,27 @@ export interface ContaBancaria {
   titular: string; banco: string; agencia: string; conta: string; pix?: string;
 }
 
+/** Ficha puxada pela metade — ver o comentário em `clientesSemelhantes`. */
+export type AlertaCliente = {
+  sem_cpf: boolean;
+  semelhantes: { id: number; nome: string; tem_cpf: boolean }[];
+} | null;
+
+/**
+ * As duas causas de ficha incompleta, com o conserto de cada uma: se existe
+ * gêmeo COM CPF, o problema é cadastro duplicado e a Ana troca de id; se não
+ * existe, o provável é o cadastro ter sido completado no Kurole depois do
+ * dump do dia, e aí o caminho é conferir no Kurole.
+ */
+function textoAlertaCliente(id: string, a: NonNullable<AlertaCliente>): string {
+  const comCpf = a.semelhantes.filter((s) => s.tem_cpf);
+  if (comCpf.length) {
+    const lista = comCpf.map((s) => `${s.id} (${s.nome || "sem nome"})`).join(", ");
+    return `O cadastro ${id} veio sem CPF, e existe outra ficha com o mesmo telefone ou e-mail que TEM CPF: ${lista}. Confira qual é a certa antes de salvar.`;
+  }
+  return `O cadastro ${id} veio sem CPF. Se o cadastro foi completado no Kurole hoje, o BI só enxerga depois da importação do dia — confira no Kurole antes de salvar.`;
+}
+
 export interface ContratoEdicao {
   id?: number;
   ref: string;
@@ -82,7 +103,7 @@ function BlocoPessoas({
   onChange: (p: Pessoa[]) => void;
   vazioTexto: string;
   /** Quando existe, o bloco ganha o campo "ID do cliente" do Kurole. */
-  buscarPorId?: (id: string) => Promise<{ pessoa: Pessoa; erro?: string }>;
+  buscarPorId?: (id: string) => Promise<{ pessoa: Pessoa; erro?: string; alerta?: AlertaCliente }>;
 }) {
   const [idCliente, setIdCliente] = useState("");
   const [buscandoId, setBuscandoId] = useState(false);
@@ -114,6 +135,8 @@ function BlocoPessoas({
       }
       onChange([...pessoas, r.pessoa]);
       setIdCliente("");
+      // A pessoa entra de qualquer jeito; o aviso fica para a Ana conferir.
+      if (r.alerta?.sem_cpf) setAvisoId(textoAlertaCliente(id, r.alerta));
     } finally {
       setBuscandoId(false);
     }
@@ -335,14 +358,16 @@ export default function ContratoForm({
    * ligado ao imóvel no cadastro, o que acontece em imóvel de espólio e em
    * venda que já trocou de dono sem o Kurole saber.
    */
-  const buscarCliente = useCallback(async (id: string): Promise<{ pessoa: Pessoa; erro?: string }> => {
+  const buscarCliente = useCallback(async (
+    id: string
+  ): Promise<{ pessoa: Pessoa; erro?: string; alerta?: AlertaCliente }> => {
     const r = await fetch(`/api/contratos/cliente?id=${encodeURIComponent(id)}`);
     if (!r.ok) {
       const msg = r.status === 404 ? "Nenhum cliente com esse ID no Kurole." : "Não deu para buscar o cliente.";
       return { pessoa: { nome: "" }, erro: msg };
     }
     const d = await r.json();
-    return { pessoa: d.pessoa as Pessoa };
+    return { pessoa: d.pessoa as Pessoa, alerta: (d.alerta ?? null) as AlertaCliente };
   }, []);
 
   const escolherCorretor = (texto: string) => {
