@@ -2,7 +2,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, X, ArrowRight, Undo2, MessageSquare, Loader2, Archive } from "lucide-react";
 import ContratoForm, { CONTRATO_VAZIO, type ContratoEdicao, type Pessoa, type ContaBancaria } from "@/components/ContratoForm";
-import { FASES, FASE_CONFERENCIA, FASE_PENDENCIA, nomeFase, rotulosDoTipo } from "@/lib/contratos";
+import {
+  FASES, FASE_CONFERENCIA, FASE_PENDENCIA, FASE_FINAL, FASE_CANCELADO,
+  nomeFase, rotulosDoTipo,
+} from "@/lib/contratos";
 
 type Contrato = {
   id: number; ref: string;
@@ -73,6 +76,15 @@ const fmtSenha = (n: number | null) => (n == null ? "—" : String(n).padStart(3
 
 function CartaoContrato({ c, onAbrir }: { c: Contrato; onAbrir: (c: Contrato) => void }) {
   const dias = diasParado(c.atualizado_em);
+  /*
+   * Finalizado e cancelado não ficam "parados", ficam PRONTOS (21/10/2026).
+   *
+   * A contagem existe para o contrato esquecido saltar aos olhos; nos dois
+   * fins de linha ela só pintava de vermelho uma coluna que ninguém precisa
+   * destravar — e quanto mais antigo o contrato assinado, mais alarmante
+   * ficava o card, exatamente ao contrário do que o aviso quer dizer.
+   */
+  const fimDaLinha = c.fase === FASE_FINAL || c.fase === FASE_CANCELADO;
   return (
     <button
       onClick={() => onAbrir(c)}
@@ -113,7 +125,7 @@ function CartaoContrato({ c, onAbrir }: { c: Contrato; onAbrir: (c: Contrato) =>
         <span className="truncate">{c.corretor_nome || "—"}</span>
         <span className="shrink-0">{c.unidade}</span>
       </div>
-      {dias >= 3 && (
+      {!fimDaLinha && dias >= 3 && (
         <p className={`text-[11px] mt-1.5 ${dias >= 7 ? "text-red-600" : "text-amber-600"}`}>
           parado há {dias} dias
         </p>
