@@ -45,7 +45,8 @@ export async function GET(req: NextRequest) {
   const ate = `${until} 23:59:59`;
   const corretorIds = await corretoresDaUnidade(sql, session.unidade, session.tipo);
 
-  const [leads, captacoes, atualizacoes, movimentos, cobertura, imoveisNovos, imoveisAtualizados] = await Promise.all([
+  const [leads, captacoes, atualizacoes, movimentos, cobertura, imoveisNovos, imoveisAtualizados,
+         leadsDistintos] = await Promise.all([
     sql`
       SELECT r.corretor_id AS id, COALESCE(
                NULLIF(TRIM(u.nome_comercial),''), NULLIF(TRIM(u.nome),''),
@@ -138,6 +139,32 @@ export async function GET(req: NextRequest) {
       FROM imovel_atualizacoes a
       WHERE a.data >= ${since} AND a.data <= ${ate} AND a.corretor_id > 0
         AND (${corretorIds}::int[] IS NULL OR a.corretor_id = ANY(${corretorIds}::int[]))` as unknown as Promise<{ n: string }[]>,
+
+    /*
+     * Leads DISTINTOS atribuídos no período — mesma ressalva da captação e da
+     * atualização (29/10/2026).
+     *
+     * O card somava a coluna por corretor, e lead remanejado dentro do mês
+     * contava de novo: a tela mostrava 3.889 onde havia 3.665 leads, porque
+     * 220 passaram por mais de um corretor. O Jonatan comparou com o Resumo
+     * (3.001) e a diferença não tinha explicação na tela.
+     *
+     * Os 666 que faltam para fechar com o Resumo são outra coisa, e correta:
+     * leads abertos antes do período e atribuídos dentro dele. O Resumo conta
+     * por ABERTURA, aqui é por ATRIBUIÇÃO — duas perguntas diferentes.
+     *
+     * `multi` alimenta o subtítulo: é quanta gente foi contada duas vezes.
+     */
+    sql`
+      SELECT count(*)::int AS n,
+             count(*) FILTER (WHERE corretores > 1)::int AS multi
+      FROM (
+        SELECT r.lead_id, count(DISTINCT r.corretor_id) AS corretores
+        FROM lead_responsaveis r
+        WHERE r.data >= ${since} AND r.data <= ${ate} AND r.corretor_id > 0
+          AND (${corretorIds}::int[] IS NULL OR r.corretor_id = ANY(${corretorIds}::int[]))
+        GROUP BY r.lead_id
+      ) x` as unknown as Promise<{ n: string; multi: string }[]>,
   ]);
 
   /*
@@ -185,7 +212,11 @@ export async function GET(req: NextRequest) {
     periodo: { since, until },
     dados_ate: cobertura[0]?.ate ?? null,
     resumo: {
-      leads: soma(listaLeads),
+      // Leads DISTINTOS. `leads_cabecas` é a soma da coluna por corretor, que
+      // conta de novo o lead remanejado — certo no ranking, errado no card.
+      leads: Number(leadsDistintos[0]?.n ?? 0),
+      leads_cabecas: soma(listaLeads),
+      leads_multi: Number(leadsDistintos[0]?.multi ?? 0),
       // Imóveis distintos. A soma da coluna por corretor é maior porque imóvel
       // em dupla conta 1 para cada um — bom no ranking, errado como total.
       captacoes: Number(imoveisNovos[0]?.n ?? 0),

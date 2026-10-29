@@ -20,7 +20,8 @@ interface Dados {
   periodo: { since: string; until: string };
   dados_ate: string | null;
   resumo: {
-    leads: number; captacoes: number; captacoes_cabecas: number;
+    leads: number; leads_cabecas: number; leads_multi: number;
+    captacoes: number; captacoes_cabecas: number;
     atualizacoes: number; atualizacoes_cabecas: number; campanha: number; remanejados: number;
     corretores_com_lead: number;
   };
@@ -103,7 +104,9 @@ export default function ProdutividadePage() {
       campanha, remanejamentos,
       resumo: {
         ...data.resumo,
-        leads: soma(meusLeads),
+        // Para UM corretor, distinto e soma são a mesma coisa: o lead que
+        // passou por ele conta uma vez só na linha dele.
+        leads: soma(meusLeads), leads_cabecas: soma(meusLeads), leads_multi: 0,
         captacoes: soma(minhasCapt), captacoes_cabecas: soma(minhasCapt),
         atualizacoes: soma(minhasAtu), atualizacoes_cabecas: soma(minhasAtu),
         campanha: soma(campanha), remanejados: soma(remanejamentos),
@@ -157,8 +160,18 @@ export default function ProdutividadePage() {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Leads DISTINTOS atribuídos no período. A soma da coluna do ranking é
+            maior porque lead remanejado conta 1 para cada corretor que o teve —
+            certo no ranking, errado como total. O subtítulo abre a diferença
+            quando ela existe, que foi o que levou à comparação com o Resumo. */}
         <KpiCard label="Leads recebidos" value={fmtNum(vista.resumo.leads)}
-          subtitle={vista.nome ? "no período" : `${vista.resumo.corretores_com_lead} corretores`} icon={Users} />
+          subtitle={
+            vista.nome
+              ? "no período"
+              : vista.resumo.leads_multi > 0
+                ? `${vista.resumo.corretores_com_lead} corretores · ${fmtNum(vista.resumo.leads_cabecas)} atribuições, ${fmtNum(vista.resumo.leads_multi)} leads passaram por mais de um`
+                : `${vista.resumo.corretores_com_lead} corretores`
+          } icon={Users} />
         {/* Imóveis DISTINTOS. A soma da coluna do ranking é maior porque imóvel
             captado em dupla conta 1 para cada corretor — certo no ranking,
             errado como total. O subtítulo diz a diferença quando ela existe. */}
