@@ -41,22 +41,33 @@ const EXTERNOS = [
     nome: "ANA MARIA MOSTI",
     obs: "01/10/2026 — vendas e locações esporádicas; pedida desde 18/09 (a única Mosti do Kurole é a Micaele, id 920, que é outra pessoa)",
   },
+  {
+    id: 900003,
+    nome: "CARLOS ALBERTO DA SILVA (KURY)",
+    email: "kuryimoveis@gmail.com",
+    celular: "(12) 98168-6297",
+    obs: "30/10/2026 — freelance, vende pra Maciel de vez em quando; pedido pela Rachel (Urbanova) pro fechamento. No Kurole ele existe só como CLIENTE (id 105370, CPF 109.750.518-90), não como corretor: o 105370 que a Rachel passou é dessa ficha de cliente, não de um cadastro de corretor. O apelido vai no nome porque é assim que a adm o conhece; o nome civil vem antes porque é o que está no recibo.",
+  },
 ];
 
 (async () => {
   for (const c of EXTERNOS) {
+    // COALESCE no e-mail/celular: quem foi criado sem contato não perde o que
+    // já tiver no banco se este script rodar de novo.
     await pool.query(
-      `INSERT INTO corretores (id, nome, nome_comercial, ativo, empresa)
-       VALUES ($1, $2, $2, 1, 1)
+      `INSERT INTO corretores (id, nome, nome_comercial, email, celular, ativo, empresa)
+       VALUES ($1, $2, $2, $3, $4, 1, 1)
        ON CONFLICT (id) DO UPDATE SET nome = EXCLUDED.nome,
-         nome_comercial = EXCLUDED.nome_comercial, ativo = 1`,
-      [c.id, c.nome]
+         nome_comercial = EXCLUDED.nome_comercial,
+         email = COALESCE(EXCLUDED.email, corretores.email),
+         celular = COALESCE(EXCLUDED.celular, corretores.celular), ativo = 1`,
+      [c.id, c.nome, c.email ?? null, c.celular ?? null]
     );
     console.log(`ok: #${c.id} ${c.nome}`);
   }
 
   const { rows } = await pool.query(
-    `SELECT id, nome_comercial, ativo FROM corretores WHERE id = ANY($1::int[]) ORDER BY id`,
+    `SELECT id, nome_comercial, email, celular, ativo FROM corretores WHERE id = ANY($1::int[]) ORDER BY id`,
     [EXTERNOS.map((c) => c.id)]
   );
   console.table(rows);
