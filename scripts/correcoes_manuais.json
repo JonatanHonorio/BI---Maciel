@@ -3,6 +3,15 @@
 
   "_correcoes": "Por telefone (últimos 9 dígitos). Usadas só quando o cruzamento automático NÃO acha corretor/unidade.",
   "correcoes": {
+    "981612740": {
+      "cliente": "Adiane",
+      "corretor": "Henrique Silva",
+      "unidade": "Vista Verde",
+      "ordem": 302588,
+      "fonte": "tela do Kurole, conferida pelo Jonatan em 02/10/2026",
+      "motivo": "ordem aberta 01/10 23:44, depois do corte do dump de 02/10",
+      "situacao": "INERTE assim que o dump trouxer a ordem — o automático resolve"
+    },
     "981763194": {
       "cliente": "Gabriel",
       "corretor": "Fabiana Farias",
@@ -82,6 +91,22 @@
       "departamento": "18 = Venda Aquarius",
       "motivo": "cadastro de unidade está correto (Venda Aquarius), mas ela não é corretora de vendas ativa — não deve aparecer em nenhum ranking/relatório de corretor",
       "fonte": "Jonatan em 16/09/2026"
+    }
+  },
+  "_nome_por_corretor": "Cadastro do Kurole com o NOME errado. Chave = id do corretor. AUTO-EXPIRAVEL: so troca se o nome que veio do dump for exatamente o de 'de'. Arrumou no Kurole? A correcao sai de cena sozinha no proximo import. Nao adianta corrigir na mao no banco: o import reescreve nome, nome_comercial e email a cada dump.",
+  "nome_por_corretor": {
+    "824": {
+      "de": "diogo",
+      "para": "ANA MARIA MOSTI",
+      "fonte": "Jonatan em 03/11/2026, com o print do Kurole do imovel 65083 — os captadores de la sao maurita.maciel, elenice.silva, ana.mosti e micaele.mosti, e o 4o id que o BI importa nesse imovel e o 824.",
+      "prova": "no dump de 03/11 a linha de usuarios do 824 e: nome 'diogo', email adm.aquarius@imobiliariamaciel.com.br, celular (12) 97409-6921 — esse celular e o da ficha de cliente ANA MARIA MOSTI (clientes 39376 e 265777, anammosti62@gmail.com). O login no Kurole ja e ana.mosti; so o campo de nome ficou com o do antigo dono da conta.",
+      "pendente": "pedir pra arrumarem o nome do usuario 824 no Kurole. Enquanto nao arrumarem, Produtividade e Ranking continuam mostrando 'diogo' — esta correcao so alcanca a tela de fechamento/rateio."
+    },
+    "900002": {
+      "de": "ANA MARIA MOSTI",
+      "para": "ANA MARIA MOSTI (cadastro duplicado — use o 824)",
+      "fonte": "03/11/2026. O 900002 foi criado em 01/10 como corretor externo porque ninguem achou a Ana Maria no Kurole — ela estava la o tempo todo, no id 824, com o nome 'diogo' no cadastro.",
+      "pendente": "decidir com o Jonatan se o unico rateio do 900002 (negocio 164, venda de Lancamento de jan/2026, 17,5% no papel fechamento, periodo JA ENVIADO) migra para o 824. Enquanto nao migrar, o historico dela fica partido em dois ids. NAO auto-expiravel: so sai daqui quando o 900002 for aposentado de vez."
     }
   }
 }

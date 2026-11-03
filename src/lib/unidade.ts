@@ -60,6 +60,12 @@ export interface CorrecoesManuais {
     { de: string; para: string; de_tipo?: Tipo; para_tipo?: Tipo }
   >;
   corretores_excluidos?: Record<string, { corretor: string }>;
+  /**
+   * Cadastro do Kurole com o NOME errado. Chave = id do corretor. Igual às
+   * outras seções, só age enquanto o erro existir: `de` tem que bater com o
+   * nome que veio do dump, senão a correção não faz nada.
+   */
+  nome_por_corretor?: Record<string, { de: string; para: string }>;
 }
 
 let correcoesCache: CorrecoesManuais | null = null;
@@ -74,6 +80,23 @@ export function correcoesManuais(): CorrecoesManuais {
     correcoesCache = { unidade_por_corretor: {} };
   }
   return correcoesCache!;
+}
+
+/**
+ * O nome do corretor, trocado quando o cadastro do Kurole está errado.
+ *
+ * Nasceu do #824 (03/11/2026): a conta é da Ana Maria Mosti — login
+ * `ana.mosti`, celular (12) 97409-6921, o mesmo da ficha de cliente dela —
+ * mas o campo de nome no Kurole ficou com "diogo", de quem usava a conta
+ * antes. Como o import reescreve nome e e-mail a cada dump, arrumar na mão no
+ * banco dura até a próxima importação; a correção tem que morar aqui.
+ *
+ * Auto-expirável de propósito: no dia em que alguém arrumar o cadastro no
+ * Kurole, `de` deixa de bater e esta função some do caminho sozinha.
+ */
+export function nomeCorrigido(corretorId: number | string, nome: string): string {
+  const c = correcoesManuais().nome_por_corretor?.[String(corretorId)];
+  return c && c.de === nome ? c.para : nome;
 }
 
 /**

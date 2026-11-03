@@ -114,7 +114,7 @@
     { "id": 251, "nome": "Patricia Generoso" },
     { "id": 941, "nome": "Rodrigo Rosario" },
     { "id": 219, "nome": "João Marcondes" },
-    { "id": 824, "nome": "Diogo" },
+    { "id": 824, "nome": "ANA MARIA MOSTI", "obs": "O cadastro 824 do Kurole e da Ana Maria Mosti (login ana.mosti, celular (12) 97409-6921), mas o campo de nome de la ainda diz 'diogo', de quem usava a conta antes. O nome certo vem de nome_por_corretor em scripts/correcoes_manuais.json. NAO confundir com o Diogo Lapena, que e o id 177." },
     { "id": 63, "nome": "Cristina Krysztal" },
     { "id": 282, "nome": "Elevir Silva" },
     { "id": 279, "nome": "Ilson Maciel" },

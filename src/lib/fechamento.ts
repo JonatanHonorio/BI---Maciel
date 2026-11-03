@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import type { SQL } from "./db";
+import { nomeCorrigido } from "./unidade";
 
 export const UNIDADES_FECHAMENTO = [
   "Satélite", "Vista Verde", "Urbanova", "Aquarius", "Esplanada", "Dutra",
@@ -140,7 +141,9 @@ export async function corretoresParaRateio(sql: SQL): Promise<CorretorFechamento
     .map((c) => {
       const r = doBanco.get(c.id);
       // Nome do cadastro manda; vazio cai pro e-mail; sem e-mail, o do JSON.
-      return { id: c.id, nome: r?.nome || nomePeloEmail(r?.email ?? null) || c.nome };
+      // Em cima de tudo isso, a correção manual de nome errado no Kurole.
+      const nome = r?.nome || nomePeloEmail(r?.email ?? null) || c.nome;
+      return { id: c.id, nome: nomeCorrigido(c.id, nome) };
     })
     .sort((a, b) => a.nome.localeCompare(b.nome));
 }
@@ -246,7 +249,7 @@ export async function negociosDaCompetencia(
 ): Promise<NegocioDoMes[]> {
   const todasUnidades = unidades === null;
   const todosTipos = tipos === null;
-  return (await sql`
+  const linhas = (await sql`
     SELECT n.id, n.ref, n.contrato, n.endereco, n.valor, n.comissao,
       p.unidade, p.tipo, p.competencia,
       COALESCE(
@@ -290,6 +293,17 @@ export async function negociosDaCompetencia(
     GROUP BY n.id, p.unidade, p.tipo, p.competencia
     ORDER BY p.competencia, p.unidade, p.tipo, n.id
   `) as NegocioDoMes[];
+
+  // O nome sai do cadastro do Kurole, que às vezes está errado. A correção é
+  // aplicada aqui, e não no SQL, porque a lista mora num JSON — e tem que ser
+  // aqui também, não só em corretoresParaRateio: senão a adm escolhe "ANA
+  // MARIA MOSTI" no formulário e a linha salva volta na tela como "diogo".
+  for (const n of linhas) {
+    for (const r of n.rateio ?? []) {
+      if (r.corretor_id != null && r.nome) r.nome = nomeCorrigido(r.corretor_id, r.nome);
+    }
+  }
+  return linhas;
 }
 
 /**
