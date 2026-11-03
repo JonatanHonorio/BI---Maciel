@@ -13,6 +13,18 @@ import type { Tipo } from "./unidade";
  * em todo fechamento de venda da empresa.
  */
 
+/**
+ * Diretoria: gerente SEM unidade fixa (hoje só a Daniela, Diretora de
+ * Vendas). É o mesmo predicado que libera o "Ver como" em @/lib/auth — se um
+ * dia virar coluna no cadastro, muda nos dois lugares.
+ *
+ * Ela enxerga o fechamento de todas as unidades da vertical dela e não
+ * escreve em nenhuma; a trava de escrita está no proxy.
+ */
+export function ehDiretoria(s: Session | null): boolean {
+  return !!s && s.role === "gerente" && !s.unidade;
+}
+
 /** Unidades que a pessoa pode ver/lançar. `null` = todas (só admin). */
 export function unidadesFechamento(s: Session): string[] | null {
   if (s.role === "admin") return null;
