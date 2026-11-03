@@ -14,6 +14,21 @@ import { corretoresDaUnidade, unidadeDoCorretor } from "@/lib/unidade";
  *   Um lead aberto em agosto e transferido em setembro conta para quem recebeu,
  *   em setembro — é o que ele teve para trabalhar.
  *
+ *   NOVO x REAPROVEITADO (03/11/2026): dentro dessa conta cabem duas coisas
+ *   muito diferentes. Receber lead da roleta é ser abastecido; pegar lead que
+ *   já foi de outro corretor e ficou parado é repescar base morta. Em outubro
+ *   dois corretores recém-contratados da Satélite subiram ao topo do ranking
+ *   com 94% e 97% da coluna vindo de repescagem (um deles 247 leads numa
+ *   tarde só, com idade média de 51 dias), e a tela fazia parecer que a
+ *   roleta estava despejando lead neles. Novo = esta atribuição é a PRIMEIRA
+ *   da vida do lead; reaproveitado = ele já tinha dono antes.
+ *
+ *   O "antes" olha a vida INTEIRA do lead, inclusive atribuições a corretor
+ *   inativo ou excluído, que `corretoresDaUnidade` tira do resto da conta.
+ *   Lead que nasceu na mão de alguém que saiu e hoje está com um corretor
+ *   ativo aparece como reaproveitado — que é o certo para quem lê a tela: do
+ *   ponto de vista da equipe visível, aquele lead já tinha rodado.
+ *
  * CAPTAÇÕES = por CABEÇA e pela IDADE DO IMÓVEL. Imóvel captado em dupla conta
  *   1 inteiro para cada um, e só entra se o imóvel também foi CADASTRADO no
  *   período. Sem a segunda regra, remanejamento de carteira vira "captação":
@@ -33,6 +48,7 @@ import { corretoresDaUnidade, unidadeDoCorretor } from "@/lib/unidade";
 type LinhaBanco = {
   id: number; nome: string; dep: number | null; n: string | number;
   proprios?: string | number;
+  novos?: string | number;
 };
 
 export async function GET(req: NextRequest) {
@@ -52,7 +68,16 @@ export async function GET(req: NextRequest) {
                NULLIF(TRIM(u.nome_comercial),''), NULLIF(TRIM(u.nome),''),
                NULLIF(initcap(replace(split_part(COALESCE(u.email,''),'@',1),'.',' ')),''),
                'corretor ' || u.id) AS nome,
-             u.departamento_id AS dep, count(DISTINCT r.lead_id) AS n
+             u.departamento_id AS dep, count(DISTINCT r.lead_id) AS n,
+             -- Lead NOVO: esta atribuição é a primeira da vida dele. O
+             -- desempate por id existe porque há atribuições gravadas no
+             -- mesmo segundo; sem ele as duas seriam "não-primeira" e o lead
+             -- não entraria em nenhuma das colunas.
+             count(DISTINCT r.lead_id) FILTER (WHERE NOT EXISTS (
+               SELECT 1 FROM lead_responsaveis a
+               WHERE a.lead_id = r.lead_id
+                 AND (a.data < r.data OR (a.data = r.data AND a.id < r.id))
+             )) AS novos
       FROM lead_responsaveis r JOIN corretores u ON u.id = r.corretor_id
       WHERE r.data >= ${since} AND r.data <= ${ate} AND r.corretor_id > 0
         AND (${corretorIds}::int[] IS NULL OR r.corretor_id = ANY(${corretorIds}::int[]))
@@ -157,14 +182,24 @@ export async function GET(req: NextRequest) {
      */
     sql`
       SELECT count(*)::int AS n,
-             count(*) FILTER (WHERE corretores > 1)::int AS multi
+             count(*) FILTER (WHERE corretores > 1)::int AS multi,
+             count(*) FILTER (WHERE nasceu_aqui)::int AS novos
       FROM (
-        SELECT r.lead_id, count(DISTINCT r.corretor_id) AS corretores
+        SELECT r.lead_id, count(DISTINCT r.corretor_id) AS corretores,
+               -- O lead NASCEU no período se alguma das atribuições dele aqui
+               -- dentro é a primeira da vida. reaproveitados sai de n-novos,
+               -- então um lead que nasceu e trocou de dono no mesmo período
+               -- conta uma vez só, como novo.
+               bool_or(NOT EXISTS (
+                 SELECT 1 FROM lead_responsaveis a
+                 WHERE a.lead_id = r.lead_id
+                   AND (a.data < r.data OR (a.data = r.data AND a.id < r.id))
+               )) AS nasceu_aqui
         FROM lead_responsaveis r
         WHERE r.data >= ${since} AND r.data <= ${ate} AND r.corretor_id > 0
           AND (${corretorIds}::int[] IS NULL OR r.corretor_id = ANY(${corretorIds}::int[]))
         GROUP BY r.lead_id
-      ) x` as unknown as Promise<{ n: string; multi: string }[]>,
+      ) x` as unknown as Promise<{ n: string; multi: string; novos: string }[]>,
   ]);
 
   /*
@@ -180,6 +215,8 @@ export async function GET(req: NextRequest) {
       total: Number(x.n),
       proprios: x.proprios === undefined ? undefined : Number(x.proprios),
       outros: x.proprios === undefined ? undefined : Number(x.n) - Number(x.proprios),
+      novos: x.novos === undefined ? undefined : Number(x.novos),
+      reaproveitados: x.novos === undefined ? undefined : Number(x.n) - Number(x.novos),
     }));
 
   /** `::date` volta como Date no driver; toISOString() tiraria um dia em UTC-3. */
@@ -217,6 +254,10 @@ export async function GET(req: NextRequest) {
       leads: Number(leadsDistintos[0]?.n ?? 0),
       leads_cabecas: soma(listaLeads),
       leads_multi: Number(leadsDistintos[0]?.multi ?? 0),
+      // Lead que a roleta trouxe x lead que já tinha dono e voltou a circular.
+      leads_novos: Number(leadsDistintos[0]?.novos ?? 0),
+      leads_reaproveitados:
+        Number(leadsDistintos[0]?.n ?? 0) - Number(leadsDistintos[0]?.novos ?? 0),
       // Imóveis distintos. A soma da coluna por corretor é maior porque imóvel
       // em dupla conta 1 para cada um — bom no ranking, errado como total.
       captacoes: Number(imoveisNovos[0]?.n ?? 0),

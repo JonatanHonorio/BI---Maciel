@@ -12,6 +12,7 @@ import { Users, Home, RefreshCw, ArrowLeftRight, AlertTriangle } from "lucide-re
 type Ranking = {
   id: number; nome: string; unidade: string;
   total: number; proprios?: number; outros?: number;
+  novos?: number; reaproveitados?: number;
 };
 interface Movimento {
   id: number; nome: string; unidade: string; dia: string; total: number; proprios: number;
@@ -21,6 +22,7 @@ interface Dados {
   dados_ate: string | null;
   resumo: {
     leads: number; leads_cabecas: number; leads_multi: number;
+    leads_novos: number; leads_reaproveitados: number;
     captacoes: number; captacoes_cabecas: number;
     atualizacoes: number; atualizacoes_cabecas: number; campanha: number; remanejados: number;
     corretores_com_lead: number;
@@ -107,6 +109,8 @@ export default function ProdutividadePage() {
         // Para UM corretor, distinto e soma são a mesma coisa: o lead que
         // passou por ele conta uma vez só na linha dele.
         leads: soma(meusLeads), leads_cabecas: soma(meusLeads), leads_multi: 0,
+        leads_novos: meusLeads.reduce((s, x) => s + (x.novos ?? 0), 0),
+        leads_reaproveitados: meusLeads.reduce((s, x) => s + (x.reaproveitados ?? 0), 0),
         captacoes: soma(minhasCapt), captacoes_cabecas: soma(minhasCapt),
         atualizacoes: soma(minhasAtu), atualizacoes_cabecas: soma(minhasAtu),
         campanha: soma(campanha), remanejados: soma(remanejamentos),
@@ -164,13 +168,19 @@ export default function ProdutividadePage() {
             maior porque lead remanejado conta 1 para cada corretor que o teve —
             certo no ranking, errado como total. O subtítulo abre a diferença
             quando ela existe, que foi o que levou à comparação com o Resumo. */}
+        {/* O subtítulo abre primeiro NOVO x REAPROVEITADO: é a diferença que
+            muda a leitura do ranking (quem está sendo abastecido pela roleta
+            x quem está repescando base parada). A nota das atribuições
+            repetidas vem depois, só quando existe. */}
         <KpiCard label="Leads recebidos" value={fmtNum(vista.resumo.leads)}
           subtitle={
-            vista.nome
-              ? "no período"
-              : vista.resumo.leads_multi > 0
-                ? `${vista.resumo.corretores_com_lead} corretores · ${fmtNum(vista.resumo.leads_cabecas)} atribuições, ${fmtNum(vista.resumo.leads_multi)} leads passaram por mais de um`
-                : `${vista.resumo.corretores_com_lead} corretores`
+            `${fmtNum(vista.resumo.leads_novos)} novos · ${fmtNum(vista.resumo.leads_reaproveitados)} reaproveitados` +
+            (vista.nome
+              ? ""
+              : ` · ${vista.resumo.corretores_com_lead} corretores` +
+                (vista.resumo.leads_multi > 0
+                  ? `, ${fmtNum(vista.resumo.leads_multi)} leads passaram por mais de um`
+                  : ""))
           } icon={Users} />
         {/* Imóveis DISTINTOS. A soma da coluna do ranking é maior porque imóvel
             captado em dupla conta 1 para cada corretor — certo no ranking,
@@ -215,18 +225,25 @@ export default function ProdutividadePage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        {/* Largura inteira: com as colunas Novos e Reaproveitados a tabela não
+            cabe em meia tela — o nome do corretor quebrava em quatro linhas e
+            as duas últimas colunas saíam do card. */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4 lg:col-span-2">
           <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
             <Users size={16} /> Leads recebidos
           </h3>
           <p className="text-xs text-gray-500 mb-3">
             Contados pela <strong>data em que o lead foi atribuído</strong> ao corretor, não pela abertura da ordem.
+            <strong> Novo</strong> é lead que chegou sem dono; <strong>reaproveitado</strong> já tinha sido de outro
+            corretor e voltou a circular — repescar base parada não é a mesma coisa que ser abastecido pela roleta.
           </p>
           <DataTable
             columns={[
               { key: "pos", label: "#", align: "center", format: (v) => String(v) },
               { key: "nome", label: "Corretor" },
               { key: "unidade", label: "Unidade" },
+              { key: "novos", label: "Novos", align: "right", format: (v) => fmtNum(v as number) },
+              { key: "reaproveitados", label: "Reaproveitados", align: "right", format: (v) => fmtNum(v as number) },
               { key: "total", label: "Leads", align: "right", format: (v) => fmtNum(v as number) },
             ]}
             data={vista.leads}
