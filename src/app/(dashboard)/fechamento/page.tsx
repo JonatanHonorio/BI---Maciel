@@ -156,6 +156,9 @@ export default function FechamentoPage() {
   const [ate, setAte] = useState(competenciaAtualISO());
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
+  // Erro que o servidor explicou: tentar de novo nao resolve, entao o
+  // botao "Tentar de novo" sai de cena e sobra so a instrucao.
+  const [erroExplicado, setErroExplicado] = useState(false);
   const [confirmarEnvio, setConfirmarEnvio] = useState(false);
   const [confirmarExclusao, setConfirmarExclusao] = useState<number | null>(null);
   const [linhaAberta, setLinhaAberta] = useState<number | null>(null);
@@ -177,6 +180,7 @@ export default function FechamentoPage() {
     const minhaBusca = ++buscaAtual.current;
     setCarregando(true);
     setErro("");
+    setErroExplicado(false);
     const permissoes = dados?.permissoes;
     const params = new URLSearchParams({ de, ate });
     if (permissoes?.escolheUnidade && unidadeSel) params.set("unidade", unidadeSel);
@@ -184,13 +188,21 @@ export default function FechamentoPage() {
     try {
       const r = await fetch(`/api/fechamento?${params}`);
       if (minhaBusca !== buscaAtual.current) return;
-      if (!r.ok) throw new Error();
+      // A mensagem do servidor manda quando existe: ela sabe POR QUE não deu
+      // (diretora sem "Ver como", unidade fora do escopo), e o texto genérico
+      // só mandava tentar de novo — o que nesses casos nunca resolve.
+      if (!r.ok) {
+        const detalhe = await r.json().catch(() => null);
+        throw new Error(detalhe?.error || "");
+      }
       const j = (await r.json()) as Resposta;
       if (minhaBusca !== buscaAtual.current) return;
       setDados(j);
-    } catch {
+    } catch (e) {
       if (minhaBusca !== buscaAtual.current) return;
-      setErro("Não foi possível carregar o fechamento. Tente de novo.");
+      const msg = e instanceof Error ? e.message : "";
+      setErroExplicado(!!msg);
+      setErro(msg || "Não foi possível carregar o fechamento. Tente de novo.");
     } finally {
       if (minhaBusca === buscaAtual.current) setCarregando(false);
     }
@@ -337,7 +349,9 @@ export default function FechamentoPage() {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700">
         {erro || "Não foi possível carregar o fechamento."}{" "}
-        <button onClick={carregar} className="font-medium underline hover:no-underline">Tentar de novo</button>
+        {!erroExplicado && (
+          <button onClick={carregar} className="font-medium underline hover:no-underline">Tentar de novo</button>
+        )}
       </div>
     );
   }

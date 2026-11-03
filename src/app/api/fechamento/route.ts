@@ -126,6 +126,22 @@ export async function GET(req: NextRequest) {
         session: sessaoInfo, permissoes, unidades: permissoes.unidades, periodo: null, negocios: [],
       });
     }
+    /*
+     * Diretora de vendas: gerente SEM unidade fixa. `unidadesFechamento` dá []
+     * pra ela de propósito (ver a regra de ouro em @/lib/permissoes), então
+     * não há unidade a escolher nem período a abrir — o caminho dela é o
+     * "Ver como" da barra lateral, que a põe na pele do gerente da unidade.
+     *
+     * Sem esta mensagem ela recebia "unidade e tipo são obrigatórios", que a
+     * tela traduzia como "Tente de novo" — e a Daniela tentou várias vezes
+     * (03/11/2026). O texto precisa dizer o que fazer, não que deu errado.
+     */
+    if (session.role === "gerente" && !session.unidade) {
+      return NextResponse.json({
+        error: 'O fechamento é por unidade, e a diretoria não tem um próprio. ' +
+          'Escolha um gerente em "Ver como", na barra lateral, para ver o fechamento daquela unidade.',
+      }, { status: 400 });
+    }
     return NextResponse.json({ error: "unidade e tipo são obrigatórios" }, { status: 400 });
   }
 
