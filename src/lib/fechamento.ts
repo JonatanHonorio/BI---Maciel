@@ -16,12 +16,17 @@ export const UNIDADES_FECHAMENTO = [
  * "Composição" (30/09/2026) é a venda feita em parceria com outra
  * imobiliária: o negócio é da casa, mas a comissão é repartida com quem
  * trouxe a outra ponta.
+ *
+ * "Tráfego Pago" (03/11/2026) entrou no lugar de "V4", a agência que a
+ * Maciel não usa mais. É o nome do CANAL, não do fornecedor — foi a troca
+ * de agência que deixou as vendas de anúncio sem onde ser lançadas, e com
+ * o canal no rótulo a lista sobrevive à próxima troca.
  */
 export const ORIGENS_FECHAMENTO = [
   "Cliente de Carteira", "Plantão de Vendas", "Canal Pro", "Indicação",
   "Composição", "Site",
   "Placa", "OLX", "ZAP", "VivaReal", "ImovelWeb", "Fachada da Imobiliária",
-  "V4", "Facebook", "Instagram", "Panfletos", "Status/Story",
+  "Tráfego Pago", "Facebook", "Instagram", "Panfletos", "Status/Story",
 ] as const;
 
 export const PAGAMENTOS_FECHAMENTO = [

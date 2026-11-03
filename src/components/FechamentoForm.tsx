@@ -118,12 +118,13 @@ function distribuirCaptacao(lista: LinhaRateio[], tipo: Tipo): LinhaRateio[] {
 
 // Gêmea de ORIGENS_FECHAMENTO em @/lib/fechamento (que não pode ser
 // importado aqui: puxa `fs`). "Composição" = venda em parceria com outra
-// imobiliária, pedida pelo Jonatan em 30/09/2026.
+// imobiliária, pedida pelo Jonatan em 30/09/2026. "Tráfego Pago" entrou no
+// lugar de "V4" em 03/11/2026 — ver o comentário de lá.
 const ORIGENS = [
   "Cliente de Carteira", "Plantão de Vendas", "Canal Pro", "Indicação",
   "Composição", "Site",
   "Placa", "OLX", "ZAP", "VivaReal", "ImovelWeb", "Fachada da Imobiliária",
-  "V4", "Facebook", "Instagram", "Panfletos", "Status/Story",
+  "Tráfego Pago", "Facebook", "Instagram", "Panfletos", "Status/Story",
 ];
 const PAGAMENTOS = ["Financiamento", "A Vista", "Fgts", "Consórcio", "Parcelado"];
 const TAXA_COMISSAO_VENDA = 0.06;
@@ -838,6 +839,13 @@ export default function FechamentoForm({
           <select value={origem} onChange={(e) => setOrigem(e.target.value)} className={inputCls}>
             <option value="">Selecione...</option>
             {ORIGENS.map((o) => <option key={o} value={o}>{o}</option>)}
+            {/* Origem que saiu da lista mas ficou gravada em negócio antigo
+                (o caso do "V4", aposentado em 03/11/2026). Sem esta opção o
+                select abre VAZIO ao editar esse negócio, e quem fosse
+                corrigir outro campo apagaria a origem sem perceber. */}
+            {origem && !ORIGENS.includes(origem) && (
+              <option value={origem}>{origem} (origem antiga)</option>
+            )}
           </select>
         </div>
         <div className="col-span-2 md:col-span-2">
