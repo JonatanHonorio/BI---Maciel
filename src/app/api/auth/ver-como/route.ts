@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
   // A lista de papéis aceitos fica no SQL: alvo fora dela nem é encontrado, e
   // por isso não há caminho para assinar um cookie de "ver como admin".
   const [alvo] = await sql`
-    SELECT nome, unidade, unidades, tipo, marketing, role FROM usuarios_bi
+    SELECT nome, unidade, unidades, tipo, marketing, role, ranking, contratos FROM usuarios_bi
     WHERE id = ${userId} AND role IN ('gerente', 'gerente_adm') AND ativo = true`;
   if (!alvo) {
     return NextResponse.json({ error: "gerente não encontrado" }, { status: 404 });
@@ -65,12 +65,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "fora do seu escopo" }, { status: 403 });
   }
 
+  /*
+   * As permissões AVULSAS vão junto (04/11/2026). Sem elas, "ver como" mente:
+   * ao simular a Daniella o quadro de contratos aparecia capado, porque o
+   * cookie levava papel e unidades mas deixava `contratos` para trás — e o
+   * Jonatan viu cards fechados que ela, logada nela mesma, abre.
+   *
+   * `ranking` entra pelo mesmo motivo, antes que a próxima pessoa tropece na
+   * metade que faltou.
+   */
   const simulado = {
     role: alvo.role as "gerente" | "gerente_adm",
     unidade: alvo.unidade as string | null,
     unidades: (alvo.unidades ?? null) as string[] | null,
     tipo: alvo.tipo,
     marketing: alvo.marketing,
+    ranking: alvo.ranking === true,
+    contratos: alvo.contratos === true,
   };
 
   // O destino vai na resposta porque depende do papel simulado: a adm não pode

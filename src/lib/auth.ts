@@ -77,6 +77,13 @@ interface ViewAsPayload {
   role?: Role;
   /** Unidades de quem cobre mais de uma (a adm da Urbanova cobre três). */
   unidades?: string[] | null;
+  /**
+   * Permissões avulsas do simulado (04/11/2026). Opcionais porque cookie
+   * assinado antes disto não as tem — e aí valem `false`, que é o lado
+   * seguro e o comportamento de antes.
+   */
+  ranking?: boolean;
+  contratos?: boolean;
 }
 
 export const SESSION_COOKIE = "bi_session";
@@ -133,6 +140,10 @@ function montarSessao(realToken: string | undefined, viewAsToken: string | undef
     unidades: viewAs.unidades ?? null,
     tipo: viewAs.tipo,
     marketing: viewAs.marketing,
+    // "Ver como" tem que mostrar o que a pessoa vê, permissão avulsa
+    // inclusive — senão o quadro de contratos aparece capado na simulação.
+    ranking: viewAs.ranking ?? false,
+    contratos: viewAs.contratos ?? false,
     verComo: {
       nome: viewAs.nome, unidade: viewAs.unidade, tipo: viewAs.tipo,
       role: viewAs.role ?? "gerente", unidades: viewAs.unidades ?? null,
