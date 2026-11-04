@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
   const sql = getDb();
   const [usuario] = await sql`
-    SELECT id, email, nome, senha_hash, role, unidade, unidades, tipo, marketing, ranking
+    SELECT id, email, nome, senha_hash, role, unidade, unidades, tipo, marketing, ranking, contratos
     FROM usuarios_bi
     WHERE email = ${String(email).toLowerCase().trim()} AND ativo = true
   `;
@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
     tipo: usuario.tipo,
     marketing: usuario.marketing,
     ranking: usuario.ranking === true,
+    contratos: usuario.contratos === true,
   };
 
   const response = NextResponse.json({ ok: true, destino: rotaInicial(session) });

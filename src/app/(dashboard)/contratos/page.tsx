@@ -57,6 +57,10 @@ const CORES_FASE = [
   // As duas da assinatura ficam em tons vizinhos de propósito: são a mesma
   // etapa partida em "falta eu mandar" e "falta o cliente assinar".
   "bg-cyan-100 text-cyan-700", "bg-teal-100 text-teal-700",
+  // "Assinado com pendência" em laranja, vizinho do âmbar da "Pendência dos
+  // docs": as duas são a mesma ideia — falta documento — em momentos
+  // diferentes da esteira. E destoa do verde ao lado, que é o fim de verdade.
+  "bg-orange-100 text-orange-700",
   "bg-emerald-100 text-emerald-700",
   // Cancelado em vermelho, ao lado do verde de finalizado: são os dois fins de
   // linha, e a cor é o que separa um do outro de relance.

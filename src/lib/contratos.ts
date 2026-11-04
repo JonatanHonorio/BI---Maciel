@@ -27,6 +27,21 @@ export const FASES = [
   { id: 5, nome: "Conferência gerentes e diretoria", curto: "Conferência" },
   { id: 6, nome: "Enviar para assinatura", curto: "Enviar" },
   { id: 7, nome: "Aguardando assinatura", curto: "Aguardando" },
+  /*
+   * Assinado, mas ainda falta documento (pedido do Jonatan em 04/11/2026):
+   * contrato que já foi assinado e continua preso a certidão, documentação
+   * ou outra pendência. Antes disso ele ou ficava em "Aguardando assinatura",
+   * dizendo uma coisa que não é mais verdade, ou ia para "Finalizado" e
+   * sumia da fila com trabalho em aberto.
+   *
+   * O id é 10, fora de ordem, porque 8 e 9 já estão gravados em 67 cards: a
+   * POSIÇÃO no array é que manda no quadro e na cor, não o número. Renumerar
+   * exigiria migrar o histórico, como foi preciso em 05/10.
+   *
+   * Fica FORA de fimDaLinha de propósito — é trabalho em aberto, então o
+   * aviso de "parado há N dias" continua valendo.
+   */
+  { id: 10, nome: "Assinado com pendência", curto: "Assinado c/ pend." },
   { id: 8, nome: "Assinado e finalizado", curto: "Finalizado" },
   /*
    * Cancelado é o fim da linha oposto ao 8 (pedido da Tatiane em 16/10/2026).
@@ -45,6 +60,7 @@ export const FASE_CONFERENCIA = 5;
 export const FASE_PENDENCIA = 3;
 export const FASE_FINAL = 8;
 export const FASE_CANCELADO = 9;
+export const FASE_ASSINADO_PENDENTE = 10;
 
 export function nomeFase(id: number): string {
   return FASES.find((f) => f.id === id)?.nome ?? `fase ${id}`;
@@ -55,11 +71,27 @@ export function faseValida(id: unknown): id is number {
 }
 
 /**
- * Quem opera o quadro: a Ana (role `contratos`) e quem tem acesso total.
+ * Quem opera o quadro como o setor de contratos opera.
+ *
+ * Três caminhos: o papel `contratos` (a Ana, a Henriete), o acesso total
+ * (admin) e a permissão AVULSA `contratos` do cadastro — a mesma ideia da
+ * coluna `ranking`, e pelo mesmo motivo: a Daniella é diretora de vendas e
+ * cobre o setor quando alguém falta (04/11/2026), mas trocar o papel dela
+ * para `contratos` a prenderia só no quadro, derrubando fechamento, resumo,
+ * ranking e o "Ver como" que ela usa todo dia.
+ *
+ * A Tatiane não precisa da permissão: ela é admin e já entra por aqui.
+ */
+export function ehSetorContratos(s: Session): boolean {
+  return s.role === "admin" || s.role === "contratos" || s.contratos === true;
+}
+
+/**
+ * Quem opera o quadro: o setor de contratos e quem tem acesso total.
  * Criar card, editar dados e mover entre quaisquer fases.
  */
 export function podeEditarContrato(s: Session): boolean {
-  return s.role === "admin" || s.role === "contratos";
+  return ehSetorContratos(s);
 }
 
 /**
@@ -75,7 +107,7 @@ export function podeEditarContrato(s: Session): boolean {
  * prende continua sendo a vertical, aplicada logo abaixo.
  */
 export function unidadesContrato(s: Session): string[] | null {
-  if (s.role === "admin" || s.role === "contratos") return null;
+  if (ehSetorContratos(s)) return null;
   if (s.unidades?.length) return s.unidades;
   return s.unidade ? [s.unidade] : null;
 }
@@ -87,7 +119,7 @@ export function unidadesContrato(s: Session): string[] | null {
  * das duas verticais da unidade — cai no `null` sem precisar de caso próprio.
  */
 export function tiposContrato(s: Session): Tipo[] | null {
-  if (s.role === "admin" || s.role === "contratos") return null;
+  if (ehSetorContratos(s)) return null;
   return s.tipo ? [s.tipo] : null;
 }
 
@@ -108,7 +140,7 @@ export function podeVerContrato(s: Session, c: { unidade?: string | null; tipo?:
  * A Daniela NÃO entra aqui: ela é `gerente`, e vê o card sem o bloco bancário.
  */
 export function podeVerBanco(s: Session): boolean {
-  return s.role === "admin" || s.role === "contratos";
+  return ehSetorContratos(s);
 }
 
 /**

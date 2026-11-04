@@ -42,6 +42,17 @@ export interface Session {
    */
   ranking?: boolean;
   /**
+   * Permissão avulsa de operar o Kanban de contratos como o setor opera —
+   * criar, editar, mover para qualquer fase e ver o bloco bancário
+   * (04/11/2026). Existe para as diretoras cobrirem o setor quando alguém
+   * falta, sem trocar o papel delas: `role = "contratos"` prende a pessoa em
+   * /contratos e derrubaria fechamento, resumo e ranking.
+   *
+   * Mesma ressalva do `ranking`: opcional, e cookie antigo sem o campo fica
+   * SEM a permissão — que é o lado seguro.
+   */
+  contratos?: boolean;
+  /**
    * Preenchido só quando um admin está "vendo como" um gerente — nesse caso
    * role/unidade/tipo/marketing acima JÁ são os do gerente (é assim que o
    * resto do app, sem saber de nada disso, escopa os dados certo sozinho).
