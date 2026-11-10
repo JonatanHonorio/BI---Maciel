@@ -21,6 +21,11 @@
  * aparece fora do 20/20 (o #276 de 04/2026), mas corrigir mês fechado há meio
  * ano é decisão de quem assina, não do script — ele sai na lista do fim.
  *
+ * 🔒 DECISÃO DO JONATAN (10/11/2026): **o que já foi fechado fica como está,
+ * até a diretoria pedir para mudar.** Vale para os 8 negócios com comissão
+ * paga e para o #276 de 04/2026 (não pago, mas de competência antiga). Não
+ * rodar com --desde para alcançá-los sem a diretoria pedir.
+ *
  * Uso: node scripts/corrige-rateio-2020-girotto.js [--desde AAAA-MM] [--aplicar]
  * Idempotente, e grava backup JSON antes de escrever.
  */
