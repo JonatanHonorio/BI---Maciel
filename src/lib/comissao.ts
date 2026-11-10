@@ -140,9 +140,15 @@ export function percentualSugerido(
 }
 
 /**
- * Captadores com percentual próprio (01/10/2026): Mauro Souza, José Rafael
- * Girotto e Dimas Barbosa captam por **20%** em vez dos 10% de tabela, em
- * venda e em locação.
+ * Percentual próprio (01/10/2026): Mauro Souza, José Rafael Girotto e Dimas
+ * Barbosa trabalham em **20% / 20%** — captação 20% em vez dos 10% de tabela,
+ * e fechamento 20% em vez dos 30%, em venda e em locação.
+ *
+ * ⚠️ **Vale em QUALQUER papel (10/11/2026).** Até então a regra só pegava
+ * quando um deles CAPTAVA; entrando como fechador, o negócio voltava aos
+ * 30/10 de tabela. A Tatiane confirmou que são 20/20 sempre — seis negócios
+ * do Girotto tinham saído errados por isso (os mais recentes: #1048 e #1049
+ * de 11/2026, #968, #985 e #1030 de 10/2026, #919 de 09/2026).
  *
  * Os 10 pontos a mais saem do FECHADOR, não da imobiliária: o bloco
  * Fechamento cai de 30% para 20% e o negócio continua somando 54,5% em venda
