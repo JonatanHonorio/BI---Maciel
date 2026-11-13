@@ -88,7 +88,7 @@
       "para_tipo": "locacao",
       "departamento_errado": "48 = Locação Vista Verde",
       "fonte": "Jonatan em 13/11/2026 — promovido de corretor de locação da Vista Verde para GERENTE de locação da Dutra, no lugar da Jessica Piemontez (afastada). O cadastro do Kurole ainda o põe na Vista Verde.",
-      "pendente": "pedir para trocarem o departamento dele no Kurole para 'Gerente Locação Dutra' (id 80) — aí esta correção expira sozinha"
+      "pendente": "JÁ ARRUMADO NO KUROLE em 13/11/2026 (departamento 'Locação Dutra' e e-mail samuel.felix@imobiliariamaciel.com.br) — falta só o dump chegar, que não é em tempo real. No primeiro import que trouxer isso, esta correção fica inerte sozinha e pode ser apagada daqui."
     }
   },
   "_corretores_excluidos": "NÃO auto-expirável do mesmo jeito que as seções acima (não é unidade errada, é 'esta pessoa não deve contar como corretor em lugar nenhum'). Chave = id do corretor. corretoresDaUnidade() remove esses ids de QUALQUER resultado, inclusive para admin (unidade/tipo nulos).",
