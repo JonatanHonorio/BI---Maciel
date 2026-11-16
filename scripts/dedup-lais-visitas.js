@@ -21,21 +21,28 @@
  *    Jonatan em 16/11/2026, depois de ver os 14 casos: são todos a mesma
  *    pessoa escrita de dois jeitos ("grazi" / "grazi shimizu", "taty" /
  *    "tatiane"), porque o sync grava o nome do Kurole quando acha o lead e o
- *    da Lais quando não acha. Nesses casos **fica o nome mais completo**, que
- *    é o que carrega mais informação. Os descartados vão para o backup.
+ *    da Lais quando não acha. Sobrevive a linha mais completa COM O NOME QUE
+ *    ELA JÁ TEM — ver, no laço, por que mexer no nome é tiro no pé.
  *
  * QUAL LINHA FICA: a mais completa, nesta ordem — tem corretor, tem CPF, tem
  * e-mail, tem lead, e por fim a mais nova (id maior). Os campos que faltarem
  * na vencedora são preenchidos a partir das irmãs antes de elas saírem, para
  * a limpeza nunca perder informação.
  *
- * ⚠️ GRUPO COM CORRETOR DIVERGENTE NÃO É DUPLICATA e sai do plano sozinho:
- * dois corretores no mesmo imóvel e horário é outra coisa, e quem decide é
- * gente, não script.
+ * GRUPO COM CORRETOR DIVERGENTE fica de fora por padrão: juntar muda **a quem
+ * a visita é atribuída**, e isso entra no ranking. Com `--corretor-recente`
+ * ele entra, mantendo a linha mais nova — o Jonatan decidiu assim em
+ * 16/11/2026, porque o sync recalcula o responsável a cada rodada a partir do
+ * `lead_responsaveis`, então a linha mais nova carrega o vínculo mais atual.
+ *
+ * Nesse modo a vencedora NÃO herda corretor, lead nem match_method das irmãs
+ * — herdar justamente o que está em disputa desfaria a escolha. Só campos
+ * neutros (CPF, e-mail, bairro, valor de referência) são completados.
  *
  * Uso:
  *   node scripts/dedup-lais-visitas.js              # só mostra o que sairia
  *   node scripts/dedup-lais-visitas.js --aplicar    # apaga, com backup antes
+ *   node scripts/dedup-lais-visitas.js --corretor-recente [--aplicar]
  *   node scripts/dedup-lais-visitas.js --indice     # mostra o SQL do índice
  */
 require("dotenv").config({ path: ".env.local", quiet: true });
@@ -46,6 +53,13 @@ const departamentos = require("../src/lib/departamentos.json").departamentos;
 
 const APLICAR = process.argv.includes("--aplicar");
 const INDICE = process.argv.includes("--indice");
+const CORRETOR_RECENTE = process.argv.includes("--corretor-recente");
+
+/** Campos que a vencedora pode herdar das irmãs. */
+const NEUTROS = ["cpf", "email", "bairro", "cidade", "localizacao",
+                 "referencia_imovel", "tipo_transacao"];
+/** Só quando não há disputa de atribuição. */
+const DO_VINCULO = ["corretor_id", "corretor_nome", "lead_id"];
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, keepAlive: true });
 const q = async (s, p) => {
   for (let i = 0; i < 8; i++) {
@@ -106,38 +120,51 @@ const unidadeDe = (depId) => {
 
   const planoSaida = [];      // linhas a apagar
   const completar = [];       // {id, campos} da vencedora
-  const divergentes = [];     // grupos que NÃO são duplicata
+  const divergentes = [];     // grupos em disputa, deixados como estão
+  const resolvidos = [];      // grupos em disputa resolvidos pela linha mais nova
   const porCorretor = new Map();
 
   for (const [k, g] of grupos) {
     if (g.length < 2) continue;
 
-    // Mesma pessoa, mesmo imóvel e horário, mas corretores diferentes: ou o
-    // atendimento trocou de mão, ou um dos vínculos está errado. Decide gente.
+    // Mesmo imóvel e horário, corretores diferentes: ou o atendimento trocou
+    // de mão, ou um dos vínculos está errado.
     const corretores = [...new Set(g.map(r => r.corretor_id).filter(Boolean))];
-    if (corretores.length > 1) { divergentes.push({ k, g }); continue; }
+    const disputado = corretores.length > 1;
+    if (disputado && !CORRETOR_RECENTE) { divergentes.push({ k, g }); continue; }
 
-    const ordenado = [...g].sort((a, b) => pontos(b) - pontos(a) || b.id - a.id);
+    // Em disputa vence a linha MAIS NOVA, que carrega o vínculo mais atual —
+    // e não a mais completa, senão uma linha velha e gorda levaria o crédito.
+    const ordenado = disputado
+      ? [...g].sort((a, b) => b.id - a.id)
+      : [...g].sort((a, b) => pontos(b) - pontos(a) || b.id - a.id);
     const fica = ordenado[0];
     const saem = ordenado.slice(1);
+    if (disputado) resolvidos.push({ fica, saem });
 
-    // Nada se perde: o que falta na vencedora vem das irmãs.
+    // Nada se perde: o que falta na vencedora vem das irmãs. Em disputa, só
+    // campos neutros — herdar o corretor desfaria a escolha que acabou de
+    // ser feita.
     const faltando = {};
-    for (const campo of ["cpf", "email", "corretor_id", "corretor_nome", "lead_id",
-                         "bairro", "cidade", "localizacao", "referencia_imovel", "tipo_transacao"]) {
+    for (const campo of disputado ? NEUTROS : [...NEUTROS, ...DO_VINCULO]) {
       if (fica[campo] === null || fica[campo] === undefined || fica[campo] === "") {
         const doado = saem.find(r => r[campo] !== null && r[campo] !== undefined && r[campo] !== "");
         if (doado) faltando[campo] = doado[campo];
       }
     }
-    // Nome: fica o mais completo do grupo. "grazi" perde para "grazi
-    // shimizu"; empate em tamanho mantém o da vencedora.
-    const maisCompleto = [...g].sort((a, b) =>
-      String(b.nome || "").length - String(a.nome || "").length)[0];
-    if (maisCompleto && norm(maisCompleto.nome) !== norm(fica.nome) &&
-        String(maisCompleto.nome || "").length > String(fica.nome || "").length) {
-      faltando.nome = maisCompleto.nome;
-    }
+    /*
+     * O NOME NÃO SE TOCA — e isso custou uma lição em 16/11/2026.
+     *
+     * A primeira versão trocava o nome da vencedora pelo mais completo do
+     * grupo ("MILENE" -> "Milene Dias Alves Miranda"), achando que guardava
+     * mais informação. Mas `nome` é parte da CHAVE do upsert: o sync grava o
+     * nome do cliente como está no Kurole, não achou mais a linha renomeada e
+     * inseriu outra no dia seguinte. Melhorar um campo da chave reabre
+     * exatamente o buraco que esta limpeza veio fechar.
+     *
+     * O nome certo é o que o sync reproduz. Se ele estiver feio, o lugar de
+     * arrumar é o cadastro no Kurole.
+     */
 
     if (Object.keys(faltando).length) completar.push({ id: fica.id, campos: faltando });
 
@@ -188,8 +215,18 @@ const unidadeDe = (depId) => {
     }
   }
 
+  if (resolvidos.length) {
+    console.log(`\n== CORRETOR EM DISPUTA: ${resolvidos.length} grupos, fica a linha mais nova ==`);
+    for (const { fica, saem } of resolvidos) {
+      const perdem = saem.map(r => `#${r.id} ${r.corretor_nome || "?"}`).join(", ");
+      console.log(`  ${String(fica.data_visita.toISOString()).slice(0, 16).replace("T", " ")} · ${fica.id_imovel}`);
+      console.log(`     fica  #${fica.id} ${fica.corretor_nome || "sem corretor"}`);
+      console.log(`     saem  ${perdem}`);
+    }
+  }
+
   if (divergentes.length) {
-    console.log(`\n⚠️ NÃO SÃO DUPLICATA (corretores diferentes no mesmo imóvel/horário) — ficam como estão:`);
+    console.log(`\n⚠️ CORRETORES DIFERENTES no mesmo imóvel/horário — ficam como estão (use --corretor-recente):`);
     for (const { k, g } of divergentes) {
       const [dt, im] = k.split("|");
       console.log(`  ${dt.slice(0, 16).replace("T", " ")} · ${im} · ${g.map(r => `#${r.id} ${r.corretor_nome || "?"}`).join(" | ")}`);

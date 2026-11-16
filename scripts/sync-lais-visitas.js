@@ -161,11 +161,12 @@ const SQL = `
           bairro, cidade, localizacao, id_imovel, referencia_imovel, corretor_nome, corretor_id, match_method, lead_id,
           cpf)
        VALUES ($1,$2,$3,NULL,NULL,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-       -- A chave casa a expressão do índice `lais_visitas_visita_key`. Era
+       -- A chave casa a expressão do índice lais_visitas_visita_key. Era
        -- (nome, email, data_visita) cru, e no Postgres dois NULL nunca
        -- colidem: toda visita sem e-mail escapava do conflito e era
        -- inserida de novo a cada rotina diária. Deu 122 linhas repetidas
        -- até 16/11/2026, uma delas com 11 cópias. O COALESCE tapa isso.
+       -- (Sem crase neste comentário: ele vive dentro de uma template string.)
        ON CONFLICT (COALESCE(nome,''), COALESCE(email,''), data_visita) DO UPDATE SET
          corretor_nome = EXCLUDED.corretor_nome, corretor_id = EXCLUDED.corretor_id,
          match_method = EXCLUDED.match_method, lead_id = EXCLUDED.lead_id,
