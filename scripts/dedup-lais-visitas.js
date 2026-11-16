@@ -17,10 +17,12 @@
  *    agrupou só por data+imóvel e as ~700 linhas antigas com `id_imovel`
  *    vazio caíram todas juntas por coincidência de horário — gente diferente
  *    virando "duplicata". Linha sem imóvel fica fora do plano, sempre.
- *  - NOMES DIFERENTES no mesmo imóvel e horário não se juntam. Pode ser a
- *    mesma visita (o sync grava o nome do Kurole quando acha o lead e o da
- *    Lais quando não acha) ou duas pessoas de verdade — e o script não tem
- *    como saber. Esses grupos saem numa lista à parte, para olho humano.
+ *  - NOMES DIFERENTES no mesmo imóvel e horário SE JUNTAM, por decisão do
+ *    Jonatan em 16/11/2026, depois de ver os 14 casos: são todos a mesma
+ *    pessoa escrita de dois jeitos ("grazi" / "grazi shimizu", "taty" /
+ *    "tatiane"), porque o sync grava o nome do Kurole quando acha o lead e o
+ *    da Lais quando não acha. Nesses casos **fica o nome mais completo**, que
+ *    é o que carrega mais informação. Os descartados vão para o backup.
  *
  * QUAL LINHA FICA: a mais completa, nesta ordem — tem corretor, tem CPF, tem
  * e-mail, tem lead, e por fim a mais nova (id maior). Os campos que faltarem
@@ -53,12 +55,16 @@ const q = async (s, p) => {
 };
 
 const SQL_INDICE = `
--- Depois de limpar, troque o índice. COALESCE(email,'') faz a linha sem
--- e-mail colidir consigo mesma, que é o que o NULL impedia.
-DROP INDEX IF EXISTS lais_visitas_nome_email_data_visita_key;
+-- ✅ JÁ APLICADO EM 16/11/2026, junto com a limpeza das 122 linhas. Fica aqui
+-- como registro: é o que impede a duplicação de voltar.
+--
+-- O COALESCE faz a linha sem e-mail colidir consigo mesma, que é o que o NULL
+-- impedia. Note que o DROP é da CONSTRAINT, não do índice: o índice antigo
+-- pertencia a uma constraint UNIQUE e o Postgres recusa soltá-lo direto.
 CREATE UNIQUE INDEX lais_visitas_visita_key
-  ON lais_visitas (nome, COALESCE(email, ''), data_visita);
--- e no sync: ON CONFLICT (nome, COALESCE(email,''), data_visita)`;
+  ON lais_visitas (COALESCE(nome,''), COALESCE(email,''), data_visita);
+ALTER TABLE lais_visitas DROP CONSTRAINT lais_visitas_nome_email_data_visita_key;
+-- e no sync: ON CONFLICT (COALESCE(nome,''), COALESCE(email,''), data_visita)`;
 
 const unidadeDe = (depId) => {
   const nome = departamentos[String(depId)];
@@ -86,17 +92,13 @@ const unidadeDe = (depId) => {
   const semImovel = rows.filter(r => !r.id_imovel);
   const comImovel = rows.filter(r => r.id_imovel);
 
-  // Grupo "forte": mesma pessoa, mesmo imóvel, mesmo horário.
+  // Uma visita = um imóvel num horário. O nome não entra na chave: ver o
+  // cabeçalho sobre "grazi" / "grazi shimizu".
   const grupos = new Map();
-  // Grupo "fraco": mesmo imóvel e horário, nomes diferentes — só para listar.
-  const porSlot = new Map();
   for (const r of comImovel) {
     const slot = `${r.data_visita.toISOString()}|${r.id_imovel}`;
-    const k = `${slot}|${norm(r.nome)}`;
-    if (!grupos.has(k)) grupos.set(k, []);
-    grupos.get(k).push(r);
-    if (!porSlot.has(slot)) porSlot.set(slot, new Set());
-    porSlot.get(slot).add(norm(r.nome));
+    if (!grupos.has(slot)) grupos.set(slot, []);
+    grupos.get(slot).push(r);
   }
 
   const pontos = (r) =>
@@ -128,6 +130,15 @@ const unidadeDe = (depId) => {
         if (doado) faltando[campo] = doado[campo];
       }
     }
+    // Nome: fica o mais completo do grupo. "grazi" perde para "grazi
+    // shimizu"; empate em tamanho mantém o da vencedora.
+    const maisCompleto = [...g].sort((a, b) =>
+      String(b.nome || "").length - String(a.nome || "").length)[0];
+    if (maisCompleto && norm(maisCompleto.nome) !== norm(fica.nome) &&
+        String(maisCompleto.nome || "").length > String(fica.nome || "").length) {
+      faltando.nome = maisCompleto.nome;
+    }
+
     if (Object.keys(faltando).length) completar.push({ id: fica.id, campos: faltando });
 
     for (const r of saem) planoSaida.push({ ...r, ficou: fica.id });
@@ -167,18 +178,14 @@ const unidadeDe = (depId) => {
     console.log(`  ${g.length}x · ${dt.slice(0, 16).replace("T", " ")} · ${im} · ${g[0].nome} · ${g[0].corretor_nome || "sem corretor"}`);
   }
 
-  // Mesmo imóvel e horário, nomes diferentes: não mexo, mas o Jonatan precisa
-  // ver — parte disso pode ser a mesma visita com o nome gravado de dois
-  // jeitos, e aí sobra duplicata depois da limpeza.
-  const nomesDiferentes = [...porSlot.entries()].filter(([, s]) => s.size > 1);
-  if (nomesDiferentes.length) {
-    const extra = nomesDiferentes.reduce((s, [, n]) => s + n.size - 1, 0);
-    console.log(`\n== MESMO IMÓVEL E HORÁRIO, NOMES DIFERENTES: ${nomesDiferentes.length} (NÃO entram no plano; juntá-los tiraria +${extra} linhas) ==`);
-    for (const [slot, nomes] of nomesDiferentes.slice(0, 20)) {
-      const [dt, im] = slot.split("|");
-      console.log(`  ${dt.slice(0, 16).replace("T", " ")} · ${im} · ${[...nomes].join(" / ")}`);
+  // Onde o grupo tinha nomes diferentes, mostra qual nome sobrevive.
+  const renomeia = completar.filter(c => c.campos.nome);
+  if (renomeia.length) {
+    console.log(`\n== GRUPOS COM NOME DIFERENTE: ${renomeia.length} (fica o mais completo) ==`);
+    for (const c of renomeia) {
+      const antes = rows.find(r => r.id === c.id);
+      console.log(`  #${c.id} "${antes ? antes.nome : "?"}" -> "${c.campos.nome}"`);
     }
-    if (nomesDiferentes.length > 20) console.log(`  ... e mais ${nomesDiferentes.length - 20}`);
   }
 
   if (divergentes.length) {
