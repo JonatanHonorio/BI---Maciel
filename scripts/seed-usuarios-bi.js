@@ -43,7 +43,11 @@ const usuarios = [
   { email: "patricia.generoso@imobiliariamaciel.com.br", nome: "Patricia Generoso", unidade: "Vista Verde", ...GERENTE_VENDA },
   { email: "bruno@imobiliariamaciel.com.br", nome: "Bruno", unidade: "Urbanova", ...GERENTE_VENDA },
   { email: "eder.ribeiro@imobiliariamaciel.com.br", nome: "Eder Ribeiro", unidade: "Satélite", ...GERENTE_VENDA },
-  { email: "daniel.santos@imobiliariamaciel.com.br", nome: "Daniel Santos", unidade: "Dutra", ...GERENTE_VENDA },
+  // Dutra: o Daniel Santos voltou a ser corretor de vendas em 16/11/2026 e o
+  // Anderson (Emanoel Anderson Duarte Montenegro, #1100 no Kurole) assumiu.
+  // Cuidado: há outro Anderson ativo em Vendas Dutra (Anderson Campos, #314)
+  // — o gerente é o do e-mail manoel.guttierrez@.
+  { email: "manoel.guttierrez@imobiliariamaciel.com.br", nome: "Anderson Montenegro", unidade: "Dutra", ...GERENTE_VENDA },
   { email: "lilian.santos@imobiliariamaciel.com.br", nome: "Lilian Santos", unidade: "Esplanada", ...GERENTE_VENDA },
   { email: "andre.rodrigues@imobiliariamaciel.com.br", nome: "Andre Rodrigues", unidade: "Aquarius", ...GERENTE_VENDA },
 
@@ -51,7 +55,8 @@ const usuarios = [
   { email: "gisela@imobiliariamaciel.com.br", nome: "Gisela", unidade: "Vista Verde", ...GERENTE_LOCACAO },
   { email: "cecilia.paula@imobiliariamaciel.com.br", nome: "Cecilia Paula", unidade: "Urbanova", ...GERENTE_LOCACAO },
   { email: "joao.marcondes@imobiliariamaciel.com.br", nome: "Joao Marcondes", unidade: "Satélite", ...GERENTE_LOCACAO },
-  { email: "jessica.piemontez@imobiliariamaciel.com.br", nome: "Jessica Piemontez", unidade: "Dutra", ...GERENTE_LOCACAO },
+  // Dutra: a Jessica Piemontez foi afastada em 13/11/2026 e o Samuel assumiu.
+  { email: "samuel.felix@imobiliariamaciel.com.br", nome: "Samuel Felix", unidade: "Dutra", ...GERENTE_LOCACAO },
   { email: "wellington.oliveira@imobiliariamaciel.com.br", nome: "Wellington Oliveira", unidade: "Esplanada", ...GERENTE_LOCACAO },
   { email: "fabio.gomes@imobiliariamaciel.com.br", nome: "Fabio Gomes", unidade: "Aquarius", ...GERENTE_LOCACAO },
 
