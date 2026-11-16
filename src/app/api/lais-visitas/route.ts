@@ -31,8 +31,12 @@ export async function GET(req: NextRequest) {
   // Só esta tabela (não os KPIs/gráficos) estende 1 dia além do `until` —
   // senão uma visita já agendada pra amanhã (D+1) some do detalhamento até
   // o filtro de data ser virado manualmente ou o dia virar de verdade.
+  // O CPF vem do próprio lead, que o digita ao agendar pela Lais. Sai só
+  // nesta consulta (a do detalhamento), nunca nos agregados, e carrega o
+  // mesmo escopo das outras: o gerente só recebe as visitas dos corretores
+  // da unidade e vertical dele. Quem não vê a visita não vê o CPF.
   const visitas = await sql`
-    SELECT lv.id, lv.nome, lv.email, lv.tipo_transacao, lv.origem, lv.data_visita,
+    SELECT lv.id, lv.nome, lv.email, lv.cpf, lv.tipo_transacao, lv.origem, lv.data_visita,
       lv.localizacao, lv.corretor_nome,
       COALESCE(NULLIF(lv.referencia_imovel, '0'), lv.id_imovel) as referencia_imovel,
       lv.match_method,

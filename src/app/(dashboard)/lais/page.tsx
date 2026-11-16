@@ -15,10 +15,20 @@ import {
   Search,
 } from "lucide-react";
 
+const digitos = (s: string) => (s || "").replace(/\D/g, "");
+
+/** "40878885846" -> "408.788.858-46". O que não tiver 11 dígitos sai como veio. */
+function fmtCpf(cpf: string | null): string {
+  const d = digitos(cpf || "");
+  if (d.length !== 11) return cpf || "";
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
 interface Visita {
   id: number;
   nome: string;
   email: string;
+  cpf: string | null;
   tipo_transacao: string;
   origem: string;
   data_visita: string;
@@ -115,7 +125,10 @@ export default function LaisPage() {
         (v.nome || "").toLowerCase().includes(s) ||
         (v.corretor_nome || "").toLowerCase().includes(s) ||
         (v.localizacao || "").toLowerCase().includes(s) ||
-        (v.referencia_imovel || "").toLowerCase().includes(s)
+        (v.referencia_imovel || "").toLowerCase().includes(s) ||
+        // CPF casa digitado com ou sem pontuação, dos dois lados. Só conta se
+        // a busca tiver algum dígito — senão "" casaria com todo mundo.
+        (digitos(s) !== "" && (v.cpf || "").includes(digitos(s)))
       );
     }
     return true;
@@ -254,7 +267,7 @@ export default function LaisPage() {
               />
               <input
                 type="text"
-                placeholder="Buscar lead, corretor..."
+                placeholder="Buscar lead, CPF, corretor..."
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -284,6 +297,9 @@ export default function LaisPage() {
                 </th>
                 <th className="text-left px-2 text-xs font-semibold text-gray-500 uppercase">
                   Localizacao
+                </th>
+                <th className="text-left px-2 text-xs font-semibold text-gray-500 uppercase">
+                  CPF
                 </th>
                 <th className="text-right px-2 text-xs font-semibold text-gray-500 uppercase">
                   Valor
@@ -340,6 +356,15 @@ export default function LaisPage() {
                     >
                       {v.localizacao || "-"}
                     </span>
+                  </td>
+                  <td className="px-2 whitespace-nowrap">
+                    {v.cpf ? (
+                      <span className="font-mono text-xs text-gray-700">
+                        {fmtCpf(v.cpf)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-300">-</span>
+                    )}
                   </td>
                   <td className="text-right px-2 text-gray-700 whitespace-nowrap">
                     {v.valor ? fmtMoney(v.valor) : <span className="text-gray-300">-</span>}

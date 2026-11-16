@@ -13,7 +13,9 @@
  *
  * Uso: node scripts/sync-lais-visitas.js <coleta.json>
  *
- * <coleta.json>: array de { n, f, d, r, t, v } — ver coletar_lais.js.
+ * <coleta.json>: array de { n, f, d, r, t, v, c } — ver coletar_lais.js.
+ * `c` é o CPF que o lead digita ao agendar (só dígitos); coletas antigas
+ * não têm o campo e gravam NULL, sem quebrar nada.
  */
 require("dotenv").config({ path: ".env.local" });
 const fs = require("fs");
@@ -142,6 +144,10 @@ const SQL = `
       corretor_id: corretorId,
       match_method: matchMethod,
       lead_id: leadId,
+      // CPF do lead, informado por ele no agendamento da Lais. Só dígitos,
+      // e só se tiver 11 — texto meia-boca aqui vira sujeira na tela.
+      cpf: (String(v.c || "").replace(/\D/g, "").length === 11
+        ? String(v.c).replace(/\D/g, "") : null),
     });
   }
 
@@ -152,17 +158,22 @@ const SQL = `
     await pool.query(
       `INSERT INTO lais_visitas
          (nome, email, tipo_transacao, origem, status, data_criacao, data_visita, qtd_visitas,
-          bairro, cidade, localizacao, id_imovel, referencia_imovel, corretor_nome, corretor_id, match_method, lead_id)
-       VALUES ($1,$2,$3,NULL,NULL,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+          bairro, cidade, localizacao, id_imovel, referencia_imovel, corretor_nome, corretor_id, match_method, lead_id,
+          cpf)
+       VALUES ($1,$2,$3,NULL,NULL,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        ON CONFLICT (nome, email, data_visita) DO UPDATE SET
          corretor_nome = EXCLUDED.corretor_nome, corretor_id = EXCLUDED.corretor_id,
          match_method = EXCLUDED.match_method, lead_id = EXCLUDED.lead_id,
          bairro = EXCLUDED.bairro, cidade = EXCLUDED.cidade, localizacao = EXCLUDED.localizacao,
          referencia_imovel = EXCLUDED.referencia_imovel, tipo_transacao = EXCLUDED.tipo_transacao,
-         id_imovel = EXCLUDED.id_imovel`,
+         id_imovel = EXCLUDED.id_imovel,
+         -- COALESCE e não EXCLUDED puro: reprocessar uma coleta antiga (sem
+         -- o campo) não pode apagar o CPF que já está gravado. Coluna fora
+         -- do DO UPDATE SET nunca é reescrita — ver import_coluna_congelada.
+         cpf = COALESCE(EXCLUDED.cpf, lais_visitas.cpf)`,
       [l.nome, l.email, l.tipo_transacao, l.data_criacao, l.data_visita, l.qtd_visitas,
        l.bairro, l.cidade, l.localizacao, l.id_imovel, l.referencia_imovel,
-       l.corretor_nome, l.corretor_id, l.match_method, l.lead_id]
+       l.corretor_nome, l.corretor_id, l.match_method, l.lead_id, l.cpf]
     );
     gravados++;
   }
