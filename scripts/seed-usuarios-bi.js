@@ -43,11 +43,12 @@ const usuarios = [
   { email: "patricia.generoso@imobiliariamaciel.com.br", nome: "Patricia Generoso", unidade: "Vista Verde", ...GERENTE_VENDA },
   { email: "bruno@imobiliariamaciel.com.br", nome: "Bruno", unidade: "Urbanova", ...GERENTE_VENDA },
   { email: "eder.ribeiro@imobiliariamaciel.com.br", nome: "Eder Ribeiro", unidade: "Satélite", ...GERENTE_VENDA },
-  // Dutra: o Daniel Santos voltou a ser corretor de vendas em 16/11/2026 e o
-  // Anderson (Emanoel Anderson Duarte Montenegro, #1100 no Kurole) assumiu.
-  // Cuidado: há outro Anderson ativo em Vendas Dutra (Anderson Campos, #314)
-  // — o gerente é o do e-mail manoel.guttierrez@.
-  { email: "manoel.guttierrez@imobiliariamaciel.com.br", nome: "Anderson Montenegro", unidade: "Dutra", ...GERENTE_VENDA },
+  // Dutra: o Anderson (Emanoel Anderson Duarte Montenegro, #1100 no Kurole,
+  // e-mail manoel.guttierrez@) assume a gerência em 01/12/2026 e o Daniel
+  // Santos volta a ser corretor de vendas. Até lá o gerente é o Daniel —
+  // trocar aqui no dia, junto com scripts/troca-gerencia-vendas-dutra.js.
+  // Cuidado: há outro Anderson ativo em Vendas Dutra (Anderson Campos, #314).
+  { email: "daniel.santos@imobiliariamaciel.com.br", nome: "Daniel Santos", unidade: "Dutra", ...GERENTE_VENDA },
   { email: "lilian.santos@imobiliariamaciel.com.br", nome: "Lilian Santos", unidade: "Esplanada", ...GERENTE_VENDA },
   { email: "andre.rodrigues@imobiliariamaciel.com.br", nome: "Andre Rodrigues", unidade: "Aquarius", ...GERENTE_VENDA },
 
