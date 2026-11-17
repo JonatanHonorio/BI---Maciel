@@ -140,15 +140,24 @@ export function percentualSugerido(
 }
 
 /**
- * Percentual próprio (01/10/2026): Mauro Souza, José Rafael Girotto e Dimas
- * Barbosa trabalham em **20% / 20%** — captação 20% em vez dos 10% de tabela,
- * e fechamento 20% em vez dos 30%, em venda e em locação.
+ * Percentual próprio (01/10/2026): **Mauro Souza (209) e Dimas Barbosa (174)**
+ * trabalham em **20% / 20%** — captação 20% em vez dos 10% de tabela, e
+ * fechamento 20% em vez dos 30%, em venda e em locação.
+ *
+ * ⚠️ **O GIROTTO (207) SAIU DA LISTA EM 17/11/2026.** A Tatiane comunicou aos
+ * gerentes que ele voltou ao **30/10** de tabela "para os fechamentos a partir
+ * de hoje". O corte é pela data do LANÇAMENTO, não pela competência: negócio
+ * lançado de hoje em diante sai 30/10, mesmo que seja de um mês anterior.
+ *
+ * **O que ele já tem lançado não se mexe** — decisão do Jonatan no mesmo dia.
+ * São 47 negócios na história, três deles em 11/2026 (#1084, #1085 e #1088),
+ * cuja competência ainda está ABERTA: se alguém reabrir e salvar um desses, o
+ * formulário recalcula com a regra nova e o 20/20 vira 30/10 sem ninguém
+ * pedir. Mexeu em negócio antigo do Girotto, confira o rateio antes de salvar.
  *
  * ⚠️ **Vale em QUALQUER papel (10/11/2026).** Até então a regra só pegava
  * quando um deles CAPTAVA; entrando como fechador, o negócio voltava aos
- * 30/10 de tabela. A Tatiane confirmou que são 20/20 sempre — seis negócios
- * do Girotto tinham saído errados por isso (os mais recentes: #1048 e #1049
- * de 11/2026, #968, #985 e #1030 de 10/2026, #919 de 09/2026).
+ * 30/10 de tabela. A Tatiane confirmou que são 20/20 sempre.
  *
  * Os 10 pontos a mais saem do FECHADOR, não da imobiliária: o bloco
  * Fechamento cai de 30% para 20% e o negócio continua somando 54,5% em venda
@@ -160,7 +169,7 @@ export function percentualSugerido(
  * reparte os 20% entre os captadores, que é o único resultado que fecha a
  * conta, e os negócios já lançados assim ficaram sem correção de propósito.
  */
-export const CAPTADORES_20 = [209, 207, 174] as const;
+export const CAPTADORES_20 = [209, 174] as const; // Girotto (207) saiu em 17/11/2026
 
 export function captacaoDiferenciada(ids: (number | string | null | undefined)[]): boolean {
   return ids.some((id) => (CAPTADORES_20 as readonly number[]).includes(Number(id)));

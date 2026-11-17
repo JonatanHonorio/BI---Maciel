@@ -36,8 +36,13 @@ const { Pool } = require("pg");
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, keepAlive: true });
 const APLICAR = process.argv.includes("--aplicar");
 const CORTE = "2026-10-01";
-/** Mauro Souza, José Rafael Girotto, Dimas Barbosa — ver CAPTADORES_20 em @/lib/comissao. */
-const CAPTADORES_20 = [209, 207, 174];
+/**
+ * Mauro Souza e Dimas Barbosa — ver CAPTADORES_20 em @/lib/comissao, que é a
+ * fonte da regra. O Girotto (207) SAIU em 17/11/2026 e voltou ao 30/10; não
+ * recolocar aqui sem a diretoria pedir, senão este script passa a "completar"
+ * para 20% negócios que agora são de tabela.
+ */
+const CAPTADORES_20 = [209, 174];
 
 const q = async (sql, params) => {
   for (let i = 0; i < 5; i++) {

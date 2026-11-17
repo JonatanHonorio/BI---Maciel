@@ -26,6 +26,14 @@
  * paga e para o #276 de 04/2026 (não pago, mas de competência antiga). Não
  * rodar com --desde para alcançá-los sem a diretoria pedir.
  *
+ * ☠️ **APOSENTADO EM 17/11/2026 — NÃO RODAR.** A Tatiane comunicou que o
+ * Girotto voltou ao 30/10 a partir dessa data, e o Jonatan decidiu que o que
+ * já foi lançado fica como está. Este script faz exatamente o contrário:
+ * força 20/20 nos negócios dele. Rodá-lo hoje desfaria as duas decisões de
+ * uma vez. Mantido só como registro do que foi feito em 10/11/2026.
+ * Mauro (209) e Dimas (174) seguem 20/20 — para eles a regra viva é a
+ * CAPTADORES_20 de @/lib/comissao, aplicada no formulário.
+ *
  * Uso: node scripts/corrige-rateio-2020-girotto.js [--desde AAAA-MM] [--aplicar]
  * Idempotente, e grava backup JSON antes de escrever.
  */
@@ -36,6 +44,16 @@ const { Pool } = require("pg");
 
 const ESPECIAIS = [209, 207, 174];
 const APLICAR = process.argv.includes("--aplicar");
+
+// Ver o cabeçalho: a regra do Girotto mudou em 17/11/2026 e este script
+// converte para 20/20. Só roda se quem chamou souber disso.
+if (!process.argv.includes("--sei-que-foi-aposentado")) {
+  console.error(
+    "APOSENTADO em 17/11/2026: o Girotto voltou ao 30/10 e os negócios dele " +
+    "ficam como estão. Este script força 20/20 e desfaria as duas decisões. " +
+    "Se a diretoria pediu de novo, repita com --sei-que-foi-aposentado.");
+  process.exit(1);
+}
 /*
  * Corte por competência. A reclamação da Tatiane é sobre os fechamentos
  * RECENTES; negócio não pago de meses antigos (o #276, de 04/2026) também sai
