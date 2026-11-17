@@ -150,10 +150,15 @@ export function percentualSugerido(
  * lançado de hoje em diante sai 30/10, mesmo que seja de um mês anterior.
  *
  * **O que ele já tem lançado não se mexe** — decisão do Jonatan no mesmo dia.
- * São 47 negócios na história, três deles em 11/2026 (#1084, #1085 e #1088),
- * cuja competência ainda está ABERTA: se alguém reabrir e salvar um desses, o
- * formulário recalcula com a regra nova e o 20/20 vira 30/10 sem ninguém
- * pedir. Mexeu em negócio antigo do Girotto, confira o rateio antes de salvar.
+ * São 47 negócios na história, três deles em 11/2026 (#1084, #1085 e #1088,
+ * locação do Satélite) em competência ainda ABERTA, lançados com 20/20 e que
+ * **ficam assim**.
+ *
+ * O PROCEDIMENTO, se um deles precisar mudar (Jonatan, 17/11/2026): a gerente
+ * **exclui e lança de novo**, e aí vale a regra nova. Por isso o formulário
+ * recalcular para 30/10 ao salvar um negócio antigo **não é defeito** — é o
+ * resultado esperado de relançar. Não criar trava nem exceção por negócio: a
+ * data de corte é a do lançamento, e relançar é um lançamento novo.
  *
  * ⚠️ **Vale em QUALQUER papel (10/11/2026).** Até então a regra só pegava
  * quando um deles CAPTAVA; entrando como fechador, o negócio voltava aos
