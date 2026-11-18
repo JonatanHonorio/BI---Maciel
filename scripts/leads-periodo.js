@@ -32,6 +32,37 @@ const MAPA = JSON.parse(
   fs.readFileSync(path.join(__dirname, "../src/lib/departamentos.json"), "utf-8")
 ).departamentos;
 
+/**
+ * ⚠️ O DEPARTAMENTO DO CORRETOR É O DE HOJE, NÃO O DA ÉPOCA DO LEAD.
+ *
+ * `corretores.departamento_id` vem do dump do Kurole e guarda só a lotação
+ * atual — não existe histórico. Quem muda de unidade leva TODO o histórico de
+ * leads junto, retroativamente, e a unidade antiga encolhe de um mês para o
+ * outro sem nada ter acontecido nela.
+ *
+ * Não é hipótese: o Samuel Felix (#927) foi corretor de locação do Vista
+ * Verde até 15/11/2026 e assumiu a gerência de locação da Dutra em 16/11.
+ * Na primeira contagem (17/11/2026) os **1.415 leads** que ele atendeu no
+ * Vista Verde apareceram como leads da Dutra — 43% da locação da unidade —,
+ * o que fez a Dutra passar a Esplanada numa comparação que não existia.
+ *
+ * Cada linha: até `ate` (exclusivo, data da posse no lugar novo), os leads
+ * desse corretor contam no departamento `departamento`. Acrescentar uma
+ * entrada aqui a cada troca de unidade; sem isso a série histórica se
+ * reescreve sozinha.
+ */
+const MUDOU_DE_UNIDADE = [
+  { corretor: 927, quem: "Samuel Felix de Paula", ate: "2026-11-16", departamento: 48 }, // Locação Vista Verde -> Gerente Locação Dutra
+];
+
+/** Departamento do corretor NA DATA do lead, aplicando as trocas conhecidas. */
+function departamentoNaEpoca(corretorId, dataInicio, depAtual) {
+  for (const m of MUDOU_DE_UNIDADE) {
+    if (m.corretor === corretorId && dataInicio && dataInicio < m.ate) return m.departamento;
+  }
+  return depAtual;
+}
+
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, keepAlive: true });
 const q = async (s, p) => {
   for (let i = 0; i < 8; i++) {
@@ -51,7 +82,11 @@ const num = (n) => Number(n).toLocaleString("pt-BR");
 
 (async () => {
   const { rows } = await q(`
-    SELECT l.id, l.locacao_venda,
+    SELECT l.id, l.locacao_venda, to_char(l.data_inicio,'YYYY-MM-DD') AS dia,
+      (SELECT r.corretor_id
+         FROM lead_responsaveis r JOIN corretores u ON u.id = r.corretor_id
+        WHERE r.lead_id = l.id
+        ORDER BY r.data ASC NULLS LAST, r.id ASC LIMIT 1) AS corretor,
       (SELECT u.departamento_id
          FROM lead_responsaveis r JOIN corretores u ON u.id = r.corretor_id
         WHERE r.lead_id = l.id
@@ -71,7 +106,8 @@ const num = (n) => Number(n).toLocaleString("pt-BR");
 
   for (const x of rows) {
     if (!x.dep) { semResponsavel++; continue; }
-    const nomeDep = MAPA[String(x.dep)];
+    const dep = departamentoNaEpoca(Number(x.corretor), x.dia, x.dep);
+    const nomeDep = MAPA[String(dep)];
     const sep = separa(nomeDep);
     if (!sep) {
       const k = nomeDep || `departamento ${x.dep}`;
